@@ -62,6 +62,52 @@ const Widget = () => {
   const backgroundImageUrl = homeStore((s) => s.backgroundImageUrl)
   const chatLog = homeStore((s) => s.chatLog)
 
+  // Detect if personality analysis is completed for split layout
+  const [isPersonalityCompleted, setIsPersonalityCompleted] = useState(false)
+
+  // Check for personality completion status
+  useEffect(() => {
+    const checkCompletionStatus = () => {
+      try {
+        const completed = localStorage.getItem('personality_analysis_completed') === 'true'
+        const hasResult = localStorage.getItem('last_matchmaking_result') !== null
+        const shouldShow = completed && hasResult
+        console.log('🎨 Widget - Personality completion check:', { completed, hasResult, shouldShow })
+        setIsPersonalityCompleted(shouldShow)
+      } catch (error) {
+        console.log('🎨 Widget - Error checking personality completion:', error)
+        setIsPersonalityCompleted(false)
+      }
+    }
+
+    // Initial check
+    checkCompletionStatus()
+
+    // Listen for localStorage changes
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'personality_analysis_completed' || e.key === 'last_matchmaking_result') {
+        console.log('🎨 Widget - Storage changed:', e.key)
+        checkCompletionStatus()
+      }
+    }
+    
+    // Listen for chat log changes (in case completion happens)
+    const unsubscribe = homeStore.subscribe((state, prevState) => {
+      if (state.chatLog !== prevState.chatLog) {
+        console.log('🎨 Widget - Chat log changed, checking completion status...')
+        // Small delay to allow localStorage to be updated
+        setTimeout(checkCompletionStatus, 100)
+      }
+    })
+
+    window.addEventListener('storage', handleStorageChange)
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange)
+      unsubscribe()
+    }
+  }, [])
+
   // Parse URL parameters and PostMessage config
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search)
@@ -205,6 +251,9 @@ const Widget = () => {
         }
       : {}
 
+  // Debug logging
+  console.log('🎨 Widget - Rendering main content with right constraint:', isPersonalityCompleted ? '320px' : '0')
+
   return (
     <div
       className={`relative overflow-hidden ${getThemeClasses()}`}
@@ -213,95 +262,103 @@ const Widget = () => {
       {/* Matchmaking Progress Bar */}
       <MatchmakingProgress />
       
-      {/* Character Display */}
-      {config.showCharacter && (
-        <div
-          className="absolute inset-0 pointer-events-none z-0"
-          style={{ paddingBottom: config.showInput ? '80px' : '0' }}
-        >
-          {modelType === 'vrm' ? <VrmViewer /> : <Live2DViewer />}
-        </div>
-      )}
+      {/* Main content - constrained to left side when split layout is active */}
+      <div 
+        className="absolute inset-0 transition-all duration-300"
+        style={{ 
+          right: isPersonalityCompleted ? '320px' : '0',
+        }}
+      >
+        {/* Character Display */}
+        {config.showCharacter && (
+          <div
+            className="absolute inset-0 pointer-events-none z-0"
+            style={{ paddingBottom: config.showInput ? '80px' : '0' }}
+          >
+            {modelType === 'vrm' ? <VrmViewer /> : <Live2DViewer />}
+          </div>
+        )}
 
-      {/* Chat Log - positioned just above input */}
-      {config.showChatLog && chatLog.length > 0 && config.showInput && (
-        <div className="absolute bottom-20 left-2 right-2 max-h-32 overflow-y-auto scroll-hidden z-10">
-          <div className="space-y-2 p-2">
-            {chatLog.slice(-2).map((msg, i) => {
-              const isUser = msg.role === 'user'
-              const alignment = isUser ? 'ml-auto' : 'mr-auto'
-              const bubbleColor = isUser 
-                ? 'bg-blue-500 text-white' 
-                : 'bg-white/90 backdrop-blur-sm text-gray-800 border border-white/50 shadow-lg'
-              
-              return (
-                <div
-                  key={i}
-                  className={`text-sm p-3 rounded-2xl max-w-[80%] ${bubbleColor} ${alignment}`}
-                >
-                  {!isUser && (
-                    <div className="font-semibold text-xs mb-1 opacity-70">
-                      {settingsStore.getState().characterName}
+        {/* Chat Log - positioned just above input */}
+        {config.showChatLog && chatLog.length > 0 && config.showInput && (
+          <div className="absolute bottom-20 left-2 right-2 max-h-32 overflow-y-auto scroll-hidden z-10">
+            <div className="space-y-2 p-2">
+              {chatLog.slice(-2).map((msg, i) => {
+                const isUser = msg.role === 'user'
+                const alignment = isUser ? 'ml-auto' : 'mr-auto'
+                const bubbleColor = isUser 
+                  ? 'bg-blue-500 text-white' 
+                  : 'bg-white/90 backdrop-blur-sm text-gray-800 border border-white/50 shadow-lg'
+                
+                return (
+                  <div
+                    key={i}
+                    className={`text-sm p-3 rounded-2xl max-w-[80%] ${bubbleColor} ${alignment}`}
+                  >
+                    {!isUser && (
+                      <div className="font-semibold text-xs mb-1 opacity-70">
+                        {settingsStore.getState().characterName}
+                      </div>
+                    )}
+                    <div className="leading-relaxed">
+                      {typeof msg.content === 'string'
+                        ? msg.content.replace(/\[.*?\]/g, '')
+                        : 'Image message'}
                     </div>
-                  )}
-                  <div className="leading-relaxed">
-                    {typeof msg.content === 'string'
-                      ? msg.content.replace(/\[.*?\]/g, '')
-                      : 'Image message'}
                   </div>
-                </div>
-              )
-            })}
+                )
+              })}
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Chat Log - for when input is hidden, show at bottom */}
-      {config.showChatLog && chatLog.length > 0 && !config.showInput && (
-        <div className="absolute bottom-2 left-2 right-2 max-h-32 overflow-y-auto scroll-hidden z-10">
-          <div className="space-y-2 p-2">
-            {chatLog.slice(-2).map((msg, i) => {
-              const isUser = msg.role === 'user'
-              const alignment = isUser ? 'ml-auto' : 'mr-auto'
-              const bubbleColor = isUser 
-                ? 'bg-blue-500 text-white' 
-                : 'bg-white/90 backdrop-blur-sm text-gray-800 border border-white/50 shadow-lg'
-              
-              return (
-                <div
-                  key={i}
-                  className={`text-sm p-3 rounded-2xl max-w-[80%] ${bubbleColor} ${alignment}`}
-                >
-                  {!isUser && (
-                    <div className="font-semibold text-xs mb-1 opacity-70">
-                      {settingsStore.getState().characterName}
+        {/* Chat Log - for when input is hidden, show at bottom */}
+        {config.showChatLog && chatLog.length > 0 && !config.showInput && (
+          <div className="absolute bottom-2 left-2 right-2 max-h-32 overflow-y-auto scroll-hidden z-10">
+            <div className="space-y-2 p-2">
+              {chatLog.slice(-2).map((msg, i) => {
+                const isUser = msg.role === 'user'
+                const alignment = isUser ? 'ml-auto' : 'mr-auto'
+                const bubbleColor = isUser 
+                  ? 'bg-blue-500 text-white' 
+                  : 'bg-white/90 backdrop-blur-sm text-gray-800 border border-white/50 shadow-lg'
+                
+                return (
+                  <div
+                    key={i}
+                    className={`text-sm p-3 rounded-2xl max-w-[80%] ${bubbleColor} ${alignment}`}
+                  >
+                    {!isUser && (
+                      <div className="font-semibold text-xs mb-1 opacity-70">
+                        {settingsStore.getState().characterName}
+                      </div>
+                    )}
+                    <div className="leading-relaxed">
+                      {typeof msg.content === 'string'
+                        ? msg.content.replace(/\[.*?\]/g, '')
+                        : 'Image message'}
                     </div>
-                  )}
-                  <div className="leading-relaxed">
-                    {typeof msg.content === 'string'
-                      ? msg.content.replace(/\[.*?\]/g, '')
-                      : 'Image message'}
                   </div>
-                </div>
-              )
-            })}
+                )
+              })}
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Input Form */}
-      {config.showInput && (
-        <div className="absolute bottom-0 left-0 right-0 p-2 z-20">
-          <div className="bg-white/95 backdrop-blur-sm rounded-lg shadow-lg">
-            <WidgetForm
-              showVoiceButton={config.showVoiceButton}
-              showSettingsButton={config.showSettingsButton}
-              autoFocus={config.autoFocus}
-              allowFullscreen={config.allowFullscreen}
-            />
+        {/* Input Form */}
+        {config.showInput && (
+          <div className="absolute bottom-0 left-0 right-0 p-2 z-20">
+            <div className="bg-white/95 backdrop-blur-sm rounded-lg shadow-lg">
+              <WidgetForm
+                showVoiceButton={config.showVoiceButton}
+                showSettingsButton={config.showSettingsButton}
+                autoFocus={config.autoFocus}
+                allowFullscreen={config.allowFullscreen}
+              />
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Fullscreen Button */}
       {config.allowFullscreen && (

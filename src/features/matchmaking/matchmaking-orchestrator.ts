@@ -148,7 +148,7 @@ export class MatchmakingOrchestrator {
                 current: this.config.questionCount!,
                 total: this.config.questionCount!,
                 label: 'Analysis complete!',
-                phase: 'completed',
+                phase: 'completed' as const,
               },
             },
           }
@@ -407,24 +407,35 @@ export class MatchmakingOrchestrator {
       const baseImageUrl = profileResult.category.imageUrl
       // Map backend gender to frontend file naming
       const fileGender = gender === 'male' ? 'boy' : 'girl'
-      const genderedImageUrl = baseImageUrl.replace(
-        '.webp',
-        `-${fileGender}.webp`
-      )
+      // Convert the personality category ID to the correct filename format
+      let categoryId = profileResult.category.id.replace('_', '-')
+      // Special case for himbo_bimbo_babe which maps to bimbo files
+      if (profileResult.category.id === 'himbo_bimbo_babe') {
+        categoryId = 'bimbo'
+      }
+      const genderedImageUrl = `/images/personality-types/${categoryId}-${fileGender}.jpg`
+
+      console.log('🎨 Orchestrator - Generated personality data:', {
+        categoryId: profileResult.category.id,
+        categoryName: profileResult.category.name,
+        gender: gender,
+        fileGender: fileGender,
+        genderedImageUrl: genderedImageUrl
+      })
 
       // Store results and complete the process
       session.personalityCategory = profileResult.category.name
       session.status = 'completed'
       this.saveSession(session)
 
-      return {
-        message: `Your personality analysis is complete!\n\nYou are: **${
+      const resultData = {
+        message: `Your personality analysis is complete! You are: **${
           profileResult.category.name
-        }**\n\n${
+        }** ${
           profileResult.category.description
-        }\n\nHere's what makes you special in relationships:\n${profileResult.strengthsForMatching
-          .map((strength) => `• ${strength}`)
-          .join('\n')}\n\nI'm sending you your personality image right now!`,
+        } Here's what makes you special in relationships: ${profileResult.strengthsForMatching
+          .join(', ')
+        }. I'm sending you your personality image right now!`,
         isComplete: true,
         step: 'completed',
         data: {
@@ -444,10 +455,13 @@ export class MatchmakingOrchestrator {
             current: this.config.questionCount!,
             total: this.config.questionCount!,
             label: 'Analysis complete!',
-            phase: 'completed',
+            phase: 'completed' as const,
           },
         },
       }
+
+      console.log('🎨 Orchestrator - Returning complete result:', resultData)
+      return resultData
     } catch (error) {
       console.error('Error profiling personality:', error)
       return await this.handleError(session, 'Failed to profile personality')
@@ -573,13 +587,19 @@ export class MatchmakingOrchestrator {
       .find((cat) => cat.name === categoryName)
 
     if (!category) {
-      return '/images/personalities/default.png'
+      return '/images/personality-types/default.jpg'
     }
 
     // Default to female if no gender specified, then map to file naming
     const backendGender = gender || 'female'
     const fileGender = backendGender === 'male' ? 'boy' : 'girl'
-    return category.imageUrl.replace('.webp', `-${fileGender}.webp`)
+    // Convert the personality category ID to the correct filename format
+    let categoryId = category.id.replace('_', '-')
+    // Special case for himbo_bimbo_babe which maps to bimbo files
+    if (category.id === 'himbo_bimbo_babe') {
+      categoryId = 'bimbo'
+    }
+    return `/images/personality-types/${categoryId}-${fileGender}.jpg`
   }
 
   private getPublicProfileData(session: MatchmakingSession) {

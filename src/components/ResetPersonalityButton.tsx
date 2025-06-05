@@ -6,6 +6,7 @@ export const ResetPersonalityButton: React.FC = () => {
       localStorage.removeItem('personality_analysis_completed')
       localStorage.removeItem('personality_session_id')
       localStorage.removeItem('matchmaking_step_progress')
+      localStorage.removeItem('last_matchmaking_result')
       window.location.reload()
     } catch (error) {
       console.error('Error resetting personality analysis:', error)

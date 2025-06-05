@@ -748,10 +748,26 @@ export const handleSendChatFn = () => async (text: string) => {
         console.log('🎯 Chat Handler - Matchmaking result:', matchmakingResult)
 
         if (matchmakingResult) {
+          console.log('🎯 Chat Handler - Got matchmaking result:', {
+            isComplete: matchmakingResult.isComplete,
+            step: matchmakingResult.step,
+            hasData: !!matchmakingResult.data,
+            dataKeys: matchmakingResult.data ? Object.keys(matchmakingResult.data) : [],
+            data: matchmakingResult.data
+          })
+          
           // Store step progress in localStorage BEFORE speaking message to fix progress bar timing
           if (matchmakingResult.data?.stepProgress) {
             console.log('🎯 Chat Handler - Storing step progress before speaking:', matchmakingResult.data.stepProgress)
             localStorage.setItem('matchmaking_step_progress', JSON.stringify(matchmakingResult.data.stepProgress))
+          }
+
+          // Store the complete result for split layout display
+          if (matchmakingResult.isComplete && matchmakingResult.data) {
+            console.log('🎯 Chat Handler - Storing complete matchmaking result for split layout:', matchmakingResult.data)
+            localStorage.setItem('last_matchmaking_result', JSON.stringify(matchmakingResult))
+          } else if (matchmakingResult.isComplete) {
+            console.log('🎯 Chat Handler - Analysis complete but no data to store:', matchmakingResult)
           }
 
           console.log('🎯 Chat Handler - Speaking message:', matchmakingResult.message)

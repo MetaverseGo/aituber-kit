@@ -19,6 +19,7 @@ export const ChatMenu: React.FC<ChatMenuProps> = ({ isWidget = false }) => {
       localStorage.removeItem('personality_analysis_completed')
       localStorage.removeItem('personality_session_id')
       localStorage.removeItem('matchmaking_step_progress')
+      localStorage.removeItem('last_matchmaking_result')
       
       // Reset character name to default "Emi", language to English, and system prompt to English
       settingsStore.setState({ 
