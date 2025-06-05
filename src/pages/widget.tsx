@@ -225,54 +225,66 @@ const Widget = () => {
 
       {/* Chat Log - positioned just above input */}
       {config.showChatLog && chatLog.length > 0 && config.showInput && (
-        <div className="absolute bottom-20 left-2 right-2 max-h-32 overflow-y-auto bg-white/90 backdrop-blur-sm rounded-lg p-2 z-10">
-          <div className="space-y-2">
-            {chatLog.slice(-2).map((msg, i) => (
-              <div
-                key={i}
-                className={`text-sm p-2 rounded ${
-                  msg.role === 'user' ? 'bg-blue-100 ml-4' : 'bg-gray-100 mr-4'
-                }`}
-              >
-                <div className="font-semibold text-xs mb-1">
-                  {msg.role === 'user'
-                    ? 'You'
-                    : settingsStore.getState().characterName}
+        <div className="absolute bottom-20 left-2 right-2 max-h-32 overflow-y-auto scroll-hidden z-10">
+          <div className="space-y-2 p-2">
+            {chatLog.slice(-2).map((msg, i) => {
+              const isUser = msg.role === 'user'
+              const alignment = isUser ? 'ml-auto' : 'mr-auto'
+              const bubbleColor = isUser 
+                ? 'bg-blue-500 text-white' 
+                : 'bg-white/90 backdrop-blur-sm text-gray-800 border border-white/50 shadow-lg'
+              
+              return (
+                <div
+                  key={i}
+                  className={`text-sm p-3 rounded-2xl max-w-[80%] ${bubbleColor} ${alignment}`}
+                >
+                  {!isUser && (
+                    <div className="font-semibold text-xs mb-1 opacity-70">
+                      {settingsStore.getState().characterName}
+                    </div>
+                  )}
+                  <div className="leading-relaxed">
+                    {typeof msg.content === 'string'
+                      ? msg.content.replace(/\[.*?\]/g, '')
+                      : 'Image message'}
+                  </div>
                 </div>
-                <div className="text-gray-800">
-                  {typeof msg.content === 'string'
-                    ? msg.content.replace(/\[.*?\]/g, '')
-                    : 'Image message'}
-                </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       )}
 
       {/* Chat Log - for when input is hidden, show at bottom */}
       {config.showChatLog && chatLog.length > 0 && !config.showInput && (
-        <div className="absolute bottom-2 left-2 right-2 max-h-32 overflow-y-auto bg-white/90 backdrop-blur-sm rounded-lg p-2 z-10">
-          <div className="space-y-2">
-            {chatLog.slice(-2).map((msg, i) => (
-              <div
-                key={i}
-                className={`text-sm p-2 rounded ${
-                  msg.role === 'user' ? 'bg-blue-100 ml-4' : 'bg-gray-100 mr-4'
-                }`}
-              >
-                <div className="font-semibold text-xs mb-1">
-                  {msg.role === 'user'
-                    ? 'You'
-                    : settingsStore.getState().characterName}
+        <div className="absolute bottom-2 left-2 right-2 max-h-32 overflow-y-auto scroll-hidden z-10">
+          <div className="space-y-2 p-2">
+            {chatLog.slice(-2).map((msg, i) => {
+              const isUser = msg.role === 'user'
+              const alignment = isUser ? 'ml-auto' : 'mr-auto'
+              const bubbleColor = isUser 
+                ? 'bg-blue-500 text-white' 
+                : 'bg-white/90 backdrop-blur-sm text-gray-800 border border-white/50 shadow-lg'
+              
+              return (
+                <div
+                  key={i}
+                  className={`text-sm p-3 rounded-2xl max-w-[80%] ${bubbleColor} ${alignment}`}
+                >
+                  {!isUser && (
+                    <div className="font-semibold text-xs mb-1 opacity-70">
+                      {settingsStore.getState().characterName}
+                    </div>
+                  )}
+                  <div className="leading-relaxed">
+                    {typeof msg.content === 'string'
+                      ? msg.content.replace(/\[.*?\]/g, '')
+                      : 'Image message'}
+                  </div>
                 </div>
-                <div className="text-gray-800">
-                  {typeof msg.content === 'string'
-                    ? msg.content.replace(/\[.*?\]/g, '')
-                    : 'Image message'}
-                </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       )}

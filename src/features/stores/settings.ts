@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
 import { KoeiroParam, DEFAULT_PARAM } from '@/features/constants/koeiroParam'
-import { SYSTEM_PROMPT } from '@/features/constants/systemPromptConstants'
+import { SYSTEM_PROMPT, SYSTEM_PROMPT_EN } from '@/features/constants/systemPromptConstants'
 import {
   AIService,
   AIVoice,
@@ -312,17 +312,17 @@ const settingsStore = create<SettingsState>()(
       conversationContinuityMode: false,
 
       // Character
-      characterName: process.env.NEXT_PUBLIC_CHARACTER_NAME || 'CHARACTER',
+      characterName: process.env.NEXT_PUBLIC_CHARACTER_NAME || 'Emi',
       characterPreset1:
-        process.env.NEXT_PUBLIC_CHARACTER_PRESET1 || SYSTEM_PROMPT,
+        process.env.NEXT_PUBLIC_CHARACTER_PRESET1 || SYSTEM_PROMPT_EN,
       characterPreset2:
-        process.env.NEXT_PUBLIC_CHARACTER_PRESET2 || SYSTEM_PROMPT,
+        process.env.NEXT_PUBLIC_CHARACTER_PRESET2 || SYSTEM_PROMPT_EN,
       characterPreset3:
-        process.env.NEXT_PUBLIC_CHARACTER_PRESET3 || SYSTEM_PROMPT,
+        process.env.NEXT_PUBLIC_CHARACTER_PRESET3 || SYSTEM_PROMPT_EN,
       characterPreset4:
-        process.env.NEXT_PUBLIC_CHARACTER_PRESET4 || SYSTEM_PROMPT,
+        process.env.NEXT_PUBLIC_CHARACTER_PRESET4 || SYSTEM_PROMPT_EN,
       characterPreset5:
-        process.env.NEXT_PUBLIC_CHARACTER_PRESET5 || SYSTEM_PROMPT,
+        process.env.NEXT_PUBLIC_CHARACTER_PRESET5 || SYSTEM_PROMPT_EN,
       customPresetName1:
         process.env.NEXT_PUBLIC_CUSTOM_PRESET_NAME1 || 'Preset 1',
       customPresetName2:
@@ -341,7 +341,7 @@ const settingsStore = create<SettingsState>()(
       systemPrompt:
         process.env.NEXT_PUBLIC_SYSTEM_PROMPT ||
         process.env.NEXT_PUBLIC_CHARACTER_PRESET1 ||
-        SYSTEM_PROMPT,
+        SYSTEM_PROMPT_EN,
       selectedVrmPath:
         process.env.NEXT_PUBLIC_SELECTED_VRM_PATH || '/vrm/nikechan_v1.vrm',
       selectedLive2DPath:
@@ -362,7 +362,7 @@ const settingsStore = create<SettingsState>()(
 
       // General
       selectLanguage:
-        (process.env.NEXT_PUBLIC_SELECT_LANGUAGE as Language) || 'ja',
+        (process.env.NEXT_PUBLIC_SELECT_LANGUAGE as Language) || 'en',
       changeEnglishToJapanese:
         process.env.NEXT_PUBLIC_CHANGE_ENGLISH_TO_JAPANESE === 'true',
       includeTimestampInUserMessage:

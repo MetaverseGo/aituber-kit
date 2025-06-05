@@ -9,7 +9,7 @@ export const PERSONALITY_CATEGORIES: PersonalityCategory[] = [
     name: 'Velvet Domme',
     description:
       "You don't raise your voice — they lean in to listen. Elegant, articulate, and lowkey intense, your companionship feels like a perfectly curated evening: classy, intimate, and just suggestive enough.",
-    imageUrl: '/images/personalities/velvet-domme.webp',
+    imageUrl: '/images/personalities/velvet-domme.png',
     traits: [
       'composed',
       'confident',
@@ -53,7 +53,7 @@ export const PERSONALITY_CATEGORIES: PersonalityCategory[] = [
     name: 'Flirt Boss',
     description:
       "You're the confident tease they can't stop thinking about. You know how to lead a convo, keep them on their toes, and turn casual flirting into an art form.",
-    imageUrl: '/images/personalities/flirt-boss.webp',
+    imageUrl: '/images/personalities/flirt-boss.png',
     traits: [
       'flirtatious',
       'playful',
@@ -97,7 +97,7 @@ export const PERSONALITY_CATEGORIES: PersonalityCategory[] = [
     name: 'Thirst Trap Icon',
     description:
       "You serve heat unapologetically. You're not just NSFW — you're the blueprint. Every interaction is confident, curated, and unforgettable.",
-    imageUrl: '/images/personalities/thirst-trap-icon.webp',
+    imageUrl: '/images/personalities/thirst-trap-icon.png',
     traits: [
       'sensual',
       'assertive',
@@ -140,7 +140,7 @@ export const PERSONALITY_CATEGORIES: PersonalityCategory[] = [
     name: 'Innocent Baddie',
     description:
       "You're soft-spoken with spicy undertones — like lace over leather. You mix cute aesthetics with subtle chaos, and that duality keeps people hooked.",
-    imageUrl: '/images/personalities/innocent-baddie.webp',
+    imageUrl: '/images/personalities/innocent-baddie.png',
     traits: [
       'soft',
       'flirtatious',
@@ -183,7 +183,7 @@ export const PERSONALITY_CATEGORIES: PersonalityCategory[] = [
     name: 'Soft Angel',
     description:
       "You're the safe space. The quiet voice at 2 a.m. Your presence feels like a soft blanket — comforting, affirming, and warm.",
-    imageUrl: '/images/personalities/soft-angel.webp',
+    imageUrl: '/images/personalities/soft-angel.png',
     traits: ['caring', 'gentle', 'patient', 'empathetic', 'wholesome', 'shy'],
     archetype: {
       direction: 'w',
@@ -219,7 +219,7 @@ export const PERSONALITY_CATEGORIES: PersonalityCategory[] = [
     name: 'Secret Deviant',
     description:
       "You're the quiet one with hidden depths. Sweet on the surface but spicy underneath, you surprise people with your adventurous side when they least expect it.",
-    imageUrl: '/images/personalities/secret-deviant.webp',
+    imageUrl: '/images/personalities/secret-deviant.png',
     traits: ['mysterious', 'sensual', 'submissive', 'surprising', 'playful', 'hidden'],
     archetype: {
       direction: 'sw',
@@ -256,7 +256,7 @@ export const PERSONALITY_CATEGORIES: PersonalityCategory[] = [
     name: 'Himbo/Bimbo Babe',
     description:
       "You're the loveable sexy one everyone adores. Sweet, fun, and unapologetically hot, you bring joy and spice in equal measure with zero pretense.",
-    imageUrl: '/images/personalities/himbo-bimbo-babe.webp',
+    imageUrl: '/images/personalities/himbo-bimbo-babe.png',
     traits: [
       'sweet',
       'sexy',
@@ -300,7 +300,7 @@ export const PERSONALITY_CATEGORIES: PersonalityCategory[] = [
     name: 'Chaotic Cutie',
     description:
       "You're the adorable wildcard no one can predict. High energy, contradictory vibes, and endlessly entertaining - you keep everyone guessing in the best way.",
-    imageUrl: '/images/personalities/chaotic-cutie.webp',
+    imageUrl: '/images/personalities/chaotic-cutie.png',
     traits: [
       'chaotic',
       'cute',
@@ -484,26 +484,33 @@ Provide a structured analysis as a JSON object with the required fields.`,
         },
       ])
 
-      // Parse JSON response - handle markdown code fences if present
+      // Parse JSON response - handle various text formats
       let profileData: PersonalityProfile
       try {
         let jsonText = responseText.trim()
 
-        // Remove markdown code fences if present
+        // First try to find JSON in markdown code fences
         const jsonMatch = jsonText.match(/```json\s*([\s\S]*?)\s*```/)
         if (jsonMatch) {
           jsonText = jsonMatch[1].trim()
         } else {
-          // Also handle plain ``` fences
+          // Try plain code fences
           const codeMatch = jsonText.match(/```\s*([\s\S]*?)\s*```/)
           if (codeMatch) {
             jsonText = codeMatch[1].trim()
+          } else {
+            // Try to find JSON object in the text (look for opening { and closing })
+            const jsonObjectMatch = jsonText.match(/\{[\s\S]*\}/)
+            if (jsonObjectMatch) {
+              jsonText = jsonObjectMatch[0].trim()
+            }
           }
         }
 
         profileData = JSON.parse(jsonText)
-      } catch {
+      } catch (parseError) {
         console.error('Failed to parse JSON response:', responseText)
+        console.error('Parse error:', parseError)
         throw new Error('Invalid JSON response from personality profiler')
       }
 

@@ -77,33 +77,40 @@ export const ChatLog = () => {
       className="absolute h-[100svh] pb-16 z-10 max-w-full"
       style={{ width: `${chatLogWidth}px` }}
     >
-      <div className="max-h-full px-4 pt-24 pb-16 overflow-y-auto scroll-hidden">
-        {messages.map((msg, i) => {
-          return (
-            <div key={i} ref={messages.length - 1 === i ? chatScrollRef : null}>
-              {typeof msg.content === 'string' ? (
-                <Chat
-                  role={msg.role}
-                  message={msg.content}
-                  characterName={characterName}
-                />
-              ) : (
-                <>
+      <div className="relative max-h-full px-4 pt-24 pb-16">
+        {/* Fade gradient overlays */}
+        <div className="absolute top-24 left-0 right-0 h-6 bg-gradient-to-b from-black/20 via-black/10 to-transparent pointer-events-none z-20"></div>
+        <div className="absolute bottom-16 left-0 right-0 h-8 bg-gradient-to-t from-black/20 via-black/10 to-transparent pointer-events-none z-20"></div>
+        
+        {/* Scrollable content */}
+        <div className="max-h-full overflow-y-auto scroll-hidden relative">
+          {messages.map((msg, i) => {
+            return (
+              <div key={i} ref={messages.length - 1 === i ? chatScrollRef : null}>
+                {typeof msg.content === 'string' ? (
                   <Chat
                     role={msg.role}
-                    message={msg.content ? msg.content[0].text : ''}
+                    message={msg.content}
                     characterName={characterName}
                   />
-                  <ChatImage
-                    role={msg.role}
-                    imageUrl={msg.content ? msg.content[1].image : ''}
-                    characterName={characterName}
-                  />
-                </>
-              )}
-            </div>
-          )
-        })}
+                ) : (
+                  <>
+                    <Chat
+                      role={msg.role}
+                      message={msg.content ? msg.content[0].text : ''}
+                      characterName={characterName}
+                    />
+                    <ChatImage
+                      role={msg.role}
+                      imageUrl={msg.content ? msg.content[1].image : ''}
+                      characterName={characterName}
+                    />
+                  </>
+                )}
+              </div>
+            )
+          })}
+        </div>
       </div>
       <div
         ref={resizeHandleRef}
@@ -130,30 +137,30 @@ const Chat = ({
   const emotionPattern = new RegExp(`\\[(${EMOTIONS.join('|')})\\]\\s*`, 'gi')
   const processedMessage = message.replace(emotionPattern, '')
 
-  const roleColor =
-    role !== 'user' ? 'bg-secondary text-white ' : 'bg-base-light text-primary'
-  const roleText = role !== 'user' ? 'text-secondary' : 'text-primary'
-  const offsetX = role === 'user' ? 'pl-10' : 'pr-10'
+  const isUser = role === 'user'
+  const alignment = isUser ? 'ml-auto mr-0' : 'mr-auto ml-0'
+  const bubbleColor = isUser 
+    ? 'bg-blue-500 text-white' 
+    : 'bg-white/90 backdrop-blur-sm text-gray-800 border border-white/50 shadow-lg'
+  const maxWidth = isUser ? 'max-w-[70%]' : 'max-w-[80%]'
 
   return (
-    <div className={`mx-auto ml-0 md:ml-10 lg:ml-20 my-4 ${offsetX}`}>
+    <div className={`mx-4 my-3 ${maxWidth} ${alignment}`}>
       {role === 'code' ? (
-        <pre className="whitespace-pre-wrap break-words bg-[#1F2937] text-white p-4 rounded-lg">
+        <pre className="whitespace-pre-wrap break-words bg-gray-900/90 backdrop-blur-sm text-white p-4 rounded-2xl shadow-lg border border-white/20">
           <code className="font-mono text-sm">{message}</code>
         </pre>
       ) : (
-        <>
-          <div
-            className={`px-6 py-2 rounded-t-lg font-bold tracking-wider ${roleColor}`}
-          >
-            {role !== 'user' ? characterName || 'CHARACTER' : 'YOU'}
-          </div>
-          <div className="px-6 py-4 bg-white rounded-b-lg">
-            <div className={`text-base font-bold ${roleText}`}>
-              {processedMessage}
+        <div className={`px-4 py-3 rounded-2xl ${bubbleColor}`}>
+          {!isUser && (
+            <div className="text-xs font-semibold mb-1 opacity-70">
+              {characterName || 'CHARACTER'}
             </div>
+          )}
+          <div className="text-sm font-medium leading-relaxed">
+            {processedMessage}
           </div>
-        </>
+        </div>
       )}
     </div>
   )

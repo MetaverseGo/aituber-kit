@@ -560,26 +560,33 @@ Provide a structured analysis as a JSON object with the required fields.`,
         throw new Error('Unexpected response type from Claude')
       }
 
-      // Parse JSON response - handle markdown code fences if present
+      // Parse JSON response - handle various text formats
       let profileData: PersonalityProfile
       try {
         let jsonText = result.text.trim()
 
-        // Remove markdown code fences if present
+        // First try to find JSON in markdown code fences
         const jsonMatch = jsonText.match(/```json\s*([\s\S]*?)\s*```/)
         if (jsonMatch) {
           jsonText = jsonMatch[1].trim()
         } else {
-          // Also handle plain ``` fences
+          // Try plain code fences
           const codeMatch = jsonText.match(/```\s*([\s\S]*?)\s*```/)
           if (codeMatch) {
             jsonText = codeMatch[1].trim()
+          } else {
+            // Try to find JSON object in the text (look for opening { and closing })
+            const jsonObjectMatch = jsonText.match(/\{[\s\S]*\}/)
+            if (jsonObjectMatch) {
+              jsonText = jsonObjectMatch[0].trim()
+            }
           }
         }
 
         profileData = JSON.parse(jsonText)
-      } catch {
+      } catch (parseError) {
         console.error('Failed to parse JSON response:', result.text)
+        console.error('Parse error:', parseError)
         throw new Error('Invalid JSON response from personality profiler')
       }
 

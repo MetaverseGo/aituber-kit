@@ -132,19 +132,15 @@ export class MatchmakingChatHandler {
         )
         console.log('🎪 Chat Handler - Orchestrator result for active session:', result)
 
-        // Store step progress in localStorage for progress bar
-        if (result.data?.stepProgress) {
-          console.log('🎪 Chat Handler - Storing step progress:', result.data.stepProgress)
-          localStorage.setItem('matchmaking_step_progress', JSON.stringify(result.data.stepProgress))
-        }
+        // Step progress is now stored earlier in handlers.ts before speaking
+        console.log('🎪 Chat Handler - Step progress will be stored by main handler before speaking')
 
         // Check if matchmaking is complete
         if (result.isComplete) {
           console.log('🎪 Chat Handler - Matchmaking complete, deactivating')
           this.isMatchmakingActive = false
           this.currentSessionId = null
-          // Clear step progress when complete
-          localStorage.removeItem('matchmaking_step_progress')
+          // Step progress clearing is now handled in handlers.ts
         }
 
         return result

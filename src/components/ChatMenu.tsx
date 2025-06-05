@@ -1,6 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react'
+import i18n from 'i18next'
 import homeStore from '@/features/stores/home'
+import settingsStore from '@/features/stores/settings'
 import { handleSendChatFn } from '@/features/chat/handlers'
+import { SYSTEM_PROMPT_EN } from '@/features/constants/systemPromptConstants'
 
 interface ChatMenuProps {
   isWidget?: boolean
@@ -17,23 +20,40 @@ export const ChatMenu: React.FC<ChatMenuProps> = ({ isWidget = false }) => {
       localStorage.removeItem('personality_session_id')
       localStorage.removeItem('matchmaking_step_progress')
       
-      // Clear chat log
-      homeStore.setState({ chatLog: [] })
+      // Reset character name to default "Emi", language to English, and system prompt to English
+      settingsStore.setState({ 
+        characterName: 'Emi',
+        selectLanguage: 'en',
+        systemPrompt: SYSTEM_PROMPT_EN
+      })
+      
+      // Update i18n language immediately
+      i18n.changeLanguage('en')
       
       // Close menu
       setIsOpen(false)
       
-      console.log('Chat cleared and personality analysis reset')
+      console.log('Chat cleared, personality analysis reset, and character name reset to Emi')
       
-      // Auto-start conversation with a welcoming greeting
+      // Auto-start conversation with a message that triggers personality analysis
       const handleSendChat = handleSendChatFn()
       
-      // Use a greeting that will trigger the personality analysis flow
-      const initialGreeting = "hi there! ready to discover your personality?"
+      // Use a specific trigger phrase to start the personality assessment
+      const personalityTrigger = "begin personality analysis"
       
-      // Small delay to ensure chat is cleared before starting
+      // Small delay to ensure settings are updated before starting
       setTimeout(async () => {
-        await handleSendChat(initialGreeting)
+        // Send the trigger message to start personality analysis
+        await handleSendChat(personalityTrigger)
+        
+        // Clear the chat log immediately after to hide the trigger message
+        // This will remove the "begin personality analysis" user message
+        setTimeout(() => {
+          const currentChatLog = homeStore.getState().chatLog
+          // Keep only Emi's response (assistant messages), remove user trigger message
+          const filteredLog = currentChatLog.filter(msg => msg.role === 'assistant')
+          homeStore.setState({ chatLog: filteredLog })
+        }, 100)
       }, 500)
       
     } catch (error) {

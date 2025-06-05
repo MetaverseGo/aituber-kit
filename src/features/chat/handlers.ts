@@ -748,6 +748,12 @@ export const handleSendChatFn = () => async (text: string) => {
         console.log('🎯 Chat Handler - Matchmaking result:', matchmakingResult)
 
         if (matchmakingResult) {
+          // Store step progress in localStorage BEFORE speaking message to fix progress bar timing
+          if (matchmakingResult.data?.stepProgress) {
+            console.log('🎯 Chat Handler - Storing step progress before speaking:', matchmakingResult.data.stepProgress)
+            localStorage.setItem('matchmaking_step_progress', JSON.stringify(matchmakingResult.data.stepProgress))
+          }
+
           console.log('🎯 Chat Handler - Speaking message:', matchmakingResult.message)
           // Use speakMessageHandler for the response
           await speakMessageHandler(matchmakingResult.message)
@@ -756,6 +762,8 @@ export const handleSendChatFn = () => async (text: string) => {
           if (matchmakingResult.isComplete) {
             console.log('🎯 Chat Handler - Personality analysis completed! Marking as done.')
             markPersonalityAnalysisCompleted()
+            // Clear step progress when complete
+            localStorage.removeItem('matchmaking_step_progress')
           }
 
           homeStore.setState({ chatProcessing: false })

@@ -337,14 +337,7 @@ export class MatchmakingOrchestrator {
       // Generate insights from kokology responses
       const insights = await this.kokologyAnalyst.generateInsights(questions)
 
-      // Create personality summary
-      const summary = await this.personalityWriter.createPersonalitySummary(
-        questions,
-        insights
-      )
-
-      // Store the summary but don't show it to user
-      session.personalitySummary = summary
+      // Skip personality writer step - go directly to awaiting gender
       session.status = 'awaiting_gender'
       this.saveSession(session)
 
@@ -390,18 +383,22 @@ export class MatchmakingOrchestrator {
     session: MatchmakingSession
   ): Promise<MatchmakingResult> {
     try {
-      const summary = session.personalitySummary
-      if (!summary) {
-        throw new Error('No personality summary found')
+      const questions = session.kokologyQuestions || []
+      if (questions.length < this.config.questionCount!) {
+        throw new Error('Insufficient kokology questions for profiling')
       }
 
-      const insights = await this.kokologyAnalyst.generateInsights(
-        session.kokologyQuestions || []
-      )
+      // Generate insights from kokology responses
+      const insights = await this.kokologyAnalyst.generateInsights(questions)
 
-      // Profile the personality
+      // Create a simple summary from the questions for profiling
+      const questionSummary = questions
+        .map((q, index) => `Question ${index + 1}: ${q.question}\nAnswer: ${q.answer}`)
+        .join('\n\n')
+
+      // Profile the personality directly from questions and insights
       const profileResult = await this.personalityProfiler.profilePersonality(
-        summary,
+        questionSummary,
         insights
       )
 
