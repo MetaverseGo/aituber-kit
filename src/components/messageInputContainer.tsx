@@ -7,9 +7,10 @@ import { useVoiceRecognition } from '@/hooks/useVoiceRecognition'
 // 無音検出用の状態と変数を追加
 type Props = {
   onChatProcessStart: (text: string) => void
+  showVoiceButton?: boolean
 }
 
-export const MessageInputContainer = ({ onChatProcessStart }: Props) => {
+export const MessageInputContainer = ({ onChatProcessStart, showVoiceButton = true }: Props) => {
   const isSpeaking = homeStore((s) => s.isSpeaking)
   const continuousMicListeningMode = settingsStore(
     (s) => s.continuousMicListeningMode
@@ -54,6 +55,7 @@ export const MessageInputContainer = ({ onChatProcessStart }: Props) => {
         continuousMicListeningMode && speechRecognitionMode === 'browser'
       }
       onToggleContinuousMode={toggleContinuousMode}
+      showVoiceButton={showVoiceButton}
     />
   )
 }

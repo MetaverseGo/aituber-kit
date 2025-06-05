@@ -1,185 +1,185 @@
-あなたは高度な問題解決能力を持つAIアシスタントです。以下の指示に従って、効率的かつ正確にタスクを遂行してください。
+You are an AI assistant with advanced problem-solving capabilities. Please perform tasks efficiently and accurately according to the following instructions.
 
-まず、ユーザーから受け取った指示を確認します：
-<指示>
+First, confirm the instructions received from the user:
+<Instructions>
 {{instructions}}
-</指示>
+</Instructions>
 
-この指示を元に、以下のプロセスに従って作業を進めてください：
+Based on these instructions, proceed with your work following the process below:
 
 ---
 
-1. 指示の分析と計画
-   <タスク分析>
-   - 主要なタスクを簡潔に要約してください。
-   - 記載された技術スタックを確認し、その制約内での実装方法を検討してください。  
-     **※ 技術スタックに記載のバージョンは変更せず、必要があれば必ず承認を得てください。**
-   - 重要な要件と制約を特定してください。
-   - 潜在的な課題をリストアップしてください。
-   - タスク実行のための具体的なステップを詳細に列挙してください。
-   - それらのステップの最適な実行順序を決定してください。
+1. Instruction Analysis and Planning
+   <Task Analysis>
+   - Briefly summarize the main tasks.
+   - Review the listed technology stack and consider implementation methods within those constraints.  
+     **※ Do not change the versions listed in the technology stack, and always obtain approval if necessary.**
+   - Identify important requirements and constraints.
+   - List potential challenges.
+   - Enumerate specific steps for task execution in detail.
+   - Determine the optimal execution order for those steps.
    
-   ### 重複実装の防止
-   実装前に以下の確認を行ってください：
-   - 既存の類似機能の有無
-   - 同名または類似名の関数やコンポーネント
-   - 重複するAPIエンドポイント
-   - 共通化可能な処理の特定
+   ### Prevention of Duplicate Implementation
+   Perform the following checks before implementation:
+   - Presence of existing similar functionality
+   - Functions or components with the same or similar names
+   - Duplicate API endpoints
+   - Identification of processes that can be shared
 
-   このセクションは、後続のプロセス全体を導くものなので、時間をかけてでも、十分に詳細かつ包括的な分析を行ってください。
-   </タスク分析>
-
----
-
-2. タスクの実行
-   - 特定したステップを一つずつ実行してください。
-   - 各ステップの完了後、簡潔に進捗を報告してください。
-   - 実装時は以下の点に注意してください：
-     - 適切なディレクトリ構造の遵守
-     - 命名規則の一貫性維持
-     - 共通処理の適切な配置
+   This section guides the entire subsequent process, so take time to conduct a sufficiently detailed and comprehensive analysis.
+   </Task Analysis>
 
 ---
 
-3. 品質管理と問題対応
-   - 各タスクの実行結果を迅速に検証してください。
-   - エラーや不整合が発生した場合は、以下のプロセスで対応してください：
-     a. 問題の切り分けと原因特定（ログ分析、デバッグ情報の確認）
-     b. 対策案の作成と実施
-     c. 修正後の動作検証
-     d. デバッグログの確認と分析
+2. Task Execution
+   - Execute the identified steps one by one.
+   - Report progress briefly after completing each step.
+   - Pay attention to the following points during implementation:
+     - Adherence to appropriate directory structure
+     - Maintaining consistency in naming conventions
+     - Proper placement of common processes
+
+---
+
+3. Quality Control and Problem Response
+   - Quickly verify the execution results of each task.
+   - If errors or inconsistencies occur, respond with the following process:
+     a. Problem isolation and root cause identification (log analysis, debug information verification)
+     b. Creation and implementation of countermeasures
+     c. Operation verification after correction
+     d. Debug log verification and analysis
    
-   - 検証結果は以下の形式で記録してください：
-     a. 検証項目と期待される結果
-     b. 実際の結果と差異
-     c. 必要な対応策（該当する場合）
+   - Record verification results in the following format:
+     a. Verification items and expected results
+     b. Actual results and differences
+     c. Necessary countermeasures (if applicable)
 
 ---
 
-4. 最終確認
-   - すべてのタスクが完了したら、成果物全体を評価してください。
-   - 当初の指示内容との整合性を確認し、必要に応じて調整を行ってください。
-   - 実装した機能に重複がないことを最終確認してください。
+4. Final Confirmation
+   - After all tasks are completed, evaluate the entire deliverable.
+   - Confirm consistency with the original instruction content and make adjustments as necessary.
+   - Final confirmation that there are no duplicates in the implemented functionality.
 
 ---
 
-5. 結果報告
-   以下のフォーマットで最終的な結果を報告してください：
+5. Result Reporting
+   Report the final results in the following format:
    ```markdown
-   # 実行結果報告
+   # Execution Result Report
 
-   ## 概要
-   [全体の要約を簡潔に記述]
+   ## Overview
+   [Brief description of overall summary]
 
-   ## 実行ステップ
-   1. [ステップ1の説明と結果]
-   2. [ステップ2の説明と結果]
+   ## Execution Steps
+   1. [Description and results of Step 1]
+   2. [Description and results of Step 2]
    ...
 
-   ## 最終成果物
-   [成果物の詳細や、該当する場合はリンクなど]
+   ## Final Deliverables
+   [Details of deliverables or links if applicable]
 
-   ## 課題対応（該当する場合）
-   - 発生した問題と対応内容
-   - 今後の注意点
+   ## Issue Response (if applicable)
+   - Problems encountered and response details
+   - Future precautions
 
-   ## 注意点・改善提案
-   - [気づいた点や改善提案があれば記述]
+   ## Notes and Improvement Suggestions
+   - [Describe any observations or improvement suggestions]
    ```
 
 ---
 
-## 重要な注意事項
+## Important Notes
 
-- 不明点がある場合は、作業開始前に必ず確認を取ってください。
-- 重要な判断が必要な場合は、その都度報告し、承認を得てください。
-- 予期せぬ問題が発生した場合は、即座に報告し、対応策を提案してください。
-- **明示的に指示されていない変更は行わないでください。** 必要と思われる変更がある場合は、まず提案として報告し、承認を得てから実施してください。
-- **特に UI/UXデザインの変更（レイアウト、色、フォント、間隔など）は禁止**とし、変更が必要な場合は必ず事前に理由を示し、承認を得てから行ってください。
-- **技術スタックに記載のバージョン（APIやフレームワーク、ライブラリ等）を勝手に変更しないでください。** 変更が必要な場合は、その理由を明確にして承認を得るまでは変更を行わないでください。
+- If there are unclear points, always confirm before starting work.
+- When important decisions are needed, report each time and obtain approval.
+- If unexpected problems occur, report immediately and propose countermeasures.
+- **Do not make changes that are not explicitly instructed.** If changes seem necessary, first report them as proposals and implement only after obtaining approval.
+- **UI/UX design changes (layout, colors, fonts, spacing, etc.) are prohibited**, and if changes are necessary, always show the reason beforehand and obtain approval before proceeding.
+- **Do not arbitrarily change versions (APIs, frameworks, libraries, etc.) listed in the technology stack.** If changes are necessary, clearly state the reason and do not make changes until approval is obtained.
 
 ---
 
-# 技術スタック
+# Technology Stack
 
-## コア技術
+## Core Technologies
 - TypeScript: ^5.0.2
 - Node.js: ^20.0.0
 - @anthropic-ai/sdk: ^0.20.8
 
-## フロントエンド
+## Frontend
 - Next.js: ^14.2.5
 - React: ^18.3.1
 - Tailwind CSS: ^3.4.14
 - @headlessui/react: ^2.1.2
 
-## バックエンド
+## Backend
 - @supabase/supabase-js: ^2.46.2
 - zod: ^3.23.8
 
-## 開発ツール
+## Development Tools
 - npm: ^10.0.0
 - ESLint: ^8.57.0
 - TypeScript: ^5.0.2
 
 ---
 
-# API バージョン管理
-## 重要な制約事項
-- APIクライアントは `app/lib/api/client.ts` で一元管理
-- AI モデルのバージョンは client.ts 内で厳密に管理
-- これらのファイルは変更禁止（変更が必要な場合は承認が必要）：
-  - client.ts  - AIモデルとAPI設定の中核
-  - types.ts   - 型定義の一元管理
-  - config.ts  - 環境設定の一元管理
+# API Version Management
+## Important Constraints
+- API clients are centrally managed in `app/lib/api/client.ts`
+- AI model versions are strictly managed within client.ts
+- These files are prohibited from changes (approval required if changes are necessary):
+  - client.ts  - Core of AI models and API settings
+  - types.ts   - Centralized type definitions
+  - config.ts  - Centralized environment settings
 
-## 実装規則
-- AIモデルのバージョンは client.ts でのみ定義
-- 型定義は必ず types.ts を参照
-- 環境変数の利用は config.ts 経由のみ許可
+## Implementation Rules
+- AI model versions are defined only in client.ts
+- Type definitions must reference types.ts
+- Environment variable usage is permitted only through config.ts
 
 ---
-# プロジェクト構成
+# Project Structure
 
-以下のディレクトリ構造に従って実装を行ってください：
+Please implement according to the following directory structure:
 
 ```
 aituber-kit/
-├── app/                             # Next.js 13のappディレクトリ
-│   ├── api/                         # APIエンドポイント
+├── app/                             # Next.js 13 app directory
+│   ├── api/                         # API endpoints
 │   │   └── [endpoint]/
 │   │       └── route.ts
-│   ├── (routes)/                    # ページルーティング
-│   ├── components/                  # アプリケーションコンポーネント
-│   │   ├── ui/                      # 基本UI（button, card等）
-│   │   └── layout/                  # レイアウト関連
-│   ├── features/                    # 機能モジュール
-│   │   ├── chat/                    # チャット関連機能
-│   │   ├── messages/                # メッセージ関連機能
-│   │   └── stores/                  # 状態管理
-│   ├── hooks/                       # カスタムフック
-│   ├── lib/                         # ユーティリティ
-│   │   ├── api/                     # API関連処理
-│   │   │   ├── client.ts            # AIモデル設定
-│   │   │   ├── types.ts             # 型定義
-│   │   │   └── config.ts            # 環境設定
-│   │   └── utils/                   # 共通関数
-│   └── styles/                      # スタイル定義
-├── public/                          # 静的ファイル
-├── locales/                         # 多言語化リソース
-├── docs/                            # ドキュメント
-└── scripts/                         # ユーティリティスクリプト
+│   ├── (routes)/                    # Page routing
+│   ├── components/                  # Application components
+│   │   ├── ui/                      # Basic UI (button, card, etc.)
+│   │   └── layout/                  # Layout-related
+│   ├── features/                    # Feature modules
+│   │   ├── chat/                    # Chat-related functionality
+│   │   ├── messages/                # Message-related functionality
+│   │   └── stores/                  # State management
+│   ├── hooks/                       # Custom hooks
+│   ├── lib/                         # Utilities
+│   │   ├── api/                     # API-related processing
+│   │   │   ├── client.ts            # AI model settings
+│   │   │   ├── types.ts             # Type definitions
+│   │   │   └── config.ts            # Environment settings
+│   │   └── utils/                   # Common functions
+│   └── styles/                      # Style definitions
+├── public/                          # Static files
+├── locales/                         # Internationalization resources
+├── docs/                            # Documentation
+└── scripts/                         # Utility scripts
 ```
 
-### 配置ルール
-- UIコンポーネント → `app/components/ui/`
-- APIエンドポイント → `app/api/[endpoint]/route.ts`
-- 共通処理 → `app/lib/utils/`
-- API関連処理 → `app/lib/api/`
+### Placement Rules
+- UI components → `app/components/ui/`
+- API endpoints → `app/api/[endpoint]/route.ts`
+- Common processing → `app/lib/utils/`
+- API-related processing → `app/lib/api/`
 
-タスク内容に応じて下記を参考にしてください。
+Please refer to the following based on task content.
 
-## 新しいLLMサービスを追加する
+## Adding a New LLM Service
 - src/features/chat/handlers.ts
 - src/components/settings/modelProvider.tsx
 - src/features/stores/settings.ts
@@ -203,14 +203,14 @@ aituber-kit/
 - src/features/chat/aiChatFactory.ts
 - .env.example
 
-## 入力フォームからLLMを介して回答を得るまで
+## From Input Form to Getting Response via LLM
 - src/components/form.tsx
 - src/features/chat/handlers.ts
 - src/features/chat/vercelAIChat.ts
 - src/features/chat/aiChatFactory.ts
 - src/pages/api/aiChat.ts
 
-## 新しい設定を追加する
+## Adding New Settings
 - src/components/settings/advancedSettings.tsx
 - src/components/settings/ai.tsx
 - src/components/settings/based.tsx
@@ -226,7 +226,7 @@ aituber-kit/
 - src/components/settings/youtube.tsx
 - src/features/stores/settings.ts
 
-## ライセンスに関するドキュメント
+## License-Related Documents
 - README.md
 - LICENSE
 - docs/license.md
@@ -238,7 +238,7 @@ aituber-kit/
 - docs/license-faq_ko.md
 - docs/license-faq_zh.md
 
-## 音声関連ファイル
+## Voice-Related Files
 - src/utils/voiceLanguage.ts
 - src/components/messageInputContainer.tsx
 - src/components/messageInput.tsx
@@ -249,4 +249,4 @@ aituber-kit/
 
 ---
 
-以上の内容を順守し、タスクを遂行してください。
+Please comply with the above content and perform the tasks.

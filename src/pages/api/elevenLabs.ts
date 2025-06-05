@@ -67,6 +67,11 @@ export default async function handler(
   }
 
   try {
+    const requestBody = {
+      text: message,
+      model_id: 'eleven_multilingual_v2',
+    }
+
     const response = await fetch(
       `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=pcm_16000`,
       {
@@ -76,11 +81,7 @@ export default async function handler(
           'xi-api-key': apiKey,
           accept: 'audio/mpeg',
         },
-        body: JSON.stringify({
-          text: message,
-          model_id: 'eleven_turbo_v2_5',
-          language_code: language,
-        }),
+        body: JSON.stringify(requestBody),
       }
     )
 

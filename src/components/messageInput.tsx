@@ -19,6 +19,7 @@ type Props = {
   silenceTimeoutRemaining: number | null
   continuousMicListeningMode: boolean
   onToggleContinuousMode: (event: React.MouseEvent<HTMLButtonElement>) => void
+  showVoiceButton?: boolean
 }
 
 export const MessageInput = ({
@@ -31,6 +32,8 @@ export const MessageInput = ({
   isSpeaking,
   silenceTimeoutRemaining,
   continuousMicListeningMode,
+  onToggleContinuousMode,
+  showVoiceButton = true,
 }: Props) => {
   const chatProcessing = homeStore((s) => s.chatProcessing)
   const slidePlaying = slideStore((s) => s.isPlaying)
@@ -148,19 +151,21 @@ export const MessageInput = ({
               ></div>
             </div>
           )}
-          <div className="grid grid-flow-col gap-[8px] grid-cols-[min-content_1fr_min-content]">
-            <IconButton
-              iconName="24/Microphone"
-              backgroundColor={
-                continuousMicListeningMode
-                  ? 'bg-green-500 hover:bg-green-600 active:bg-green-700 text-white'
-                  : undefined
-              }
-              isProcessing={isMicRecording}
-              isProcessingIcon={'24/PauseAlt'}
-              disabled={chatProcessing || isSpeaking}
-              onClick={handleMicClick}
-            />
+          <div className={`grid grid-flow-col gap-[8px] ${showVoiceButton ? 'grid-cols-[min-content_1fr_min-content]' : 'grid-cols-[1fr_min-content]'}`}>
+            {showVoiceButton && (
+              <IconButton
+                iconName="24/Microphone"
+                backgroundColor={
+                  continuousMicListeningMode
+                    ? 'bg-green-500 hover:bg-green-600 active:bg-green-700 text-white'
+                    : undefined
+                }
+                isProcessing={isMicRecording}
+                isProcessingIcon={'24/PauseAlt'}
+                disabled={chatProcessing || isSpeaking}
+                onClick={handleMicClick}
+              />
+            )}
             <textarea
               ref={textareaRef}
               placeholder={

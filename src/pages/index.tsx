@@ -17,6 +17,9 @@ import '@/lib/i18n'
 import { buildUrl } from '@/utils/buildUrl'
 import { YoutubeManager } from '@/components/youtubeManager'
 import toastStore from '@/features/stores/toast'
+import { handleSendChatFn } from '@/features/chat/handlers'
+import ChatMenu from '@/components/ChatMenu'
+import MatchmakingProgress from '@/components/MatchmakingProgress'
 
 const Home = () => {
   const webcamStatus = homeStore((s) => s.webcamStatus)
@@ -88,9 +91,33 @@ const Home = () => {
     }
   }, [])
 
+  // Auto-start personality analysis for new users
+  useEffect(() => {
+    const checkAndStartPersonalityAnalysis = async () => {
+      try {
+        // Check if user has completed personality analysis
+        const completed = localStorage.getItem('personality_analysis_completed')
+
+        if (completed !== 'true') {
+          // Wait a moment for app to fully initialize
+          setTimeout(() => {
+            const handleSendChat = handleSendChatFn()
+            // Auto-trigger personality analysis with a welcome message
+            handleSendChat('Hello')
+          }, 1000)
+        }
+      } catch (error) {
+        console.error('Error checking personality analysis status:', error)
+      }
+    }
+
+    checkAndStartPersonalityAnalysis()
+  }, [])
+
   return (
     <div className="h-[100svh] bg-cover" style={{ backgroundImage: bgUrl }}>
       <Meta />
+      <MatchmakingProgress />
       <Introduction />
       {modelType === 'vrm' ? <VrmViewer /> : <Live2DViewer />}
       <Form />
@@ -101,6 +128,7 @@ const Home = () => {
       <WebSocketManager />
       <YoutubeManager />
       <CharacterPresetMenu />
+      <ChatMenu />
     </div>
   )
 }

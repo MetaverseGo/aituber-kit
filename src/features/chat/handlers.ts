@@ -11,12 +11,66 @@ import webSocketStore from '@/features/stores/websocketStore'
 import i18next from 'i18next'
 import toastStore from '@/features/stores/toast'
 import { generateMessageId } from '@/utils/messageUtils'
+import { MatchmakingChatHandler } from '@/features/matchmaking/matchmaking-chat-handler'
 
 // セッションIDを生成する関数
 const generateSessionId = () => generateMessageId()
 
 // コードブロックのデリミネーター
 const CODE_DELIMITER = '```'
+
+// Global matchmaking handler instance
+let globalMatchmakingHandler: MatchmakingChatHandler | null = null
+
+// Check if user has completed personality analysis
+const hasCompletedPersonalityAnalysis = (): boolean => {
+  try {
+    const completed = localStorage.getItem('personality_analysis_completed')
+    return completed === 'true'
+  } catch {
+    return false
+  }
+}
+
+// Check if required API keys are configured
+const hasRequiredAPIKeys = (): boolean => {
+  try {
+    const { anthropicKey, selectAIService } = settingsStore.getState()
+    
+    // If using Anthropic, check for Anthropic key
+    if (selectAIService === 'anthropic' || !selectAIService) {
+      return !!anthropicKey
+    }
+    
+    // For other services, just check if any service is selected
+    return !!selectAIService
+  } catch {
+    return false
+  }
+}
+
+// Mark personality analysis as completed
+const markPersonalityAnalysisCompleted = (): void => {
+  try {
+    localStorage.setItem('personality_analysis_completed', 'true')
+    // Clear the session ID since analysis is complete
+    localStorage.removeItem('personality_session_id')
+    // Clear the step progress data
+    localStorage.removeItem('matchmaking_step_progress')
+  } catch {
+    // Ignore localStorage errors
+  }
+}
+
+// Initialize matchmaking handler
+export const initializeMatchmakingHandler = () => {
+  if (!globalMatchmakingHandler) {
+    // Use a simple user ID for now - could be enhanced with actual user management
+    const userId = 'default-user'
+    globalMatchmakingHandler = new MatchmakingChatHandler(userId)
+  }
+  return globalMatchmakingHandler
+}
 
 /**
  * テキストから感情タグ `[...]` を抽出する
@@ -576,7 +630,13 @@ export const processAIResponse = async (messages: Message[]) => {
  * Youtubeでチャット取得した場合もこの関数を使用する
  */
 export const handleSendChatFn = () => async (text: string) => {
-  const sessionId = generateSessionId()
+  // Use a consistent sessionId for the entire personality analysis session
+  let sessionId = localStorage.getItem('personality_session_id')
+  if (!sessionId) {
+    sessionId = generateSessionId()
+    localStorage.setItem('personality_session_id', sessionId)
+  }
+  
   const newMessage = text
   const timestamp = new Date().toISOString()
 
@@ -657,6 +717,86 @@ export const handleSendChatFn = () => async (text: string) => {
       } catch (e) {
         console.error(e)
       }
+    }
+
+    // Check if user has completed personality analysis
+    const hasCompleted = hasCompletedPersonalityAnalysis()
+    console.log('🎯 Chat Handler - Personality analysis completed:', hasCompleted)
+    console.log('🎯 Chat Handler - Modal image present:', !!modalImage)
+
+    // If not completed, force matchmaking mode (only for text messages, not images)
+    if (!hasCompleted && !modalImage) {
+      console.log('🎯 Chat Handler - Entering matchmaking mode for message:', newMessage)
+      homeStore.setState({ chatProcessing: true })
+
+      // Add user message
+      homeStore.getState().upsertMessage({
+        role: 'user',
+        content: newMessage,
+        timestamp: timestamp,
+      })
+
+      const matchmakingHandler = initializeMatchmakingHandler()
+
+      try {
+        console.log('🎯 Chat Handler - Processing with matchmaking handler...')
+        // Process matchmaking flow (either start new or continue existing)
+        const matchmakingResult = await matchmakingHandler.processChatMessage(
+          newMessage,
+          sessionId
+        )
+        console.log('🎯 Chat Handler - Matchmaking result:', matchmakingResult)
+
+        if (matchmakingResult) {
+          console.log('🎯 Chat Handler - Speaking message:', matchmakingResult.message)
+          // Use speakMessageHandler for the response
+          await speakMessageHandler(matchmakingResult.message)
+
+          // Check if completed
+          if (matchmakingResult.isComplete) {
+            console.log('🎯 Chat Handler - Personality analysis completed! Marking as done.')
+            markPersonalityAnalysisCompleted()
+          }
+
+          homeStore.setState({ chatProcessing: false })
+          return
+        } else {
+          console.log('🎯 Chat Handler - No matchmaking result returned!')
+        }
+      } catch (error) {
+        console.error('🎯 Chat Handler - Matchmaking error:', error)
+        
+        // Handle specific API key error
+        if (error instanceof Error && error.message.includes('API key is not configured')) {
+          console.log('🎯 Chat Handler - API key error detected')
+          const errorMessage = `🌸 To start your personality analysis, I need you to configure your Anthropic API key first! 
+
+Please:
+1. Click the Settings menu (⚙️)
+2. Go to "Model Provider" 
+3. Enter your Anthropic API key
+4. Then come back and we can begin your personality journey! ✨`
+
+          await speakMessageHandler(errorMessage)
+          homeStore.setState({ chatProcessing: false })
+          return
+        }
+        
+        // For other errors, show a helpful message but stay in matchmaking mode
+        console.log('🎯 Chat Handler - Generic error, staying in matchmaking mode')
+        const errorMessage = `🌸 I encountered a small hiccup with your personality analysis! Let me try again. 
+
+Please make sure:
+• Your internet connection is stable
+• Your API key is properly configured in Settings
+• Then send any message to continue! ✨`
+
+        await speakMessageHandler(errorMessage)
+        homeStore.setState({ chatProcessing: false })
+        return
+      }
+    } else {
+      console.log('🎯 Chat Handler - Skipping matchmaking mode - completed:', hasCompleted, 'modalImage:', !!modalImage)
     }
 
     homeStore.setState({ chatProcessing: true })
