@@ -5,6 +5,7 @@ import homeStore from '@/features/stores/home'
 import settingsStore from '@/features/stores/settings'
 import slideStore from '@/features/stores/slide'
 import { IconButton } from './iconButton'
+import { getRemainingStamina, isStaminaEmpty } from '@/utils/chatLimits'
 
 type Props = {
   userMessage: string
@@ -44,8 +45,21 @@ export const MessageInput = ({
   const realtimeAPIMode = settingsStore((s) => s.realtimeAPIMode)
   const showSilenceProgressBar = settingsStore((s) => s.showSilenceProgressBar)
   const speechRecognitionMode = settingsStore((s) => s.speechRecognitionMode)
-
+  
   const { t } = useTranslation()
+  
+  // Check if personality analysis is completed and get remaining messages
+  const hasCompletedAnalysis = () => {
+    try {
+      return localStorage.getItem('personality_analysis_completed') === 'true'
+    } catch {
+      return false
+    }
+  }
+  
+  const remainingMessages = getRemainingStamina()
+  const isLimitReached = isStaminaEmpty()
+  const showMessageCounter = false // Stamina info is now only shown in top progress bar
 
   useEffect(() => {
     if (chatProcessing) {
@@ -123,13 +137,30 @@ export const MessageInput = ({
           </div>
         </div>
       )}
-      <div className="bg-base-light text-black">
+      <div className="bg-purple-500 text-white border-t border-purple-400">
         <div className="mx-auto max-w-4xl p-4">
+          {/* Message Counter Warning */}
+          {showMessageCounter && (
+            <div className="text-center mb-2">
+              <div className={`text-xs px-3 py-1 rounded-full inline-block ${
+                remainingMessages <= 3 
+                  ? 'bg-red-500/20 text-red-200' 
+                  : remainingMessages <= 7 
+                    ? 'bg-orange-500/20 text-orange-200' 
+                    : 'bg-yellow-500/20 text-yellow-200'
+              }`}>
+                {isLimitReached 
+                  ? 'Out of stamina! Wait for refill.' 
+                  : `${remainingMessages} stamina remaining`
+                }
+              </div>
+            </div>
+          )}
           {/* プログレスバー - 設定に基づいて表示/非表示 */}
           {isMicRecording && showSilenceProgressBar && (
             <div className="w-full h-2 bg-gray-200 rounded-full mb-2 overflow-hidden">
               <div
-                className="h-full bg-secondary transition-all duration-200 ease-linear"
+                className="h-full bg-purple-300 transition-all duration-200 ease-linear"
                 style={{
                   // プログレスバーの幅計算 - 最初と最後の0.3秒は表示しない
                   width:
@@ -158,7 +189,7 @@ export const MessageInput = ({
                 backgroundColor={
                   continuousMicListeningMode
                     ? 'bg-green-500 hover:bg-green-600 active:bg-green-700 text-white'
-                    : undefined
+                    : 'bg-purple-600 hover:bg-purple-700 border border-purple-400 text-white'
                 }
                 isProcessing={isMicRecording}
                 isProcessingIcon={'24/PauseAlt'}
@@ -178,15 +209,15 @@ export const MessageInput = ({
               onChange={onChangeUserMessage}
               onKeyDown={handleKeyPress}
               disabled={chatProcessing || slidePlaying || realtimeAPIMode}
-              className="bg-white hover:bg-white-hover focus:bg-white disabled:bg-gray-100 disabled:text-primary-disabled rounded-2xl w-full px-4 text-text-primary text-base font-bold disabled"
+              className="bg-purple-600 hover:bg-purple-700 focus:bg-purple-600 focus:ring-2 focus:ring-purple-300 focus:ring-opacity-50 disabled:bg-purple-400 disabled:text-purple-200 border border-purple-400 rounded-2xl w-full px-4 text-white text-base font-normal placeholder-purple-200"
               value={userMessage}
               rows={rows}
-              style={{ lineHeight: '1.5', padding: '8px 16px', resize: 'none' }}
+              style={{ lineHeight: '1.5', padding: '12px 16px', resize: 'none', outline: 'none' }}
             ></textarea>
 
             <IconButton
               iconName="24/Send"
-              className="bg-secondary hover:bg-secondary-hover active:bg-secondary-press disabled:bg-secondary-disabled"
+              className="bg-purple-700 hover:bg-purple-800 active:bg-purple-900 disabled:bg-purple-400 text-white"
               isProcessing={chatProcessing}
               disabled={chatProcessing || !userMessage || realtimeAPIMode}
               onClick={onClickSendButton}
@@ -194,7 +225,7 @@ export const MessageInput = ({
 
             <IconButton
               iconName="stop"
-              className="bg-secondary hover:bg-secondary-hover active:bg-secondary-press disabled:bg-secondary-disabled"
+              className="bg-purple-600 hover:bg-purple-700 border border-purple-400 text-white"
               onClick={onClickStopButton}
               isProcessing={false}
             />

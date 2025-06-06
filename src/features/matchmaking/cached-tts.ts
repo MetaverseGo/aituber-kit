@@ -237,6 +237,18 @@ export class CachedTTS {
       // Stop cached audio from our audio cache system
       audioCache.stopCurrentAudio()
       
+      // Stop VRM/Live2D model audio directly
+      const ss = settingsStore.getState()
+      const hs = homeStore.getState()
+      
+      if (ss.modelType === 'vrm' && hs.viewer.model) {
+        console.log(`🛑 CachedTTS - Stopping VRM model audio`)
+        hs.viewer.model.stopSpeaking()
+      } else if (ss.modelType === 'live2d') {
+        console.log(`🛑 CachedTTS - Stopping Live2D model audio`)
+        Live2DHandler.stopSpeaking()
+      }
+      
       // Use the proper SpeakQueue system to stop all audio
       const { SpeakQueue } = require('@/features/messages/speakQueue')
       SpeakQueue.stopAll()

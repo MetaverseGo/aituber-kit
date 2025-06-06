@@ -20,17 +20,27 @@ export const ChatLog = () => {
   const [isDragging, setIsDragging] = useState<boolean>(false)
 
   useEffect(() => {
-    chatScrollRef.current?.scrollIntoView({
-      behavior: 'auto',
-      block: 'center',
-    })
+    // Add a small delay to ensure DOM is fully rendered and messages are loaded
+    const timeoutId = setTimeout(() => {
+      chatScrollRef.current?.scrollIntoView({
+        behavior: 'auto',
+        block: 'center',
+      })
+    }, 100)
+    
+    return () => clearTimeout(timeoutId)
   }, [])
 
   useEffect(() => {
-    chatScrollRef.current?.scrollIntoView({
-      behavior: 'smooth',
-      block: 'center',
-    })
+    // Add a small delay to ensure the new message elements are fully rendered
+    const timeoutId = setTimeout(() => {
+      chatScrollRef.current?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      })
+    }, 50)
+    
+    return () => clearTimeout(timeoutId)
   }, [messages])
 
   useEffect(() => {
@@ -74,13 +84,13 @@ export const ChatLog = () => {
   return (
     <div
       ref={chatLogRef}
-      className="absolute h-[100svh] pb-16 z-10 max-w-full"
+      className="absolute h-[100svh] pb-24 z-10 max-w-full"
       style={{ width: `${chatLogWidth}px` }}
     >
-      <div className="relative max-h-full px-4 pt-24 pb-16">
+              <div className="relative max-h-full px-4 pt-24 pb-24">
         {/* Fade gradient overlays */}
         <div className="absolute top-24 left-0 right-0 h-6 bg-gradient-to-b from-black/20 via-black/10 to-transparent pointer-events-none z-20"></div>
-        <div className="absolute bottom-16 left-0 right-0 h-8 bg-gradient-to-t from-black/20 via-black/10 to-transparent pointer-events-none z-20"></div>
+        <div className="absolute bottom-24 left-0 right-0 h-8 bg-gradient-to-t from-black/20 via-black/10 to-transparent pointer-events-none z-20"></div>
         
         {/* Scrollable content */}
         <div className="max-h-full overflow-y-auto scroll-hidden relative">

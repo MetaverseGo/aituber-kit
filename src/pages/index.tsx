@@ -21,11 +21,13 @@ import { handleSendChatFn } from '@/features/chat/handlers'
 import ChatMenu from '@/components/ChatMenu'
 import MatchmakingProgress from '@/components/MatchmakingProgress'
 
+
 const Home = () => {
   const webcamStatus = homeStore((s) => s.webcamStatus)
   const captureStatus = homeStore((s) => s.captureStatus)
   const backgroundImageUrl = homeStore((s) => s.backgroundImageUrl)
   const useVideoAsBackground = settingsStore((s) => s.useVideoAsBackground)
+  const chatProcessing = homeStore((s) => s.chatProcessing)
   const bgUrl =
     (webcamStatus || captureStatus) && useVideoAsBackground
       ? ''
@@ -114,10 +116,13 @@ const Home = () => {
     checkAndStartPersonalityAnalysis()
   }, [])
 
+
+
   return (
     <div className="h-[100svh] bg-cover" style={{ backgroundImage: bgUrl }}>
       <Meta />
       <MatchmakingProgress />
+
       <Introduction />
       {modelType === 'vrm' ? <VrmViewer /> : <Live2DViewer />}
       <Form />

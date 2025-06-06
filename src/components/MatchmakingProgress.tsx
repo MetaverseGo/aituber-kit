@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import homeStore from '@/features/stores/home'
 import { hostProfiler, HostIntroduction } from '@/features/matchmaking/host-profiler'
 import { CachedTTS } from '@/features/matchmaking/cached-tts'
+import { getChatStats, DAILY_MESSAGE_LIMIT, getTimeUntilNextRefill } from '@/utils/chatLimits'
 
 interface MatchmakingProgressProps {
   className?: string
@@ -65,6 +66,9 @@ export const MatchmakingProgress: React.FC<MatchmakingProgressProps> = ({
   const [loadingMatches, setLoadingMatches] = useState(false)
   const [hostIntroductions, setHostIntroductions] = useState<Map<string, HostIntroduction>>(new Map())
   const [generatingIntro, setGeneratingIntro] = useState(false)
+  const [lastProcessedState, setLastProcessedState] = useState<string>('')
+  const [chatStats, setChatStats] = useState(() => getChatStats())
+  const [timeUntilRefill, setTimeUntilRefill] = useState(() => getTimeUntilNextRefill())
   
   console.log('📊 Progress Bar - Component rendered, isVisible:', isVisible, 'stepProgress:', stepProgress, 'showCompletionSplit:', showCompletionSplit)
 
@@ -411,12 +415,32 @@ export const MatchmakingProgress: React.FC<MatchmakingProgressProps> = ({
 
   // Update progress based on real step data
   const updateProgress = () => {
-    console.log('📊 Progress Bar - Updating progress...')
+    const stepData = getStoredStepProgress()
+    const completed = hasCompletedPersonalityAnalysis() || (stepData && stepData.phase === 'completed')
+    const hasDismissed = localStorage.getItem('personality_panel_dismissed') === 'true'
+    const currentState = `completed:${completed}|dismissed:${hasDismissed}|split:${showCompletionSplit}`
     
-    const completed = hasCompletedPersonalityAnalysis()
-    console.log('📊 Progress Bar - Personality analysis completed:', completed)
+    // Prevent unnecessary updates if state hasn't changed
+    if (currentState === lastProcessedState) {
+      console.log('📊 Progress Bar - State unchanged, skipping update')
+      return
+    }
+    
+    console.log('📊 Progress Bar - Updating progress...', currentState)
+    setLastProcessedState(currentState)
     
     if (completed) {
+      console.log('📊 Progress Bar - Personality analysis completed, dismissed:', hasDismissed)
+      
+      // If dismissed, hide the completion panel but keep component visible for chat limits
+      if (hasDismissed) {
+        console.log('📊 Progress Bar - Panel was dismissed, hiding completion panel but keeping chat limits visible')
+        setShowCompletionSplit(false)
+        setIsVisible(true) // Keep visible for chat limits
+      setStepProgress(null)
+      return
+      }
+      
       console.log('📊 Progress Bar - Personality analysis completed, checking for completion data')
       const completionData = getPersonalityCompletionData()
       console.log('📊 Progress Bar - Completion data:', completionData)
@@ -479,6 +503,11 @@ export const MatchmakingProgress: React.FC<MatchmakingProgressProps> = ({
       setIsVisible(true)
       setShowCompletionSplit(false)
       setPersonalityData(null)
+    } else if (storedProgress && storedProgress.phase === 'completed') {
+      console.log('📊 Progress Bar - Analysis completed phase detected, triggering completion logic')
+      setStepProgress(null)
+      // Let the completion logic in the earlier part of updateProgress handle this
+      // Don't set isVisible to false here - let the earlier logic determine visibility
     } else {
       console.log('📊 Progress Bar - No valid step progress, hiding. Stored progress phase:', storedProgress?.phase)
       setStepProgress(null)
@@ -507,9 +536,18 @@ export const MatchmakingProgress: React.FC<MatchmakingProgressProps> = ({
         console.log('📊 Progress Bar - localStorage changed, updating progress...')
         updateProgress()
       }
+      if (e.key === 'chat_stats') {
+        console.log('📊 Progress Bar - Chat stats changed, updating...')
+        setChatStats(getChatStats())
+      }
     }
 
     const handleShowPersonalityPanel = () => {
+      console.log('📊 Progress Bar - Explicit show personality panel request, clearing dismissal flag')
+      // Clear dismissal flag when explicitly requested
+      localStorage.removeItem('personality_panel_dismissed')
+      // Reset state tracking to allow updates
+      setLastProcessedState('')
       const completionData = getPersonalityCompletionData()
       if (completionData) {
         setPersonalityData(completionData)
@@ -519,7 +557,7 @@ export const MatchmakingProgress: React.FC<MatchmakingProgressProps> = ({
         setShowMatches(false)
       }
     }
-
+    
     window.addEventListener('storage', handleStorageChange)
     window.addEventListener('showPersonalityPanel', handleShowPersonalityPanel)
 
@@ -529,6 +567,22 @@ export const MatchmakingProgress: React.FC<MatchmakingProgressProps> = ({
       window.removeEventListener('showPersonalityPanel', handleShowPersonalityPanel)
     }
   }, [])
+
+  // Update stamina stats and refill timer every 10 seconds
+  useEffect(() => {
+    const updateStaminaTimer = setInterval(() => {
+      const newStats = getChatStats()
+      const newTimeUntilRefill = getTimeUntilNextRefill()
+      
+      // Only update if something changed to avoid unnecessary re-renders
+      if (JSON.stringify(newStats) !== JSON.stringify(chatStats) || newTimeUntilRefill !== timeUntilRefill) {
+        setChatStats(newStats)
+        setTimeUntilRefill(newTimeUntilRefill)
+      }
+    }, 10000) // Update every 10 seconds
+    
+    return () => clearInterval(updateStaminaTimer)
+  }, [chatStats, timeUntilRefill])
 
   if (!isVisible) {
     return null
@@ -695,7 +749,9 @@ export const MatchmakingProgress: React.FC<MatchmakingProgressProps> = ({
               setShowCompletionSplit(false)
               setPersonalityData(null)
               setIsVisible(false)
-              console.log('🔄 Personality panel hidden')
+              // Remember that user has dismissed the panel
+              localStorage.setItem('personality_panel_dismissed', 'true')
+              console.log('🔄 Personality panel hidden and marked as dismissed')
             }}
             className="absolute top-4 right-4 p-2 bg-white/80 hover:bg-white rounded-full shadow-md transition-colors z-10"
             title="Hide panel"
@@ -751,7 +807,13 @@ export const MatchmakingProgress: React.FC<MatchmakingProgressProps> = ({
                   <button
                     onClick={() => {
                       const tweetText = `I just discovered my personality type: ${personalityData.personalityCategory}! 🎉 Take the personality analysis and find your perfect match! #PersonalityAnalysis #MatchMaking`
-                      const tweetUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(tweetText)}`
+                      let tweetUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(tweetText)}`
+                      
+                      // Include the personality image if available
+                      if (personalityData.personalityImageUrl) {
+                        tweetUrl += `&url=${encodeURIComponent(personalityData.personalityImageUrl)}`
+                      }
+                      
                       window.open(tweetUrl, '_blank', 'width=550,height=420')
                     }}
                     className="flex-1 px-4 py-2 bg-black text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-colors flex items-center justify-center gap-2"
@@ -791,29 +853,117 @@ export const MatchmakingProgress: React.FC<MatchmakingProgressProps> = ({
     )
   }
 
-  // Show normal progress bar
+  // Show normal progress bar during personality analysis
   if (stepProgress) {
-    const progressPercentage = (stepProgress.current / stepProgress.total) * 100
+  const progressPercentage = (stepProgress.current / stepProgress.total) * 100
+
+  return (
+    <div className={`absolute top-0 left-0 right-0 z-50 bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg ${className}`}>
+      <div className="px-4 py-2">
+        <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center space-x-2">
+            <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center">
+              <span className="text-xs font-bold">💜</span>
+            </div>
+            <span className="font-semibold text-sm">
+              Question {stepProgress.current} of {stepProgress.total}
+            </span>
+          </div>
+        </div>
+        
+        {/* Progress Bar */}
+        <div className="w-full bg-white/20 rounded-full h-1.5">
+          <div 
+            className="bg-white rounded-full h-1.5 transition-all duration-300 ease-out"
+            style={{ width: `${progressPercentage}%` }}
+          />
+        </div>
+      </div>
+    </div>
+  )
+  }
+
+  // Show chat limits after personality analysis is complete (but not when panels are open)
+  const shouldShowChatLimits = hasCompletedPersonalityAnalysis() && !showCompletionSplit && !showMatches
+  console.log('🔍 Chat Limits Check:', {
+    completed: hasCompletedPersonalityAnalysis(),
+    showCompletionSplit,
+    showMatches,
+    shouldShow: shouldShowChatLimits,
+    isVisible
+  })
+  
+  if (shouldShowChatLimits) {
+    const remainingMessages = Math.max(0, DAILY_MESSAGE_LIMIT - chatStats.dailyMessages)
+    const dailyPercentage = Math.min((remainingMessages / DAILY_MESSAGE_LIMIT) * 100, 100)
+    const intimacyPercentage = Math.min((chatStats.intimacyLevel / 100) * 100, 100)
+    
+    const formatTimeUntilRefill = (ms: number): string => {
+      if (ms === 0 || remainingMessages === DAILY_MESSAGE_LIMIT) return ''
+      const minutes = Math.floor(ms / 60000)
+      const seconds = Math.floor((ms % 60000) / 1000)
+      return `${minutes}:${seconds.toString().padStart(2, '0')}`
+    }
+    
+    const getIntimacyLevel = (points: number): string => {
+      if (points >= 75) return 'Best Friend'
+      if (points >= 50) return 'Close Friend'
+      if (points >= 25) return 'Friend'
+      if (points >= 10) return 'Acquaintance'
+      return 'Stranger'
+    }
+
+    const getDailyColor = () => {
+      return 'from-purple-500 to-pink-500'
+    }
+
+
 
     return (
-      <div className={`absolute top-0 left-0 right-0 z-50 bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg ${className}`}>
+      <div className={`absolute top-0 left-0 right-0 z-50 bg-gradient-to-r ${getDailyColor()} text-white shadow-lg ${className}`}>
         <div className="px-4 py-2">
+          {/* Daily Messages */}
+          <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center space-x-2">
+              <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center">
+                <span className="text-xs font-bold">💬</span>
+              </div>
+              <span className="font-semibold text-sm">
+                Stamina: {remainingMessages}/{DAILY_MESSAGE_LIMIT}
+                {formatTimeUntilRefill(timeUntilRefill) && (
+                  <span className="text-xs opacity-75 ml-2">
+                    +1 in {formatTimeUntilRefill(timeUntilRefill)}
+                  </span>
+                )}
+              </span>
+            </div>
+          </div>
+          
+          {/* Daily Progress Bar */}
+          <div className="w-full bg-white/20 rounded-full h-1.5 mb-2">
+            <div 
+              className="bg-white rounded-full h-1.5 transition-all duration-300 ease-out"
+              style={{ width: `${dailyPercentage}%` }}
+            />
+          </div>
+
+          {/* Intimacy Level */}
           <div className="flex items-center justify-between mb-1">
             <div className="flex items-center space-x-2">
               <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center">
                 <span className="text-xs font-bold">💜</span>
               </div>
-              <span className="font-semibold text-sm">
-                Question {stepProgress.current} of {stepProgress.total}
-              </span>
+                             <span className="font-semibold text-sm">
+                 {getIntimacyLevel(chatStats.intimacyLevel)}: {Math.floor(chatStats.intimacyLevel)}/100
+               </span>
             </div>
           </div>
           
-          {/* Progress Bar */}
+          {/* Intimacy Progress Bar */}
           <div className="w-full bg-white/20 rounded-full h-1.5">
             <div 
               className="bg-white rounded-full h-1.5 transition-all duration-300 ease-out"
-              style={{ width: `${progressPercentage}%` }}
+              style={{ width: `${intimacyPercentage}%` }}
             />
           </div>
         </div>

@@ -12,6 +12,7 @@ import i18next from 'i18next'
 import toastStore from '@/features/stores/toast'
 import { generateMessageId } from '@/utils/messageUtils'
 import { MatchmakingChatHandler } from '@/features/matchmaking/matchmaking-chat-handler'
+import { SYSTEM_PROMPT_EN } from '@/features/constants/systemPromptConstants'
 
 // セッションIDを生成する関数
 const generateSessionId = () => generateMessageId()
@@ -780,6 +781,20 @@ export const handleSendChatFn = () => async (text: string) => {
             markPersonalityAnalysisCompleted()
             // Clear step progress when complete
             localStorage.removeItem('matchmaking_step_progress')
+            
+            // 🎯 Ensure Emi's personality is restored after analysis completion
+            console.log('🎯 Chat Handler - Ensuring Emi personality is restored after analysis completion')
+            const currentSystemPrompt = settingsStore.getState().systemPrompt
+            console.log('🎯 Chat Handler - Current system prompt:', currentSystemPrompt.substring(0, 100) + '...')
+            
+            // If system prompt doesn't contain Emi's personality, restore it
+            if (!currentSystemPrompt.includes('You are Emi, a friendly and engaging conversation partner')) {
+              console.log('🎯 Chat Handler - System prompt missing Emi personality, restoring...')
+              settingsStore.setState({ 
+                systemPrompt: SYSTEM_PROMPT_EN,
+                characterName: 'Emi'
+              })
+            }
           }
 
           homeStore.setState({ chatProcessing: false })
@@ -823,7 +838,49 @@ Please make sure:
       console.log('🎯 Chat Handler - Skipping matchmaking mode - completed:', hasCompleted, 'modalImage:', !!modalImage)
     }
 
+    // Check stamina limit for free chat mode
+    if (hasCompleted && !modalImage) {
+      const checkStaminaLimit = async () => {
+        try {
+          const { isStaminaEmpty, getRemainingStamina, getTimeUntilNextRefill } = await import('@/utils/chatLimits')
+          const isEmpty = isStaminaEmpty()
+          const remaining = getRemainingStamina()
+          const timeUntilRefill = getTimeUntilNextRefill()
+          
+          if (isEmpty) {
+            const minutes = Math.ceil(timeUntilRefill / 60000)
+            return { 
+              blocked: true, 
+              message: `Out of stamina! You'll get +1 stamina in ${minutes} minute${minutes !== 1 ? 's' : ''}.`
+            }
+          }
+          
+          return { blocked: false, remaining }
+        } catch {
+          return { blocked: false }
+        }
+      }
+
+      const staminaCheck = await checkStaminaLimit()
+      if (staminaCheck.blocked) {
+        console.log('🎯 Chat Handler - Stamina depleted, blocking message')
+        homeStore.setState({ chatProcessing: false })
+        toastStore.getState().addToast({
+          message: staminaCheck.message || 'Out of stamina! Wait for refill.',
+          type: 'error',
+          tag: 'stamina-depleted',
+        })
+        return
+      }
+    }
+
     homeStore.setState({ chatProcessing: true })
+    
+    // 🎯 Debug: Log system prompt being used after personality analysis completion
+    console.log('🎯 Free Chat - System prompt being used:', systemPrompt.substring(0, 100) + '...')
+    console.log('🎯 Free Chat - Character name:', ss.characterName)
+    console.log('🎯 Free Chat - Analysis completed:', hasCompleted)
+    
     const userMessageContent: Message['content'] = modalImage
       ? [
           { type: 'text' as const, text: newMessage },
@@ -856,6 +913,17 @@ Please make sure:
 
     try {
       await processAIResponse(messages)
+      
+      // Increment chat stats for free chat mode (after successful AI response)
+      if (hasCompleted && !modalImage) {
+        console.log('🎯 Chat Handler - Incrementing chat stats after successful message')
+        try {
+          const { incrementChatStats } = await import('@/utils/chatLimits')
+          incrementChatStats()
+        } catch (statsError) {
+          console.error('Error incrementing chat stats:', statsError)
+        }
+      }
     } catch (e) {
       console.error(e)
       homeStore.setState({ chatProcessing: false })

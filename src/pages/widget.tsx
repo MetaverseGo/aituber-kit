@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/router'
 import { WidgetForm } from '@/components/widgetForm'
 import VrmViewer from '@/components/vrmViewer'
@@ -6,6 +6,7 @@ import Live2DViewer from '@/components/live2DViewer'
 import { Toasts } from '@/components/toasts'
 import MatchmakingProgress from '@/components/MatchmakingProgress'
 import ChatMenu from '@/components/ChatMenu'
+
 import homeStore from '@/features/stores/home'
 import settingsStore from '@/features/stores/settings'
 import '@/lib/i18n'
@@ -43,6 +44,8 @@ interface WidgetConfig {
 
 const Widget = () => {
   const router = useRouter()
+  const chatScrollRef = useRef<HTMLDivElement>(null)
+  const chatScrollRefHidden = useRef<HTMLDivElement>(null)
   const [config, setConfig] = useState<WidgetConfig>({
     width: '800px',
     height: '600px',
@@ -239,6 +242,25 @@ const Widget = () => {
     )
   }, [chatLog, config.postMessages])
 
+  // Auto-scroll chat to bottom when new messages are added
+  useEffect(() => {
+    const scrollToBottom = () => {
+      // Scroll the visible chat container (when input is shown)
+      if (chatScrollRef.current) {
+        chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight
+      }
+      // Scroll the hidden input chat container  
+      if (chatScrollRefHidden.current) {
+        chatScrollRefHidden.current.scrollTop = chatScrollRefHidden.current.scrollHeight
+      }
+    }
+
+    // Add a small delay to ensure the new message elements are fully rendered
+    const timeoutId = setTimeout(scrollToBottom, 50)
+    
+    return () => clearTimeout(timeoutId)
+  }, [chatLog])
+
   const getThemeClasses = () => {
     switch (config.theme) {
       case 'dark':
@@ -270,6 +292,8 @@ const Widget = () => {
   console.log('🎨 Widget - isPersonalityCompleted:', isPersonalityCompleted)
   console.log('🎨 Widget - Rendering main content with right constraint:', isPersonalityCompleted ? '320px' : '0')
 
+
+
   return (
     <div
       className={`relative overflow-hidden ${getThemeClasses()}`}
@@ -277,6 +301,8 @@ const Widget = () => {
     >
       {/* Matchmaking Progress Bar */}
       <MatchmakingProgress />
+      
+
       
       {/* Main content */}
       <div className="absolute inset-0">
@@ -292,7 +318,7 @@ const Widget = () => {
 
         {/* Chat Log - positioned just above input */}
         {config.showChatLog && chatLog.length > 0 && config.showInput && (
-          <div className="absolute bottom-20 left-2 right-2 max-h-32 overflow-y-auto scroll-hidden z-10">
+          <div ref={chatScrollRef} className="absolute bottom-20 left-2 right-2 max-h-32 overflow-y-auto scroll-hidden z-10">
             <div className="space-y-2 p-2">
               {chatLog.slice(-2).map((msg, i) => {
                 const isUser = msg.role === 'user'
@@ -325,7 +351,7 @@ const Widget = () => {
 
         {/* Chat Log - for when input is hidden, show at bottom */}
         {config.showChatLog && chatLog.length > 0 && !config.showInput && (
-          <div className="absolute bottom-2 left-2 right-2 max-h-32 overflow-y-auto scroll-hidden z-10">
+          <div ref={chatScrollRefHidden} className="absolute bottom-2 left-2 right-2 max-h-32 overflow-y-auto scroll-hidden z-10">
             <div className="space-y-2 p-2">
               {chatLog.slice(-2).map((msg, i) => {
                 const isUser = msg.role === 'user'
