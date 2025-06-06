@@ -226,6 +226,34 @@ export class CachedTTS {
     return cached
   }
 
+  // Stop any currently playing audio
+  static stopAudio(): void {
+    console.log(`🛑 CachedTTS - Stopping all audio...`)
+    
+    try {
+      // Stop cached audio from our audio cache system
+      audioCache.stopCurrentAudio()
+      
+      // Use the proper SpeakQueue system to stop all audio
+      const { SpeakQueue } = require('@/features/messages/speakQueue')
+      SpeakQueue.stopAll()
+      
+      // Also stop any global audio elements as fallback
+      const audioElements = document.querySelectorAll('audio')
+      audioElements.forEach(audio => {
+        if (!audio.paused) {
+          audio.pause()
+          audio.currentTime = 0
+          console.log(`🛑 CachedTTS - Stopped fallback audio element`)
+        }
+      })
+
+      console.log(`✅ CachedTTS - Audio stopped successfully`)
+    } catch (error) {
+      console.error('❌ CachedTTS - Error stopping audio:', error)
+    }
+  }
+
   // Utility methods for cache management
   static async getCacheStats(): Promise<{ count: number; totalSize: number }> {
     return await audioCache.getCacheStats()

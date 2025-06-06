@@ -210,6 +210,10 @@ export const MatchmakingProgress: React.FC<MatchmakingProgressProps> = ({
 
   // Navigate to next match
   const nextMatch = () => {
+    // Stop any currently playing audio
+    console.log(`🛑 Stopping audio before switching to next match`)
+    CachedTTS.stopAudio()
+    
     let nextIndex
     if (currentMatchIndex < matches.length - 1) {
       nextIndex = currentMatchIndex + 1
@@ -543,6 +547,8 @@ export const MatchmakingProgress: React.FC<MatchmakingProgressProps> = ({
           {/* Close Button */}
           <button
             onClick={() => {
+              console.log(`🛑 Stopping audio when closing matches panel`)
+              CachedTTS.stopAudio()
               setShowMatches(false)
               setMatches([])
               setCurrentMatchIndex(0)
@@ -659,6 +665,8 @@ export const MatchmakingProgress: React.FC<MatchmakingProgressProps> = ({
             {/* Back to Personality Button */}
             <button
               onClick={() => {
+                console.log(`🛑 Stopping audio when going back to personality`)
+                CachedTTS.stopAudio()
                 setShowMatches(false)
                 setShowCompletionSplit(true)
               }}
@@ -682,6 +690,8 @@ export const MatchmakingProgress: React.FC<MatchmakingProgressProps> = ({
           {/* Close Button */}
           <button
             onClick={() => {
+              console.log(`🛑 Stopping audio when closing personality panel`)
+              CachedTTS.stopAudio()
               setShowCompletionSplit(false)
               setPersonalityData(null)
               setIsVisible(false)

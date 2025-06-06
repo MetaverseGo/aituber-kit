@@ -4,6 +4,7 @@ class AudioCacheManager {
   private dbVersion = 1
   private storeName = 'audio_blobs'
   private db: IDBDatabase | null = null
+  private currentAudio: HTMLAudioElement | null = null
 
   constructor() {
     this.initDB()
@@ -189,23 +190,44 @@ class AudioCacheManager {
   }
 
   async playAudioBlob(audioBlob: Blob): Promise<void> {
+    // Stop any currently playing audio
+    this.stopCurrentAudio()
+
     return new Promise((resolve, reject) => {
       const audio = new Audio()
       const url = URL.createObjectURL(audioBlob)
+      
+      // Track this audio element
+      this.currentAudio = audio
 
       audio.onload = () => URL.revokeObjectURL(url)
       audio.onended = () => {
         URL.revokeObjectURL(url)
+        if (this.currentAudio === audio) {
+          this.currentAudio = null
+        }
         resolve()
       }
       audio.onerror = () => {
         URL.revokeObjectURL(url)
+        if (this.currentAudio === audio) {
+          this.currentAudio = null
+        }
         reject(new Error('Failed to play audio blob'))
       }
 
       audio.src = url
       audio.play().catch(reject)
     })
+  }
+
+  stopCurrentAudio(): void {
+    if (this.currentAudio) {
+      console.log('🛑 Audio Cache - Stopping current audio playback')
+      this.currentAudio.pause()
+      this.currentAudio.currentTime = 0
+      this.currentAudio = null
+    }
   }
 }
 
