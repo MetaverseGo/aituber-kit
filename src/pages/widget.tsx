@@ -5,6 +5,7 @@ import VrmViewer from '@/components/vrmViewer'
 import Live2DViewer from '@/components/live2DViewer'
 import { Toasts } from '@/components/toasts'
 import MatchmakingProgress from '@/components/MatchmakingProgress'
+import PersonalityPanel from '@/components/PersonalityPanel'
 import ChatMenu from '@/components/ChatMenu'
 
 import homeStore from '@/features/stores/home'
@@ -74,8 +75,9 @@ const Widget = () => {
       try {
         const completed = localStorage.getItem('personality_analysis_completed') === 'true'
         const hasResult = localStorage.getItem('last_matchmaking_result') !== null
-        const shouldShow = completed && hasResult
-        console.log('🎨 Widget - Personality completion check:', { completed, hasResult, shouldShow })
+        const hasDismissed = localStorage.getItem('personality_panel_dismissed') === 'true'
+        const shouldShow = completed && hasResult && !hasDismissed
+        console.log('🎨 Widget - Personality completion check:', { completed, hasResult, hasDismissed, shouldShow })
         setIsPersonalityCompleted(shouldShow)
       } catch (error) {
         console.log('🎨 Widget - Error checking personality completion:', error)
@@ -88,7 +90,7 @@ const Widget = () => {
 
     // Listen for localStorage changes
     const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'personality_analysis_completed' || e.key === 'last_matchmaking_result') {
+      if (e.key === 'personality_analysis_completed' || e.key === 'last_matchmaking_result' || e.key === 'personality_panel_dismissed') {
         console.log('🎨 Widget - Storage changed:', e.key)
         checkCompletionStatus()
       }
@@ -111,20 +113,7 @@ const Widget = () => {
     }
   }, [])
 
-  // Also check based on MatchmakingProgress component state
-  useEffect(() => {
-    const interval = setInterval(() => {
-      // Direct check - if there's a personality panel visible, constrain the layout
-      const personalityPanel = document.querySelector('[class*="fixed"][class*="right-0"][class*="w-80"]')
-      const shouldConstrain = personalityPanel !== null
-      if (shouldConstrain !== isPersonalityCompleted) {
-        console.log('🎨 Widget - Direct panel detection override:', shouldConstrain)
-        setIsPersonalityCompleted(shouldConstrain)
-      }
-    }, 500)
-
-    return () => clearInterval(interval)
-  }, [isPersonalityCompleted])
+  // Remove the DOM detection interval as it causes flickering and conflicts with dismissal logic
 
   // Parse URL parameters and PostMessage config
   useEffect(() => {
@@ -301,9 +290,8 @@ const Widget = () => {
     >
       {/* Matchmaking Progress Bar */}
       <MatchmakingProgress />
-      
+      <PersonalityPanel />
 
-      
       {/* Main content */}
       <div className="absolute inset-0">
         {/* Character Display */}

@@ -20,6 +20,7 @@ import toastStore from '@/features/stores/toast'
 import { handleSendChatFn } from '@/features/chat/handlers'
 import ChatMenu from '@/components/ChatMenu'
 import MatchmakingProgress from '@/components/MatchmakingProgress'
+import PersonalityPanel from '@/components/PersonalityPanel'
 
 
 const Home = () => {
@@ -120,9 +121,9 @@ const Home = () => {
 
   return (
     <div className="h-[100svh] bg-cover" style={{ backgroundImage: bgUrl }}>
-      <Meta />
+            <Meta />
       <MatchmakingProgress />
-
+      <PersonalityPanel />
       <Introduction />
       {modelType === 'vrm' ? <VrmViewer /> : <Live2DViewer />}
       <Form />
