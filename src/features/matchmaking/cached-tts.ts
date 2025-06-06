@@ -24,7 +24,10 @@ export class CachedTTS {
       if (cachedAudio) {
         console.log(`🚀 CachedTTS - Found cached audio for ${hostUid}! Playing immediately...`)
         console.log(`⚡ CachedTTS - Skipping AI text generation - using cached text: "${cachedAudio.introText.substring(0, 50)}..."`)
-        await audioCache.playAudioBlob(cachedAudio.audioBlob)
+        
+        // Convert Blob back to ArrayBuffer to use VRM model lip sync
+        const arrayBuffer = await cachedAudio.audioBlob.arrayBuffer()
+        await this.playAudioBuffer(arrayBuffer, cachedAudio.introText)
         onComplete?.()
         return
       }
