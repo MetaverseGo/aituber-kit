@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import homeStore from '@/features/stores/home'
+import { hostProfiler, HostIntroduction } from '@/features/matchmaking/host-profiler'
+import { speakCharacter } from '@/features/messages/speakCharacter'
 
 interface MatchmakingProgressProps {
   className?: string
@@ -61,6 +63,8 @@ export const MatchmakingProgress: React.FC<MatchmakingProgressProps> = ({
   const [matches, setMatches] = useState<PlayFriendsProfile[]>([])
   const [currentMatchIndex, setCurrentMatchIndex] = useState(0)
   const [loadingMatches, setLoadingMatches] = useState(false)
+  const [hostIntroductions, setHostIntroductions] = useState<Map<string, HostIntroduction>>(new Map())
+  const [generatingIntro, setGeneratingIntro] = useState(false)
   
   console.log('📊 Progress Bar - Component rendered, isVisible:', isVisible, 'stepProgress:', stepProgress, 'showCompletionSplit:', showCompletionSplit)
 
@@ -190,6 +194,13 @@ export const MatchmakingProgress: React.FC<MatchmakingProgressProps> = ({
       setShowMatches(true)
       console.log('✅ Hardcoded matches loaded successfully:', hardcodedData.d.length, 'profiles')
       
+      // Generate introduction for the first match
+      if (hardcodedData.d.length > 0) {
+        setTimeout(() => {
+          generateAndSpeakIntroduction(hardcodedData.d[0])
+        }, 500) // Small delay to ensure UI is ready
+      }
+      
     } catch (error) {
       console.error('❌ Error loading matches:', error)
     } finally {
@@ -199,11 +210,73 @@ export const MatchmakingProgress: React.FC<MatchmakingProgressProps> = ({
 
   // Navigate to next match
   const nextMatch = () => {
+    let nextIndex
     if (currentMatchIndex < matches.length - 1) {
-      setCurrentMatchIndex(currentMatchIndex + 1)
+      nextIndex = currentMatchIndex + 1
+      setCurrentMatchIndex(nextIndex)
     } else {
       // Loop back to first match
+      nextIndex = 0
       setCurrentMatchIndex(0)
+    }
+    
+    // Generate and speak introduction for the new match
+    if (matches[nextIndex]) {
+      const nextHost = matches[nextIndex]
+      console.log(`🔄 Switching to match ${nextIndex + 1}/${matches.length}: ${nextHost.username}`)
+      generateAndSpeakIntroduction(nextHost)
+    }
+  }
+
+  // Generate host introduction and make Emi speak it
+  const generateAndSpeakIntroduction = async (host: PlayFriendsProfile) => {
+    console.log('🔍 Personality data for host introduction:', personalityData)
+    
+    const userPersonalityId = personalityData?.profile?.category?.id
+    console.log('🎯 User personality ID:', userPersonalityId)
+    
+    if (!userPersonalityId) {
+      console.log('❌ No user personality ID available for host introduction')
+      console.log('❌ Available personality data:', personalityData)
+      return
+    }
+
+    try {
+      setGeneratingIntro(true)
+      console.log(`🎯 Generating introduction for ${host.username} with personality ID: ${userPersonalityId}...`)
+      
+      const introduction = await hostProfiler.generateHostIntroduction(host, userPersonalityId)
+      
+      // Update the introductions map
+      setHostIntroductions(prev => {
+        const newMap = new Map(prev)
+        newMap.set(host.uid, introduction)
+        return newMap
+      })
+
+      // Make Emi speak the introduction using her configured TTS system
+      const sessionId = `host-intro-${host.uid}-${Date.now()}`
+      
+      console.log(`🎤 Emi speaking introduction for ${host.username}`)
+      
+      speakCharacter(
+        sessionId,
+        {
+          message: introduction.introduction,
+          emotion: 'happy' as any
+        },
+        () => {
+          console.log(`🗣️ Started speaking introduction for ${host.username}`)
+        },
+        () => {
+          console.log(`✅ Finished speaking introduction for ${host.username}`)
+        }
+      )
+
+    } catch (error) {
+      console.error(`❌ Error generating introduction for ${host.username}:`, error)
+    } finally {
+      setGeneratingIntro(false)
     }
   }
 
@@ -408,19 +481,18 @@ export const MatchmakingProgress: React.FC<MatchmakingProgressProps> = ({
         updateProgress()
       }
     }
-    
-    // Listen for custom event to show personality panel
+
     const handleShowPersonalityPanel = () => {
-      console.log('📊 Progress Bar - Show personality panel event received')
       const completionData = getPersonalityCompletionData()
       if (completionData) {
         setPersonalityData(completionData)
         setShowCompletionSplit(true)
         setIsVisible(true)
         setStepProgress(null)
+        setShowMatches(false)
       }
     }
-    
+
     window.addEventListener('storage', handleStorageChange)
     window.addEventListener('showPersonalityPanel', handleShowPersonalityPanel)
 
@@ -444,7 +516,7 @@ export const MatchmakingProgress: React.FC<MatchmakingProgressProps> = ({
     
     return (
       <div className={`fixed top-0 right-0 bottom-0 w-80 z-40 ${className}`}>
-        <div className="h-full bg-gradient-to-br from-purple-50 to-pink-50 flex flex-col p-6 relative">
+        <div className="h-full bg-gradient-to-br from-purple-50 to-pink-50 flex flex-col relative">
           {/* Close Button */}
           <button
             onClick={() => {
@@ -461,7 +533,7 @@ export const MatchmakingProgress: React.FC<MatchmakingProgressProps> = ({
           </button>
 
           {/* Header */}
-          <div className="text-center mb-4">
+          <div className="text-center mb-4 p-6 pb-0">
             <div className="text-lg font-semibold text-purple-600 mb-2">
               Your Matches 💜
             </div>
@@ -470,22 +542,21 @@ export const MatchmakingProgress: React.FC<MatchmakingProgressProps> = ({
             </div>
           </div>
 
-          {/* Profile Card */}
-          <div className="flex-1 flex flex-col">
+          {/* Scrollable Content Area */}
+          <div className="flex-1 overflow-y-auto px-6">
             {/* Profile Picture with Frame */}
-            <div className="relative mx-auto mb-4">
+            <div className="relative mx-auto mb-4 flex items-center justify-center">
               {currentMatch.privileges?.avatarFrame?.mediaUrls?.web && (
                 <img
                   src={currentMatch.privileges.avatarFrame.mediaUrls.web}
                   alt="Frame"
-                  className="absolute inset-0 w-32 h-32 object-cover"
+                  className="absolute w-32 h-32 object-cover"
                 />
               )}
               <img
                 src={currentMatch.profilePic || '/default-avatar.png'}
                 alt={currentMatch.username}
                 className="w-28 h-28 rounded-full object-cover border-4 border-white shadow-lg relative z-10"
-                style={{ margin: '8px' }}
               />
             </div>
 
@@ -508,17 +579,43 @@ export const MatchmakingProgress: React.FC<MatchmakingProgressProps> = ({
               </div>
             </div>
 
-            {/* Bio */}
-            {currentMatch.bio && (
-              <div className="bg-white/70 rounded-lg p-3 mb-4 flex-1 overflow-y-auto">
-                <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
-                  {currentMatch.bio}
-                </p>
+            {/* Emi's Introduction */}
+            <div className="bg-gradient-to-r from-purple-100 to-pink-100 rounded-lg p-3 mb-4">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-6 h-6 rounded-full bg-purple-500 flex items-center justify-center">
+                  <span className="text-xs text-white font-bold">E</span>
+                </div>
+                <span className="text-sm font-semibold text-purple-700">Emi's Take</span>
+                {generatingIntro && (
+                  <div className="ml-auto flex items-center gap-1 text-xs text-purple-600">
+                    <div className="animate-spin w-3 h-3 border border-purple-400 border-t-transparent rounded-full"></div>
+                    Thinking...
+                  </div>
+                )}
               </div>
-            )}
+              
+              {hostIntroductions.get(currentMatch.uid) ? (
+                <p className="text-sm text-gray-700 leading-relaxed">
+                  {hostIntroductions.get(currentMatch.uid)!.introduction}
+                </p>
+              ) : generatingIntro ? (
+                <p className="text-sm text-gray-500 italic">
+                  Let me tell you about {currentMatch.username}...
+                </p>
+              ) : (
+                <button
+                  onClick={() => generateAndSpeakIntroduction(currentMatch)}
+                  className="text-sm text-purple-600 hover:text-purple-700 underline"
+                >
+                  Get Emi's introduction ➤
+                </button>
+              )}
+            </div>
+          </div>
 
-            {/* Action Buttons */}
-            <div className="flex gap-2 mt-auto">
+          {/* Fixed Action Buttons at Bottom */}
+          <div className="p-6 pt-0">
+            <div className="flex gap-2 mb-3">
               <button
                 onClick={nextMatch}
                 className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors font-medium"
@@ -539,7 +636,7 @@ export const MatchmakingProgress: React.FC<MatchmakingProgressProps> = ({
                 setShowMatches(false)
                 setShowCompletionSplit(true)
               }}
-              className="mt-3 w-full px-4 py-2 text-sm text-purple-600 hover:text-purple-700 transition-colors"
+              className="w-full px-4 py-2 text-sm text-purple-600 hover:text-purple-700 transition-colors"
             >
               ← Back to Personality
             </button>
@@ -555,7 +652,7 @@ export const MatchmakingProgress: React.FC<MatchmakingProgressProps> = ({
     return (
       <div className={`fixed top-0 right-0 bottom-0 w-80 z-40 ${className}`}>
         {/* Right side - Personality Image Panel */}
-        <div className="h-full bg-gradient-to-br from-purple-50 to-pink-50 flex flex-col items-center justify-center p-6 relative">
+        <div className="h-full bg-gradient-to-br from-purple-50 to-pink-50 flex flex-col relative">
           {/* Close Button */}
           <button
             onClick={() => {
@@ -564,7 +661,7 @@ export const MatchmakingProgress: React.FC<MatchmakingProgressProps> = ({
               setIsVisible(false)
               console.log('🔄 Personality panel hidden')
             }}
-            className="absolute top-4 right-4 p-2 bg-white/80 hover:bg-white rounded-full shadow-md transition-colors"
+            className="absolute top-4 right-4 p-2 bg-white/80 hover:bg-white rounded-full shadow-md transition-colors z-10"
             title="Hide panel"
           >
             <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -572,81 +669,84 @@ export const MatchmakingProgress: React.FC<MatchmakingProgressProps> = ({
             </svg>
           </button>
 
-          <div className="text-center">
-            <div className="text-lg font-semibold text-purple-600 mb-6">
-              Analysis Complete! 🎉
-            </div>
-            
-            {personalityData.personalityImageUrl ? (
-              <div className="mb-6">
-                <img
-                  src={personalityData.personalityImageUrl}
-                  alt={personalityData.personalityCategory || 'Personality'}
-                  className="w-64 h-auto object-contain rounded-lg shadow-lg mx-auto"
-                  onLoad={() => {
-                    console.log('✅ Personality image loaded successfully:', personalityData.personalityImageUrl)
-                  }}
-                  onError={(e) => {
-                    console.error('❌ Personality image failed to load:', personalityData.personalityImageUrl)
-                    e.currentTarget.style.display = 'none'
-                  }}
-                />
+          {/* Scrollable Content Area */}
+          <div className="flex-1 overflow-y-auto p-6 flex flex-col items-center justify-center">
+            <div className="text-center">
+              <div className="text-lg font-semibold text-purple-600 mb-6">
+                Analysis Complete! 🎉
               </div>
-            ) : (
-              <div className="mb-6 text-center">
-                <div className="w-64 h-64 bg-purple-100 rounded-lg shadow-lg mx-auto flex items-center justify-center">
-                  <div className="text-purple-600">
-                    <div className="text-4xl mb-2">👤</div>
-                    <div className="text-sm">No Image Available</div>
+              
+              {personalityData.personalityImageUrl ? (
+                <div className="mb-6">
+                  <img
+                    src={personalityData.personalityImageUrl}
+                    alt={personalityData.personalityCategory || 'Personality'}
+                    className="w-64 h-auto object-contain rounded-lg shadow-lg mx-auto"
+                    onLoad={() => {
+                      console.log('✅ Personality image loaded successfully:', personalityData.personalityImageUrl)
+                    }}
+                    onError={(e) => {
+                      console.error('❌ Personality image failed to load:', personalityData.personalityImageUrl)
+                      e.currentTarget.style.display = 'none'
+                    }}
+                  />
+                </div>
+              ) : (
+                <div className="mb-6 text-center">
+                  <div className="w-64 h-64 bg-purple-100 rounded-lg shadow-lg mx-auto flex items-center justify-center">
+                    <div className="text-purple-600">
+                      <div className="text-4xl mb-2">👤</div>
+                      <div className="text-sm">No Image Available</div>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
-            
-            <div className="flex flex-col gap-3 w-full">
-              <button
-                onClick={fetchMatches}
-                disabled={loadingMatches}
-                className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all duration-200 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {loadingMatches ? 'Finding Matches...' : 'Show Matches'}
-              </button>
+              )}
               
-              <div className="flex gap-2">
+              <div className="flex flex-col gap-3 w-full">
                 <button
-                  onClick={() => {
-                    const tweetText = `I just discovered my personality type: ${personalityData.personalityCategory}! 🎉 Take the personality analysis and find your perfect match! #PersonalityAnalysis #MatchMaking`
-                    const tweetUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(tweetText)}`
-                    window.open(tweetUrl, '_blank', 'width=550,height=420')
-                  }}
-                  className="flex-1 px-4 py-2 bg-black text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-colors flex items-center justify-center gap-2"
-                  title="Share on X (Twitter)"
+                  onClick={fetchMatches}
+                  disabled={loadingMatches}
+                  className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all duration-200 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
-                  </svg>
-                  Share on X
+                  {loadingMatches ? 'Finding Matches...' : 'Show Matches'}
                 </button>
                 
-                <button
-                  onClick={() => {
-                    if (personalityData.personalityImageUrl) {
-                      // Create a temporary link to download the image
-                      const link = document.createElement('a')
-                      link.href = personalityData.personalityImageUrl
-                      link.download = `${personalityData.personalityCategory?.toLowerCase().replace(/\s+/g, '-')}-personality.jpg`
-                      document.body.appendChild(link)
-                      link.click()
-                      document.body.removeChild(link)
-                    }
-                  }}
-                  className="px-3 py-2 bg-gray-500 text-white text-sm rounded-lg hover:bg-gray-600 transition-colors"
-                  title="Download Image"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-4-4m4 4l4-4m5.78 2.22l-7.07 7.07a2 2 0 01-2.83 0L4.22 10.15a2 2 0 010-2.83l7.07-7.07a2 2 0 012.83 0L20.85 7.32a2 2 0 010 2.83z"/>
-                  </svg>
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      const tweetText = `I just discovered my personality type: ${personalityData.personalityCategory}! 🎉 Take the personality analysis and find your perfect match! #PersonalityAnalysis #MatchMaking`
+                      const tweetUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(tweetText)}`
+                      window.open(tweetUrl, '_blank', 'width=550,height=420')
+                    }}
+                    className="flex-1 px-4 py-2 bg-black text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-colors flex items-center justify-center gap-2"
+                    title="Share on X (Twitter)"
+                  >
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                    </svg>
+                    Share on X
+                  </button>
+                  
+                  <button
+                    onClick={() => {
+                      if (personalityData.personalityImageUrl) {
+                        // Create a temporary link to download the image
+                        const link = document.createElement('a')
+                        link.href = personalityData.personalityImageUrl
+                        link.download = `${personalityData.personalityCategory?.toLowerCase().replace(/\s+/g, '-')}-personality.jpg`
+                        document.body.appendChild(link)
+                        link.click()
+                        document.body.removeChild(link)
+                      }
+                    }}
+                    className="px-3 py-2 bg-gray-500 text-white text-sm rounded-lg hover:bg-gray-600 transition-colors"
+                    title="Download Image"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-4-4m4 4l4-4m5.78 2.22l-7.07 7.07a2 2 0 01-2.83 0L4.22 10.15a2 2 0 010-2.83l7.07-7.07a2 2 0 012.83 0L20.85 7.32a2 2 0 010 2.83z"/>
+                    </svg>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -656,32 +756,36 @@ export const MatchmakingProgress: React.FC<MatchmakingProgressProps> = ({
   }
 
   // Show normal progress bar
-  const progressPercentage = (stepProgress!.current / stepProgress!.total) * 100
+  if (stepProgress) {
+    const progressPercentage = (stepProgress.current / stepProgress.total) * 100
 
-  return (
-    <div className={`absolute top-0 left-0 right-0 z-50 bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg ${className}`}>
-      <div className="px-4 py-2">
-        <div className="flex items-center justify-between mb-1">
-          <div className="flex items-center space-x-2">
-            <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center">
-              <span className="text-xs font-bold">💜</span>
+    return (
+      <div className={`absolute top-0 left-0 right-0 z-50 bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg ${className}`}>
+        <div className="px-4 py-2">
+          <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center space-x-2">
+              <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center">
+                <span className="text-xs font-bold">💜</span>
+              </div>
+              <span className="font-semibold text-sm">
+                Question {stepProgress.current} of {stepProgress.total}
+              </span>
             </div>
-            <span className="font-semibold text-sm">
-              Question {stepProgress!.current} of {stepProgress!.total}
-            </span>
+          </div>
+          
+          {/* Progress Bar */}
+          <div className="w-full bg-white/20 rounded-full h-1.5">
+            <div 
+              className="bg-white rounded-full h-1.5 transition-all duration-300 ease-out"
+              style={{ width: `${progressPercentage}%` }}
+            />
           </div>
         </div>
-        
-        {/* Progress Bar */}
-        <div className="w-full bg-white/20 rounded-full h-1.5">
-          <div 
-            className="bg-white rounded-full h-1.5 transition-all duration-300 ease-out"
-            style={{ width: `${progressPercentage}%` }}
-          />
-        </div>
       </div>
-    </div>
-  )
+    )
+  }
+
+  return null
 }
 
 export default MatchmakingProgress 
