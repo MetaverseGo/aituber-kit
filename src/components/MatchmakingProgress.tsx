@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import homeStore from '@/features/stores/home'
 import { hostProfiler, HostIntroduction } from '@/features/matchmaking/host-profiler'
-import { speakCharacter } from '@/features/messages/speakCharacter'
+import { CachedTTS } from '@/features/matchmaking/cached-tts'
 
 interface MatchmakingProgressProps {
   className?: string
@@ -234,6 +234,8 @@ export const MatchmakingProgress: React.FC<MatchmakingProgressProps> = ({
     
     const userPersonalityId = personalityData?.profile?.category?.id
     console.log('🎯 User personality ID:', userPersonalityId)
+    console.log('🎯 Host UID:', host.uid)
+    console.log('🎯 Host username:', host.username)
     
     if (!userPersonalityId) {
       console.log('❌ No user personality ID available for host introduction')
@@ -243,28 +245,49 @@ export const MatchmakingProgress: React.FC<MatchmakingProgressProps> = ({
 
     try {
       setGeneratingIntro(true)
-      console.log(`🎯 Generating introduction for ${host.username} with personality ID: ${userPersonalityId}...`)
       
-      const introduction = await hostProfiler.generateHostIntroduction(host, userPersonalityId)
+      // Check if we have cached text + audio first
+      console.log(`🔍 Checking for cached text+audio for ${host.username}...`)
+      const { audioCache } = await import('@/features/matchmaking/audio-cache')
+      const cachedData = await audioCache.getCachedAudio(host.uid, userPersonalityId)
       
-      // Update the introductions map
-      setHostIntroductions(prev => {
-        const newMap = new Map(prev)
-        newMap.set(host.uid, introduction)
-        return newMap
-      })
+      let introText: string
+      
+      if (cachedData) {
+        console.log(`🚀 Found cached text+audio for ${host.username}! Using cached introduction.`)
+        console.log(`⚡ Skipping AI text generation - cached text: "${cachedData.introText.substring(0, 50)}..."`)
+        introText = cachedData.introText
+        
+        // Update the UI with cached text
+        setHostIntroductions(prev => {
+          const newMap = new Map(prev)
+          newMap.set(host.uid, { introduction: introText })
+          return newMap
+        })
+      } else {
+        console.log(`📝 No cached data found. Generating new introduction for ${host.username}...`)
+        console.log(`🤖 Calling AI to generate new introduction text...`)
+        
+        // Generate new introduction text
+        const introduction = await hostProfiler.generateHostIntroduction(host, userPersonalityId)
+        introText = introduction.introduction
+        console.log(`✨ AI generated new introduction: "${introText.substring(0, 50)}..."`)
+        
+        // Update the introductions map
+        setHostIntroductions(prev => {
+          const newMap = new Map(prev)
+          newMap.set(host.uid, introduction)
+          return newMap
+        })
+      }
 
-      // Make Emi speak the introduction using her configured TTS system
-      const sessionId = `host-intro-${host.uid}-${Date.now()}`
-      
+      // Make Emi speak the introduction using cached TTS system
       console.log(`🎤 Emi speaking introduction for ${host.username}`)
       
-      speakCharacter(
-        sessionId,
-        {
-          message: introduction.introduction,
-          emotion: 'happy' as any
-        },
+      await CachedTTS.speakWithCache(
+        host.uid,
+        userPersonalityId,
+        introText,
         () => {
           console.log(`🗣️ Started speaking introduction for ${host.username}`)
         },
@@ -543,7 +566,7 @@ export const MatchmakingProgress: React.FC<MatchmakingProgressProps> = ({
           </div>
 
           {/* Scrollable Content Area */}
-          <div className="flex-1 overflow-y-auto px-6">
+          <div className="flex-1 overflow-y-auto px-6 scroll-hidden">
             {/* Profile Picture with Frame */}
             <div className="relative mx-auto mb-4 flex items-center justify-center">
               {currentMatch.privileges?.avatarFrame?.mediaUrls?.web && (
@@ -614,19 +637,22 @@ export const MatchmakingProgress: React.FC<MatchmakingProgressProps> = ({
           </div>
 
           {/* Fixed Action Buttons at Bottom */}
-          <div className="p-6 pt-0">
-            <div className="flex gap-2 mb-3">
+          <div className="p-3 pt-0">
+            {/* Tinder-style action buttons */}
+            <div className="flex justify-center gap-16 mb-3 mt-4">
               <button
                 onClick={nextMatch}
-                className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors font-medium"
+                className="w-14 h-14 bg-white border-2 border-gray-300 rounded-full flex items-center justify-center text-xl hover:border-red-400 hover:bg-red-50 transition-all shadow-lg"
+                title="Pass"
               >
-                Next
+                ❌
               </button>
               <button
                 onClick={() => connectWithMatch(currentMatch)}
-                className="flex-1 px-4 py-3 bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white rounded-lg transition-all font-medium"
+                className="w-14 h-14 bg-white border-2 border-gray-300 rounded-full flex items-center justify-center text-xl hover:border-green-400 hover:bg-green-50 transition-all shadow-lg"
+                title="Like"
               >
-                Connect
+                💚
               </button>
             </div>
 
@@ -636,7 +662,7 @@ export const MatchmakingProgress: React.FC<MatchmakingProgressProps> = ({
                 setShowMatches(false)
                 setShowCompletionSplit(true)
               }}
-              className="w-full px-4 py-2 text-sm text-purple-600 hover:text-purple-700 transition-colors"
+              className="w-full px-3 py-1 text-sm text-purple-600 hover:text-purple-700 transition-colors"
             >
               ← Back to Personality
             </button>
