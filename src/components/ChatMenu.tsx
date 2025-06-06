@@ -12,6 +12,35 @@ interface ChatMenuProps {
 export const ChatMenu: React.FC<ChatMenuProps> = ({ isWidget = false }) => {
   const [isOpen, setIsOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
+  
+  // Check if personality analysis is available
+  const [hasPersonalityAnalysis, setHasPersonalityAnalysis] = useState(false)
+  
+  useEffect(() => {
+    const checkPersonalityAnalysis = () => {
+      try {
+        const completed = localStorage.getItem('personality_analysis_completed') === 'true'
+        const hasResult = localStorage.getItem('last_matchmaking_result') !== null
+        setHasPersonalityAnalysis(completed && hasResult)
+      } catch {
+        setHasPersonalityAnalysis(false)
+      }
+    }
+    
+    // Check initially
+    checkPersonalityAnalysis()
+    
+    // Check periodically in case analysis completes while menu is open
+    const interval = setInterval(checkPersonalityAnalysis, 1000)
+    
+    return () => clearInterval(interval)
+  }, [])
+  
+  const showPersonalityPanel = () => {
+    // Trigger showing the personality panel by dispatching a custom event
+    window.dispatchEvent(new CustomEvent('showPersonalityPanel'))
+    setIsOpen(false)
+  }
 
   const startOver = async () => {
     try {
@@ -127,6 +156,32 @@ export const ChatMenu: React.FC<ChatMenuProps> = ({ isWidget = false }) => {
 
           {/* Menu Items */}
           <div className="py-2">
+            {/* Show Personality Panel - only when analysis is available */}
+            {hasPersonalityAnalysis && (
+              <button
+                onClick={showPersonalityPanel}
+                className="w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors duration-150 flex items-center space-x-3 text-gray-700"
+              >
+                <svg
+                  className="w-5 h-5 text-purple-500"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                  />
+                </svg>
+                <div>
+                  <div className="font-medium">Show Personality</div>
+                  <div className="text-sm text-gray-500">View your personality analysis</div>
+                </div>
+              </button>
+            )}
+            
             <button
               onClick={startOver}
               className="w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors duration-150 flex items-center space-x-3 text-gray-700"

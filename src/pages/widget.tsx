@@ -108,6 +108,21 @@ const Widget = () => {
     }
   }, [])
 
+  // Also check based on MatchmakingProgress component state
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // Direct check - if there's a personality panel visible, constrain the layout
+      const personalityPanel = document.querySelector('[class*="fixed"][class*="right-0"][class*="w-80"]')
+      const shouldConstrain = personalityPanel !== null
+      if (shouldConstrain !== isPersonalityCompleted) {
+        console.log('🎨 Widget - Direct panel detection override:', shouldConstrain)
+        setIsPersonalityCompleted(shouldConstrain)
+      }
+    }, 500)
+
+    return () => clearInterval(interval)
+  }, [isPersonalityCompleted])
+
   // Parse URL parameters and PostMessage config
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search)
@@ -236,9 +251,9 @@ const Widget = () => {
   }
 
   const containerStyle = {
-    width: config.width,
+    width: isPersonalityCompleted ? 'calc(100% - 320px)' : config.width,
     height: config.height,
-    maxWidth: '800px',
+    maxWidth: isPersonalityCompleted ? 'calc(800px - 320px)' : '800px',
     maxHeight: '600px',
   }
 
@@ -252,6 +267,7 @@ const Widget = () => {
       : {}
 
   // Debug logging
+  console.log('🎨 Widget - isPersonalityCompleted:', isPersonalityCompleted)
   console.log('🎨 Widget - Rendering main content with right constraint:', isPersonalityCompleted ? '320px' : '0')
 
   return (
@@ -262,17 +278,12 @@ const Widget = () => {
       {/* Matchmaking Progress Bar */}
       <MatchmakingProgress />
       
-      {/* Main content - constrained to left side when split layout is active */}
-      <div 
-        className="absolute inset-0 transition-all duration-300"
-        style={{ 
-          right: isPersonalityCompleted ? '320px' : '0',
-        }}
-      >
+      {/* Main content */}
+      <div className="absolute inset-0">
         {/* Character Display */}
         {config.showCharacter && (
           <div
-            className="absolute inset-0 pointer-events-none z-0"
+            className="absolute top-0 left-0 bottom-0 right-0 pointer-events-none z-0"
             style={{ paddingBottom: config.showInput ? '80px' : '0' }}
           >
             {modelType === 'vrm' ? <VrmViewer /> : <Live2DViewer />}
