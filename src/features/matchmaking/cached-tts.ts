@@ -7,7 +7,7 @@ import { Live2DHandler } from '@/features/messages/live2dHandler'
 // Custom TTS function that uses audio caching
 export class CachedTTS {
   static async speakWithCache(
-    hostUid: string, 
+    hostUid: string,
     userPersonalityId: string,
     introText: string,
     onStart?: () => void,
@@ -17,14 +17,25 @@ export class CachedTTS {
       onStart?.()
 
       // Check cache first
-      console.log(`🎵 CachedTTS - Checking cache for ${hostUid} with personality ${userPersonalityId}...`)
-      console.log(`🔍 CachedTTS - Cache key will be: ${hostUid}_${userPersonalityId}`)
-      const cachedAudio = await audioCache.getCachedAudio(hostUid, userPersonalityId)
-      
+      console.log(
+        `🎵 CachedTTS - Checking cache for ${hostUid} with personality ${userPersonalityId}...`
+      )
+      console.log(
+        `🔍 CachedTTS - Cache key will be: ${hostUid}_${userPersonalityId}`
+      )
+      const cachedAudio = await audioCache.getCachedAudio(
+        hostUid,
+        userPersonalityId
+      )
+
       if (cachedAudio) {
-        console.log(`🚀 CachedTTS - Found cached audio for ${hostUid}! Playing immediately...`)
-        console.log(`⚡ CachedTTS - Skipping AI text generation - using cached text: "${cachedAudio.introText.substring(0, 50)}..."`)
-        
+        console.log(
+          `🚀 CachedTTS - Found cached audio for ${hostUid}! Playing immediately...`
+        )
+        console.log(
+          `⚡ CachedTTS - Skipping AI text generation - using cached text: "${cachedAudio.introText.substring(0, 50)}..."`
+        )
+
         // Convert Blob back to ArrayBuffer to use VRM model lip sync
         const arrayBuffer = await cachedAudio.audioBlob.arrayBuffer()
         await this.playAudioBuffer(arrayBuffer, cachedAudio.introText)
@@ -33,10 +44,14 @@ export class CachedTTS {
       }
 
       // No cache, generate new TTS
-      console.log(`📭 CachedTTS - No cached audio found for ${hostUid}. Generating new TTS...`)
-      console.log(`🎤 CachedTTS - Will cache with key: ${hostUid}_${userPersonalityId}`)
+      console.log(
+        `📭 CachedTTS - No cached audio found for ${hostUid}. Generating new TTS...`
+      )
+      console.log(
+        `🎤 CachedTTS - Will cache with key: ${hostUid}_${userPersonalityId}`
+      )
       const audioBuffer = await this.generateTTS(introText)
-      
+
       if (!audioBuffer) {
         console.error(`❌ CachedTTS - Failed to generate TTS for ${hostUid}`)
         onComplete?.()
@@ -45,29 +60,36 @@ export class CachedTTS {
 
       // Convert ArrayBuffer to Blob for caching
       const audioBlob = new Blob([audioBuffer], { type: 'audio/mpeg' })
-      
+
       // Cache the audio for future use
       console.log(`💾 CachedTTS - Caching audio for ${hostUid}...`)
-      await audioCache.cacheAudio(hostUid, userPersonalityId, audioBlob, introText)
+      await audioCache.cacheAudio(
+        hostUid,
+        userPersonalityId,
+        audioBlob,
+        introText
+      )
 
       // Play the generated audio
       console.log(`🔊 CachedTTS - Playing generated audio for ${hostUid}`)
       await this.playAudioBuffer(audioBuffer, introText)
       onComplete?.()
-
     } catch (error) {
-      console.error(`❌ CachedTTS - Error in speakWithCache for ${hostUid}:`, error)
+      console.error(
+        `❌ CachedTTS - Error in speakWithCache for ${hostUid}:`,
+        error
+      )
       onComplete?.()
     }
   }
 
   private static async generateTTS(text: string): Promise<ArrayBuffer | null> {
     const ss = settingsStore.getState()
-    
+
     // Create a Talk object for the TTS system
     const talk: Talk = {
       message: text,
-      emotion: 'happy'
+      emotion: 'happy',
     }
 
     try {
@@ -79,7 +101,10 @@ export class CachedTTS {
     }
   }
 
-  private static async synthesizeVoiceInternal(talk: Talk, voiceType: any): Promise<ArrayBuffer | null> {
+  private static async synthesizeVoiceInternal(
+    talk: Talk,
+    voiceType: any
+  ): Promise<ArrayBuffer | null> {
     const ss = settingsStore.getState()
 
     if (ss.audioMode) {
@@ -87,16 +112,36 @@ export class CachedTTS {
     }
 
     // Import the synthesis functions dynamically to avoid circular dependencies
-    const { synthesizeVoiceKoeiromapApi } = await import('@/features/messages/synthesizeVoiceKoeiromap')
-    const { synthesizeVoiceVoicevoxApi } = await import('@/features/messages/synthesizeVoiceVoicevox')
-    const { synthesizeVoiceGoogleApi } = await import('@/features/messages/synthesizeVoiceGoogle')
-    const { synthesizeStyleBertVITS2Api } = await import('@/features/messages/synthesizeStyleBertVITS2')
-    const { synthesizeVoiceAivisSpeechApi } = await import('@/features/messages/synthesizeVoiceAivisSpeech')
-    const { synthesizeVoiceGSVIApi } = await import('@/features/messages/synthesizeVoiceGSVI')
-    const { synthesizeVoiceElevenlabsApi } = await import('@/features/messages/synthesizeVoiceElevenlabs')
-    const { synthesizeVoiceOpenAIApi } = await import('@/features/messages/synthesizeVoiceOpenAI')
-    const { synthesizeVoiceAzureOpenAIApi } = await import('@/features/messages/synthesizeVoiceAzureOpenAI')
-    const { synthesizeVoiceNijivoiceApi } = await import('@/features/messages/synthesizeVoiceNijivoice')
+    const { synthesizeVoiceKoeiromapApi } = await import(
+      '@/features/messages/synthesizeVoiceKoeiromap'
+    )
+    const { synthesizeVoiceVoicevoxApi } = await import(
+      '@/features/messages/synthesizeVoiceVoicevox'
+    )
+    const { synthesizeVoiceGoogleApi } = await import(
+      '@/features/messages/synthesizeVoiceGoogle'
+    )
+    const { synthesizeStyleBertVITS2Api } = await import(
+      '@/features/messages/synthesizeStyleBertVITS2'
+    )
+    const { synthesizeVoiceAivisSpeechApi } = await import(
+      '@/features/messages/synthesizeVoiceAivisSpeech'
+    )
+    const { synthesizeVoiceGSVIApi } = await import(
+      '@/features/messages/synthesizeVoiceGSVI'
+    )
+    const { synthesizeVoiceElevenlabsApi } = await import(
+      '@/features/messages/synthesizeVoiceElevenlabs'
+    )
+    const { synthesizeVoiceOpenAIApi } = await import(
+      '@/features/messages/synthesizeVoiceOpenAI'
+    )
+    const { synthesizeVoiceAzureOpenAIApi } = await import(
+      '@/features/messages/synthesizeVoiceAzureOpenAI'
+    )
+    const { synthesizeVoiceNijivoiceApi } = await import(
+      '@/features/messages/synthesizeVoiceNijivoice'
+    )
 
     try {
       switch (voiceType) {
@@ -190,13 +235,16 @@ export class CachedTTS {
     }
   }
 
-  private static async playAudioBuffer(audioBuffer: ArrayBuffer, text: string): Promise<void> {
+  private static async playAudioBuffer(
+    audioBuffer: ArrayBuffer,
+    text: string
+  ): Promise<void> {
     const ss = settingsStore.getState()
     const hs = homeStore.getState()
 
     const talk: Talk = {
       message: text,
-      emotion: 'happy'
+      emotion: 'happy',
     }
 
     try {
@@ -218,13 +266,22 @@ export class CachedTTS {
   }
 
   // Get cached introduction text (without generating audio)
-  static async getCachedIntroduction(hostUid: string, userPersonalityId: string): Promise<{ introText: string } | null> {
-    console.log(`📄 CachedTTS - Checking for cached introduction text for ${hostUid}...`)
+  static async getCachedIntroduction(
+    hostUid: string,
+    userPersonalityId: string
+  ): Promise<{ introText: string } | null> {
+    console.log(
+      `📄 CachedTTS - Checking for cached introduction text for ${hostUid}...`
+    )
     const cached = await audioCache.getCachedAudio(hostUid, userPersonalityId)
     if (cached) {
-      console.log(`✅ CachedTTS - Found cached introduction text for ${hostUid}: "${cached.introText.substring(0, 50)}..."`)
+      console.log(
+        `✅ CachedTTS - Found cached introduction text for ${hostUid}: "${cached.introText.substring(0, 50)}..."`
+      )
     } else {
-      console.log(`📭 CachedTTS - No cached introduction text found for ${hostUid}`)
+      console.log(
+        `📭 CachedTTS - No cached introduction text found for ${hostUid}`
+      )
     }
     return cached
   }
@@ -232,15 +289,15 @@ export class CachedTTS {
   // Stop any currently playing audio
   static stopAudio(): void {
     console.log(`🛑 CachedTTS - Stopping all audio...`)
-    
+
     try {
       // Stop cached audio from our audio cache system
       audioCache.stopCurrentAudio()
-      
+
       // Stop VRM/Live2D model audio directly
       const ss = settingsStore.getState()
       const hs = homeStore.getState()
-      
+
       if (ss.modelType === 'vrm' && hs.viewer.model) {
         console.log(`🛑 CachedTTS - Stopping VRM model audio`)
         hs.viewer.model.stopSpeaking()
@@ -248,14 +305,14 @@ export class CachedTTS {
         console.log(`🛑 CachedTTS - Stopping Live2D model audio`)
         Live2DHandler.stopSpeaking()
       }
-      
+
       // Use the proper SpeakQueue system to stop all audio
       const { SpeakQueue } = require('@/features/messages/speakQueue')
       SpeakQueue.stopAll()
-      
+
       // Also stop any global audio elements as fallback
       const audioElements = document.querySelectorAll('audio')
-      audioElements.forEach(audio => {
+      audioElements.forEach((audio) => {
         if (!audio.paused) {
           audio.pause()
           audio.currentTime = 0
@@ -281,4 +338,4 @@ export class CachedTTS {
   static async cleanupOldCache(maxAgeMs?: number): Promise<void> {
     return await audioCache.cleanupOldCache(maxAgeMs)
   }
-} 
+}

@@ -28,8 +28,8 @@ export const WidgetForm = ({
 
   return (
     <div className="widget-form">
-      <MessageInputContainer 
-        onChatProcessStart={hookSendChat} 
+      <MessageInputContainer
+        onChatProcessStart={hookSendChat}
         showVoiceButton={showVoiceButton}
       />
     </div>

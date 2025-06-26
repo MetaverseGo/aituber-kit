@@ -45,9 +45,9 @@ export const MessageInput = ({
   const realtimeAPIMode = settingsStore((s) => s.realtimeAPIMode)
   const showSilenceProgressBar = settingsStore((s) => s.showSilenceProgressBar)
   const speechRecognitionMode = settingsStore((s) => s.speechRecognitionMode)
-  
+
   const { t } = useTranslation()
-  
+
   // Check if personality analysis is completed and get remaining messages
   const hasCompletedAnalysis = () => {
     try {
@@ -56,7 +56,7 @@ export const MessageInput = ({
       return false
     }
   }
-  
+
   const remainingMessages = getRemainingStamina()
   const isLimitReached = isStaminaEmpty()
   const showMessageCounter = false // Stamina info is now only shown in top progress bar
@@ -142,17 +142,18 @@ export const MessageInput = ({
           {/* Message Counter Warning */}
           {showMessageCounter && (
             <div className="text-center mb-2">
-              <div className={`text-xs px-3 py-1 rounded-full inline-block ${
-                remainingMessages <= 3 
-                  ? 'bg-red-500/20 text-red-200' 
-                  : remainingMessages <= 7 
-                    ? 'bg-orange-500/20 text-orange-200' 
-                    : 'bg-yellow-500/20 text-yellow-200'
-              }`}>
-                {isLimitReached 
-                  ? 'Out of stamina! Wait for refill.' 
-                  : `${remainingMessages} stamina remaining`
-                }
+              <div
+                className={`text-xs px-3 py-1 rounded-full inline-block ${
+                  remainingMessages <= 3
+                    ? 'bg-red-500/20 text-red-200'
+                    : remainingMessages <= 7
+                      ? 'bg-orange-500/20 text-orange-200'
+                      : 'bg-yellow-500/20 text-yellow-200'
+                }`}
+              >
+                {isLimitReached
+                  ? 'Out of stamina! Wait for refill.'
+                  : `${remainingMessages} stamina remaining`}
               </div>
             </div>
           )}
@@ -182,7 +183,9 @@ export const MessageInput = ({
               ></div>
             </div>
           )}
-          <div className={`grid grid-flow-col gap-[8px] ${showVoiceButton ? 'grid-cols-[min-content_1fr_min-content]' : 'grid-cols-[1fr_min-content]'}`}>
+          <div
+            className={`grid grid-flow-col gap-[8px] ${showVoiceButton ? 'grid-cols-[min-content_1fr_min-content]' : 'grid-cols-[1fr_min-content]'}`}
+          >
             {showVoiceButton && (
               <IconButton
                 iconName="24/Microphone"
@@ -212,7 +215,12 @@ export const MessageInput = ({
               className="bg-purple-600 hover:bg-purple-700 focus:bg-purple-600 focus:ring-2 focus:ring-purple-300 focus:ring-opacity-50 disabled:bg-purple-400 disabled:text-purple-200 border border-purple-400 rounded-2xl w-full px-4 text-white text-base font-normal placeholder-purple-200"
               value={userMessage}
               rows={rows}
-              style={{ lineHeight: '1.5', padding: '12px 16px', resize: 'none', outline: 'none' }}
+              style={{
+                lineHeight: '1.5',
+                padding: '12px 16px',
+                resize: 'none',
+                outline: 'none',
+              }}
             ></textarea>
 
             <IconButton

@@ -37,12 +37,12 @@ const hasCompletedPersonalityAnalysis = (): boolean => {
 const hasRequiredAPIKeys = (): boolean => {
   try {
     const { anthropicKey, selectAIService } = settingsStore.getState()
-    
+
     // If using Anthropic, check for Anthropic key
     if (selectAIService === 'anthropic' || !selectAIService) {
       return !!anthropicKey
     }
-    
+
     // For other services, just check if any service is selected
     return !!selectAIService
   } catch {
@@ -637,7 +637,7 @@ export const handleSendChatFn = () => async (text: string) => {
     sessionId = generateSessionId()
     localStorage.setItem('personality_session_id', sessionId)
   }
-  
+
   const newMessage = text
   const timestamp = new Date().toISOString()
 
@@ -722,12 +722,18 @@ export const handleSendChatFn = () => async (text: string) => {
 
     // Check if user has completed personality analysis
     const hasCompleted = hasCompletedPersonalityAnalysis()
-    console.log('🎯 Chat Handler - Personality analysis completed:', hasCompleted)
+    console.log(
+      '🎯 Chat Handler - Personality analysis completed:',
+      hasCompleted
+    )
     console.log('🎯 Chat Handler - Modal image present:', !!modalImage)
 
     // If not completed, force matchmaking mode (only for text messages, not images)
     if (!hasCompleted && !modalImage) {
-      console.log('🎯 Chat Handler - Entering matchmaking mode for message:', newMessage)
+      console.log(
+        '🎯 Chat Handler - Entering matchmaking mode for message:',
+        newMessage
+      )
       homeStore.setState({ chatProcessing: true })
 
       // Add user message
@@ -753,46 +759,79 @@ export const handleSendChatFn = () => async (text: string) => {
             isComplete: matchmakingResult.isComplete,
             step: matchmakingResult.step,
             hasData: !!matchmakingResult.data,
-            dataKeys: matchmakingResult.data ? Object.keys(matchmakingResult.data) : [],
-            data: matchmakingResult.data
+            dataKeys: matchmakingResult.data
+              ? Object.keys(matchmakingResult.data)
+              : [],
+            data: matchmakingResult.data,
           })
-          
+
           // Store step progress in localStorage BEFORE speaking message to fix progress bar timing
           if (matchmakingResult.data?.stepProgress) {
-            console.log('🎯 Chat Handler - Storing step progress before speaking:', matchmakingResult.data.stepProgress)
-            localStorage.setItem('matchmaking_step_progress', JSON.stringify(matchmakingResult.data.stepProgress))
+            console.log(
+              '🎯 Chat Handler - Storing step progress before speaking:',
+              matchmakingResult.data.stepProgress
+            )
+            localStorage.setItem(
+              'matchmaking_step_progress',
+              JSON.stringify(matchmakingResult.data.stepProgress)
+            )
           }
 
           // Store the complete result for split layout display
           if (matchmakingResult.isComplete && matchmakingResult.data) {
-            console.log('🎯 Chat Handler - Storing complete matchmaking result for split layout:', matchmakingResult.data)
-            localStorage.setItem('last_matchmaking_result', JSON.stringify(matchmakingResult))
+            console.log(
+              '🎯 Chat Handler - Storing complete matchmaking result for split layout:',
+              matchmakingResult.data
+            )
+            localStorage.setItem(
+              'last_matchmaking_result',
+              JSON.stringify(matchmakingResult)
+            )
           } else if (matchmakingResult.isComplete) {
-            console.log('🎯 Chat Handler - Analysis complete but no data to store:', matchmakingResult)
+            console.log(
+              '🎯 Chat Handler - Analysis complete but no data to store:',
+              matchmakingResult
+            )
           }
 
-          console.log('🎯 Chat Handler - Speaking message:', matchmakingResult.message)
+          console.log(
+            '🎯 Chat Handler - Speaking message:',
+            matchmakingResult.message
+          )
           // Use speakMessageHandler for the response
           await speakMessageHandler(matchmakingResult.message)
 
           // Check if completed
           if (matchmakingResult.isComplete) {
-            console.log('🎯 Chat Handler - Personality analysis completed! Marking as done.')
+            console.log(
+              '🎯 Chat Handler - Personality analysis completed! Marking as done.'
+            )
             markPersonalityAnalysisCompleted()
             // Clear step progress when complete
             localStorage.removeItem('matchmaking_step_progress')
-            
+
             // 🎯 Ensure Emi's personality is restored after analysis completion
-            console.log('🎯 Chat Handler - Ensuring Emi personality is restored after analysis completion')
+            console.log(
+              '🎯 Chat Handler - Ensuring Emi personality is restored after analysis completion'
+            )
             const currentSystemPrompt = settingsStore.getState().systemPrompt
-            console.log('🎯 Chat Handler - Current system prompt:', currentSystemPrompt.substring(0, 100) + '...')
-            
+            console.log(
+              '🎯 Chat Handler - Current system prompt:',
+              currentSystemPrompt.substring(0, 100) + '...'
+            )
+
             // If system prompt doesn't contain Emi's personality, restore it
-            if (!currentSystemPrompt.includes('You are Emi, a friendly and engaging conversation partner')) {
-              console.log('🎯 Chat Handler - System prompt missing Emi personality, restoring...')
-              settingsStore.setState({ 
+            if (
+              !currentSystemPrompt.includes(
+                'You are Emi, a friendly and engaging conversation partner'
+              )
+            ) {
+              console.log(
+                '🎯 Chat Handler - System prompt missing Emi personality, restoring...'
+              )
+              settingsStore.setState({
                 systemPrompt: SYSTEM_PROMPT_EN,
-                characterName: 'Emi'
+                characterName: 'Emi',
               })
             }
           }
@@ -804,9 +843,12 @@ export const handleSendChatFn = () => async (text: string) => {
         }
       } catch (error) {
         console.error('🎯 Chat Handler - Matchmaking error:', error)
-        
+
         // Handle specific API key error
-        if (error instanceof Error && error.message.includes('API key is not configured')) {
+        if (
+          error instanceof Error &&
+          error.message.includes('API key is not configured')
+        ) {
           console.log('🎯 Chat Handler - API key error detected')
           const errorMessage = `🌸 To start your personality analysis, I need you to configure your Anthropic API key first! 
 
@@ -820,9 +862,11 @@ Please:
           homeStore.setState({ chatProcessing: false })
           return
         }
-        
+
         // For other errors, show a helpful message but stay in matchmaking mode
-        console.log('🎯 Chat Handler - Generic error, staying in matchmaking mode')
+        console.log(
+          '🎯 Chat Handler - Generic error, staying in matchmaking mode'
+        )
         const errorMessage = `🌸 I encountered a small hiccup with your personality analysis! Let me try again. 
 
 Please make sure:
@@ -835,26 +879,35 @@ Please make sure:
         return
       }
     } else {
-      console.log('🎯 Chat Handler - Skipping matchmaking mode - completed:', hasCompleted, 'modalImage:', !!modalImage)
+      console.log(
+        '🎯 Chat Handler - Skipping matchmaking mode - completed:',
+        hasCompleted,
+        'modalImage:',
+        !!modalImage
+      )
     }
 
     // Check stamina limit for free chat mode
     if (hasCompleted && !modalImage) {
       const checkStaminaLimit = async () => {
         try {
-          const { isStaminaEmpty, getRemainingStamina, getTimeUntilNextRefill } = await import('@/utils/chatLimits')
+          const {
+            isStaminaEmpty,
+            getRemainingStamina,
+            getTimeUntilNextRefill,
+          } = await import('@/utils/chatLimits')
           const isEmpty = isStaminaEmpty()
           const remaining = getRemainingStamina()
           const timeUntilRefill = getTimeUntilNextRefill()
-          
+
           if (isEmpty) {
             const minutes = Math.ceil(timeUntilRefill / 60000)
-            return { 
-              blocked: true, 
-              message: `Out of stamina! You'll get +1 stamina in ${minutes} minute${minutes !== 1 ? 's' : ''}.`
+            return {
+              blocked: true,
+              message: `Out of stamina! You'll get +1 stamina in ${minutes} minute${minutes !== 1 ? 's' : ''}.`,
             }
           }
-          
+
           return { blocked: false, remaining }
         } catch {
           return { blocked: false }
@@ -875,12 +928,15 @@ Please make sure:
     }
 
     homeStore.setState({ chatProcessing: true })
-    
+
     // 🎯 Debug: Log system prompt being used after personality analysis completion
-    console.log('🎯 Free Chat - System prompt being used:', systemPrompt.substring(0, 100) + '...')
+    console.log(
+      '🎯 Free Chat - System prompt being used:',
+      systemPrompt.substring(0, 100) + '...'
+    )
     console.log('🎯 Free Chat - Character name:', ss.characterName)
     console.log('🎯 Free Chat - Analysis completed:', hasCompleted)
-    
+
     const userMessageContent: Message['content'] = modalImage
       ? [
           { type: 'text' as const, text: newMessage },
@@ -913,10 +969,12 @@ Please make sure:
 
     try {
       await processAIResponse(messages)
-      
+
       // Increment chat stats for free chat mode (after successful AI response)
       if (hasCompleted && !modalImage) {
-        console.log('🎯 Chat Handler - Incrementing chat stats after successful message')
+        console.log(
+          '🎯 Chat Handler - Incrementing chat stats after successful message'
+        )
         try {
           const { incrementChatStats } = await import('@/utils/chatLimits')
           incrementChatStats()

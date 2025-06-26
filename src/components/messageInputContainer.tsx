@@ -10,7 +10,10 @@ type Props = {
   showVoiceButton?: boolean
 }
 
-export const MessageInputContainer = ({ onChatProcessStart, showVoiceButton = true }: Props) => {
+export const MessageInputContainer = ({
+  onChatProcessStart,
+  showVoiceButton = true,
+}: Props) => {
   const isSpeaking = homeStore((s) => s.isSpeaking)
   const continuousMicListeningMode = settingsStore(
     (s) => s.continuousMicListeningMode

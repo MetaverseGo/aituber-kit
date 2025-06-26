@@ -22,7 +22,6 @@ import ChatMenu from '@/components/ChatMenu'
 import MatchmakingProgress from '@/components/MatchmakingProgress'
 import PersonalityPanel from '@/components/PersonalityPanel'
 
-
 const Home = () => {
   const webcamStatus = homeStore((s) => s.webcamStatus)
   const captureStatus = homeStore((s) => s.captureStatus)
@@ -117,11 +116,9 @@ const Home = () => {
     checkAndStartPersonalityAnalysis()
   }, [])
 
-
-
   return (
     <div className="h-[100svh] bg-cover" style={{ backgroundImage: bgUrl }}>
-            <Meta />
+      <Meta />
       <MatchmakingProgress />
       <PersonalityPanel />
       <Introduction />

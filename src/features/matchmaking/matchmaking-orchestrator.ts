@@ -12,7 +12,7 @@ import {
 const ANALYZING_MESSAGES = [
   'give me a sec while I crunch all this data about you, also quick question: are you a boy or girl? just for the perfect match!',
   'analyzing your vibe right now, this is so fun! oh by the way are you a boy or girl? helps me pick the perfect personality pic',
-  "your answers are amazing! processing, quick thing: boy or girl? need it for your custom results!",
+  'your answers are amazing! processing, quick thing: boy or girl? need it for your custom results!',
   'running my secret personality algorithms, real quick: are you a boy or girl? want to make sure your results are perfect!',
   'analyzing your whole vibe, your brain is fascinating! oh and boy or girl? just for the aesthetic',
   'computing your personality profile, this is giving me SUCH good data! quick question: boy or girl? for your personalized image',
@@ -60,8 +60,11 @@ export class MatchmakingOrchestrator {
     sessionId: string
   ): Promise<MatchmakingResult> {
     try {
-      console.log('🎭 Orchestrator - Processing message:', { message, sessionId })
-      
+      console.log('🎭 Orchestrator - Processing message:', {
+        message,
+        sessionId,
+      })
+
       // Get or create session
       let session = this.getSession()
       console.log('🎭 Orchestrator - Current session:', session)
@@ -69,7 +72,9 @@ export class MatchmakingOrchestrator {
       if (!session || session.sessionId !== sessionId) {
         // Reset session for new sessionId
         session = this.createNewSession(sessionId)
-        console.log(`🎭 Orchestrator - Created new matchmaking session: ${sessionId}`)
+        console.log(
+          `🎭 Orchestrator - Created new matchmaking session: ${sessionId}`
+        )
       }
 
       console.log(
@@ -77,7 +82,10 @@ export class MatchmakingOrchestrator {
       )
 
       // Route to appropriate handler based on current status
-      console.log('🎭 Orchestrator - Routing to handler for status:', session.status)
+      console.log(
+        '🎭 Orchestrator - Routing to handler for status:',
+        session.status
+      )
       switch (session.status) {
         case 'idle':
         case 'kokology_analysis': {
@@ -86,10 +94,15 @@ export class MatchmakingOrchestrator {
 
           // If there is an unanswered question, handle reloads defensively
           if (questions.length > 0 && !questions[questions.length - 1].answer) {
-            console.log('🎭 Orchestrator - Found unanswered question, last question:', questions[questions.length - 1])
+            console.log(
+              '🎭 Orchestrator - Found unanswered question, last question:',
+              questions[questions.length - 1]
+            )
             // If the incoming message is empty (likely a reload), return no new message
             if (!message || message.trim() === '') {
-              console.log('🎭 Orchestrator - Empty message, returning no new message')
+              console.log(
+                '🎭 Orchestrator - Empty message, returning no new message'
+              )
               return {
                 message: '', // No new message
                 isComplete: false,
@@ -105,7 +118,9 @@ export class MatchmakingOrchestrator {
               }
             }
             // If the incoming message is NOT empty, treat it as an answer and process it
-            console.log('🎭 Orchestrator - Non-empty message, handling as kokology response')
+            console.log(
+              '🎭 Orchestrator - Non-empty message, handling as kokology response'
+            )
             return await this.handleKokologyResponse(session, message)
           }
 
@@ -114,12 +129,16 @@ export class MatchmakingOrchestrator {
             questions.length >= this.config.questionCount! &&
             questions[questions.length - 1]?.answer
           ) {
-            console.log('🎭 Orchestrator - All questions answered, generating personality summary')
+            console.log(
+              '🎭 Orchestrator - All questions answered, generating personality summary'
+            )
             return await this.generatePersonalitySummary(session)
           }
 
           // Otherwise, generate a new question as usual
-          console.log('🎭 Orchestrator - Starting new kokology analysis question')
+          console.log(
+            '🎭 Orchestrator - Starting new kokology analysis question'
+          )
           return await this.startKokologyAnalysis(session, message)
         }
 
@@ -158,16 +177,20 @@ export class MatchmakingOrchestrator {
       }
     } catch (error) {
       console.error('Error in matchmaking orchestrator:', error)
-      
+
       // Check if it's an API key error
-      if (error instanceof Error && error.message.includes('API key is not configured')) {
+      if (
+        error instanceof Error &&
+        error.message.includes('API key is not configured')
+      ) {
         return {
-          message: 'I need an API key to analyze your personality! Please configure it in Settings → Model Provider, then try again!',
+          message:
+            'I need an API key to analyze your personality! Please configure it in Settings → Model Provider, then try again!',
           isComplete: false,
           step: 'api_key_error',
         }
       }
-      
+
       return {
         message:
           'Oh no! I encountered an error. Let me reset and we can start fresh!',
@@ -195,16 +218,29 @@ export class MatchmakingOrchestrator {
     message: string
   ): Promise<MatchmakingResult> {
     try {
-      console.log('🎭 Orchestrator - Starting kokology analysis with message:', message)
-      
+      console.log(
+        '🎭 Orchestrator - Starting kokology analysis with message:',
+        message
+      )
+
       // Update status to kokology analysis
       session.status = 'kokology_analysis'
       session.step = 1
 
       const currentQuestionNumber = (session.kokologyQuestions?.length || 0) + 1
-      console.log('🎭 Orchestrator - Calling kokology analyst for question', currentQuestionNumber)
-      const result = await this.kokologyAnalyst.askQuestion(currentQuestionNumber, session.kokologyQuestions || [], message)
-      console.log('🎭 Orchestrator - Received result from kokology analyst:', result)
+      console.log(
+        '🎭 Orchestrator - Calling kokology analyst for question',
+        currentQuestionNumber
+      )
+      const result = await this.kokologyAnalyst.askQuestion(
+        currentQuestionNumber,
+        session.kokologyQuestions || [],
+        message
+      )
+      console.log(
+        '🎭 Orchestrator - Received result from kokology analyst:',
+        result
+      )
 
       // Store the first question in the array
       session.kokologyQuestions = [
@@ -233,7 +269,10 @@ export class MatchmakingOrchestrator {
     } catch (error) {
       console.error('Error in startKokologyAnalysis:', error)
       // Don't reset status or throw - handle gracefully
-      return await this.handleError(session, `Error starting analysis: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      return await this.handleError(
+        session,
+        `Error starting analysis: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
     }
   }
 
@@ -254,7 +293,9 @@ export class MatchmakingOrchestrator {
           questions[currentQuestionIndex].timestamp = new Date()
         } else {
           // This shouldn't happen, but if it does, create the question entry
-          console.warn(`Missing question at step ${currentStep}, creating entry`)
+          console.warn(
+            `Missing question at step ${currentStep}, creating entry`
+          )
           questions[currentQuestionIndex] = {
             id: currentStep,
             question: 'Previous question', // This is a fallback
@@ -266,8 +307,16 @@ export class MatchmakingOrchestrator {
 
       // Generate next question or complete analysis
       const nextStep = currentStep + 1
-      console.log('🎭 Orchestrator - Asking for question', nextStep, 'current questions:', questions.length)
-      console.log('🎭 Orchestrator - Questions array being passed to AI:', JSON.stringify(questions, null, 2))
+      console.log(
+        '🎭 Orchestrator - Asking for question',
+        nextStep,
+        'current questions:',
+        questions.length
+      )
+      console.log(
+        '🎭 Orchestrator - Questions array being passed to AI:',
+        JSON.stringify(questions, null, 2)
+      )
       console.log('🎭 Orchestrator - Current user response:', message)
       const result = await this.kokologyAnalyst.askQuestion(
         nextStep,
@@ -310,12 +359,18 @@ export class MatchmakingOrchestrator {
             },
           },
         }
-        console.log('🎭 Orchestrator - Returning question result with step progress:', orchestratorResult)
+        console.log(
+          '🎭 Orchestrator - Returning question result with step progress:',
+          orchestratorResult
+        )
         return orchestratorResult
       }
     } catch (error) {
       console.error('Error in handleKokologyResponse:', error)
-      return await this.handleError(session, `Error processing your answer: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      return await this.handleError(
+        session,
+        `Error processing your answer: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
     }
   }
 
@@ -395,7 +450,10 @@ export class MatchmakingOrchestrator {
 
       // Create a simple summary from the questions for profiling
       const questionSummary = questions
-        .map((q, index) => `Question ${index + 1}: ${q.question}\nAnswer: ${q.answer}`)
+        .map(
+          (q, index) =>
+            `Question ${index + 1}: ${q.question}\nAnswer: ${q.answer}`
+        )
         .join('\n\n')
 
       // Profile the personality directly from questions and insights
@@ -422,7 +480,7 @@ export class MatchmakingOrchestrator {
         categoryName: profileResult.category.name,
         gender: gender,
         fileGender: fileGender,
-        genderedImageUrl: genderedImageUrl
+        genderedImageUrl: genderedImageUrl,
       })
 
       // Store results and complete the process
@@ -435,9 +493,9 @@ export class MatchmakingOrchestrator {
           profileResult.category.name
         }** ${
           profileResult.category.description
-        } Here's what makes you special in relationships: ${profileResult.strengthsForMatching
-          .join(', ')
-        }. I'm sending you your personality image right now!`,
+        } Here's what makes you special in relationships: ${profileResult.strengthsForMatching.join(
+          ', '
+        )}. I'm sending you your personality image right now!`,
         isComplete: true,
         step: 'completed',
         data: {

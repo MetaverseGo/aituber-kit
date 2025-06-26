@@ -30,7 +30,9 @@ export const APISetupGuide: React.FC<APISetupGuideProps> = ({ onClose }) => {
           </div>
 
           <div className="bg-blue-50 p-4 rounded-lg">
-            <h3 className="font-semibold text-blue-800 mb-2">Need an API Key?</h3>
+            <h3 className="font-semibold text-blue-800 mb-2">
+              Need an API Key?
+            </h3>
             <p className="text-sm text-gray-700 mb-2">
               Get your free Anthropic API key:
             </p>
@@ -45,10 +47,14 @@ export const APISetupGuide: React.FC<APISetupGuideProps> = ({ onClose }) => {
           </div>
 
           <div className="bg-green-50 p-4 rounded-lg">
-            <h3 className="font-semibold text-green-800 mb-2">What happens next?</h3>
+            <h3 className="font-semibold text-green-800 mb-2">
+              What happens next?
+            </h3>
             <p className="text-sm text-gray-700">
-              ✨ 5 fun personality questions<br/>
-              🎭 Discover your personality type<br/>
+              ✨ 5 fun personality questions
+              <br />
+              🎭 Discover your personality type
+              <br />
               💫 Unlock personalized chat experience
             </p>
           </div>
@@ -65,4 +71,4 @@ export const APISetupGuide: React.FC<APISetupGuideProps> = ({ onClose }) => {
       </div>
     </div>
   )
-} 
+}

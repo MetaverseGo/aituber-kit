@@ -13,24 +13,29 @@ class AudioCacheManager {
   private async initDB(): Promise<void> {
     return new Promise((resolve, reject) => {
       const request = indexedDB.open(this.dbName, this.dbVersion)
-      
+
       request.onerror = () => {
-        console.error('❌ Audio Cache - Failed to open IndexedDB:', request.error)
+        console.error(
+          '❌ Audio Cache - Failed to open IndexedDB:',
+          request.error
+        )
         reject(request.error)
       }
-      
+
       request.onsuccess = () => {
         this.db = request.result
         console.log('✅ Audio Cache - IndexedDB initialized')
         resolve()
       }
-      
+
       request.onupgradeneeded = (event) => {
         const db = (event.target as IDBOpenDBRequest).result
-        
+
         // Create object store for audio blobs
         if (!db.objectStoreNames.contains(this.storeName)) {
-          const store = db.createObjectStore(this.storeName, { keyPath: 'cacheKey' })
+          const store = db.createObjectStore(this.storeName, {
+            keyPath: 'cacheKey',
+          })
           store.createIndex('timestamp', 'timestamp', { unique: false })
           console.log('🗄️ Audio Cache - Created object store')
         }
@@ -42,14 +47,23 @@ class AudioCacheManager {
     return `${hostUid}_${userPersonalityId}`
   }
 
-  async cacheAudio(hostUid: string, userPersonalityId: string, audioBlob: Blob, introText: string): Promise<void> {
+  async cacheAudio(
+    hostUid: string,
+    userPersonalityId: string,
+    audioBlob: Blob,
+    introText: string
+  ): Promise<void> {
     if (!this.db) {
-      console.warn('⚠️ Audio Cache - Database not initialized, cannot cache audio')
+      console.warn(
+        '⚠️ Audio Cache - Database not initialized, cannot cache audio'
+      )
       return
     }
 
     const cacheKey = this.getCacheKey(hostUid, userPersonalityId)
-    console.log(`💾 Audio Cache - Caching audio with key: "${cacheKey}" (${Math.round(audioBlob.size / 1024)}KB)`)
+    console.log(
+      `💾 Audio Cache - Caching audio with key: "${cacheKey}" (${Math.round(audioBlob.size / 1024)}KB)`
+    )
     const cacheData = {
       cacheKey,
       hostUid,
@@ -57,7 +71,7 @@ class AudioCacheManager {
       audioBlob,
       introText,
       timestamp: Date.now(),
-      size: audioBlob.size
+      size: audioBlob.size,
     }
 
     return new Promise((resolve, reject) => {
@@ -66,7 +80,9 @@ class AudioCacheManager {
       const request = store.put(cacheData)
 
       request.onsuccess = () => {
-        console.log(`✅ Audio Cache - Successfully cached audio for ${hostUid} with key "${cacheKey}" (${Math.round(audioBlob.size / 1024)}KB)`)
+        console.log(
+          `✅ Audio Cache - Successfully cached audio for ${hostUid} with key "${cacheKey}" (${Math.round(audioBlob.size / 1024)}KB)`
+        )
         resolve()
       }
 
@@ -77,9 +93,14 @@ class AudioCacheManager {
     })
   }
 
-  async getCachedAudio(hostUid: string, userPersonalityId: string): Promise<{ audioBlob: Blob; introText: string } | null> {
+  async getCachedAudio(
+    hostUid: string,
+    userPersonalityId: string
+  ): Promise<{ audioBlob: Blob; introText: string } | null> {
     if (!this.db) {
-      console.warn('⚠️ Audio Cache - Database not initialized, cannot retrieve cache')
+      console.warn(
+        '⚠️ Audio Cache - Database not initialized, cannot retrieve cache'
+      )
       return null
     }
 
@@ -94,19 +115,26 @@ class AudioCacheManager {
       request.onsuccess = () => {
         const result = request.result
         if (result) {
-          console.log(`🎵 Audio Cache - Found cached audio for ${hostUid} (${Math.round(result.size / 1024)}KB, cached ${new Date(result.timestamp).toLocaleString()})`)
+          console.log(
+            `🎵 Audio Cache - Found cached audio for ${hostUid} (${Math.round(result.size / 1024)}KB, cached ${new Date(result.timestamp).toLocaleString()})`
+          )
           resolve({
             audioBlob: result.audioBlob,
-            introText: result.introText
+            introText: result.introText,
           })
         } else {
-          console.log(`📭 Audio Cache - No cached audio found for key "${cacheKey}"`)
+          console.log(
+            `📭 Audio Cache - No cached audio found for key "${cacheKey}"`
+          )
           resolve(null)
         }
       }
 
       request.onerror = () => {
-        console.error('❌ Audio Cache - Failed to retrieve cached audio:', request.error)
+        console.error(
+          '❌ Audio Cache - Failed to retrieve cached audio:',
+          request.error
+        )
         reject(request.error)
       }
     })
@@ -142,22 +170,32 @@ class AudioCacheManager {
 
       request.onsuccess = () => {
         const results = request.result
-        const totalSize = results.reduce((sum, item) => sum + (item.size || 0), 0)
-        console.log(`📊 Audio Cache - ${results.length} cached files, ${Math.round(totalSize / 1024)}KB total`)
+        const totalSize = results.reduce(
+          (sum, item) => sum + (item.size || 0),
+          0
+        )
+        console.log(
+          `📊 Audio Cache - ${results.length} cached files, ${Math.round(totalSize / 1024)}KB total`
+        )
         resolve({
           count: results.length,
-          totalSize
+          totalSize,
         })
       }
 
       request.onerror = () => {
-        console.error('❌ Audio Cache - Failed to get cache stats:', request.error)
+        console.error(
+          '❌ Audio Cache - Failed to get cache stats:',
+          request.error
+        )
         reject(request.error)
       }
     })
   }
 
-  async cleanupOldCache(maxAgeMs: number = 7 * 24 * 60 * 60 * 1000): Promise<void> {
+  async cleanupOldCache(
+    maxAgeMs: number = 7 * 24 * 60 * 60 * 1000
+  ): Promise<void> {
     if (!this.db) return
 
     const cutoffTime = Date.now() - maxAgeMs
@@ -177,13 +215,18 @@ class AudioCacheManager {
           deletedCount++
           cursor.continue()
         } else {
-          console.log(`🧹 Audio Cache - Cleaned up ${deletedCount} old cache entries`)
+          console.log(
+            `🧹 Audio Cache - Cleaned up ${deletedCount} old cache entries`
+          )
           resolve()
         }
       }
 
       request.onerror = () => {
-        console.error('❌ Audio Cache - Failed to cleanup old cache:', request.error)
+        console.error(
+          '❌ Audio Cache - Failed to cleanup old cache:',
+          request.error
+        )
         reject(request.error)
       }
     })
@@ -196,7 +239,7 @@ class AudioCacheManager {
     return new Promise((resolve, reject) => {
       const audio = new Audio()
       const url = URL.createObjectURL(audioBlob)
-      
+
       // Track this audio element
       this.currentAudio = audio
 
@@ -238,4 +281,4 @@ export const audioCache = new AudioCacheManager()
 export type AudioCacheData = {
   audioBlob: Blob
   introText: string
-} 
+}

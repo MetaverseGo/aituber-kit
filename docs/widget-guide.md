@@ -7,22 +7,24 @@ The AI Tuber Widget provides a lightweight, embeddable version of the AI tuber t
 ### Basic Embedding
 
 ```html
-<iframe 
-    src="http://localhost:3000/widget"
-    width="400" 
-    height="600"
-    frameborder="0">
+<iframe
+  src="http://localhost:3000/widget"
+  width="400"
+  height="600"
+  frameborder="0"
+>
 </iframe>
 ```
 
 ### Customized Widget
 
 ```html
-<iframe 
-    src="http://localhost:3000/widget?theme=dark&width=300px&height=500px&characterName=Assistant"
-    width="300" 
-    height="500"
-    frameborder="0">
+<iframe
+  src="http://localhost:3000/widget?theme=dark&width=300px&height=500px&characterName=Assistant"
+  width="300"
+  height="500"
+  frameborder="0"
+>
 </iframe>
 ```
 
@@ -31,29 +33,34 @@ The AI Tuber Widget provides a lightweight, embeddable version of the AI tuber t
 Configure the widget by adding URL parameters:
 
 ### Display Options
+
 - `width` (string, default: "400px") - Widget width
-- `height` (string, default: "600px") - Widget height  
+- `height` (string, default: "600px") - Widget height
 - `theme` (string, default: "light") - Theme: "light", "dark", or "minimal"
 - `showBackground` (boolean, default: true) - Show background image
 - `showCharacter` (boolean, default: true) - Show 3D character
 
 ### UI Options
+
 - `showInput` (boolean, default: true) - Show input form
 - `showChatLog` (boolean, default: true) - Show chat history
 - `showVoiceButton` (boolean, default: true) - Show voice input button
 - `showSettingsButton` (boolean, default: false) - Show settings button
 
 ### Character Options
+
 - `characterName` (string, default: "CHARACTER") - Character display name
 - `characterModel` (string) - Path to VRM or Live2D model file
 - `systemPrompt` (string) - AI personality prompt
 
 ### AI Service Options
+
 - `apiKey` (string) - API key for AI service
 - `aiService` (string) - AI service: "openai", "anthropic", "google", etc.
 - `model` (string) - AI model name
 
 ### Advanced Options
+
 - `postMessages` (boolean, default: false) - Enable parent-child communication
 - `allowFullscreen` (boolean, default: false) - Show fullscreen button
 - `autoFocus` (boolean, default: true) - Auto-focus input field
@@ -61,32 +68,38 @@ Configure the widget by adding URL parameters:
 ## Example Configurations
 
 ### Minimal Chat Widget
+
 ```html
-<iframe 
-    src="http://localhost:3000/widget?theme=minimal&showBackground=false&showCharacter=false&width=300px&height=200px"
-    width="300" 
-    height="200"
-    frameborder="0">
+<iframe
+  src="http://localhost:3000/widget?theme=minimal&showBackground=false&showCharacter=false&width=300px&height=200px"
+  width="300"
+  height="200"
+  frameborder="0"
+>
 </iframe>
 ```
 
 ### Full-Featured Dark Theme
+
 ```html
-<iframe 
-    src="http://localhost:3000/widget?theme=dark&characterName=AI Assistant&showChatLog=true&allowFullscreen=true"
-    width="450" 
-    height="650"
-    frameborder="0">
+<iframe
+  src="http://localhost:3000/widget?theme=dark&characterName=AI Assistant&showChatLog=true&allowFullscreen=true"
+  width="450"
+  height="650"
+  frameborder="0"
+>
 </iframe>
 ```
 
 ### Character-Only Display
+
 ```html
-<iframe 
-    src="http://localhost:3000/widget?showInput=false&showChatLog=false&characterName=Demo&width=300px&height=400px"
-    width="300" 
-    height="400"
-    frameborder="0">
+<iframe
+  src="http://localhost:3000/widget?showInput=false&showChatLog=false&characterName=Demo&width=300px&height=400px"
+  width="300"
+  height="400"
+  frameborder="0"
+>
 </iframe>
 ```
 
@@ -95,13 +108,15 @@ Configure the widget by adding URL parameters:
 Enable interactive communication between the parent page and widget using PostMessage API.
 
 ### Enable Communication
+
 ```html
-<iframe 
-    id="ai-widget"
-    src="http://localhost:3000/widget?postMessages=true"
-    width="400" 
-    height="500"
-    frameborder="0">
+<iframe
+  id="ai-widget"
+  src="http://localhost:3000/widget?postMessages=true"
+  width="400"
+  height="500"
+  frameborder="0"
+>
 </iframe>
 ```
 
@@ -109,46 +124,55 @@ Enable interactive communication between the parent page and widget using PostMe
 
 ```javascript
 // Send a chat message
-document.getElementById('ai-widget').contentWindow.postMessage({
+document.getElementById('ai-widget').contentWindow.postMessage(
+  {
     type: 'SEND_MESSAGE',
-    message: 'Hello from parent!'
-}, '*');
+    message: 'Hello from parent!',
+  },
+  '*'
+)
 
 // Clear chat history
-document.getElementById('ai-widget').contentWindow.postMessage({
-    type: 'CLEAR_CHAT'
-}, '*');
+document.getElementById('ai-widget').contentWindow.postMessage(
+  {
+    type: 'CLEAR_CHAT',
+  },
+  '*'
+)
 
 // Update widget configuration
-document.getElementById('ai-widget').contentWindow.postMessage({
+document.getElementById('ai-widget').contentWindow.postMessage(
+  {
     type: 'WIDGET_CONFIG',
     config: {
-        theme: 'dark',
-        characterName: 'New Name'
-    }
-}, '*');
+      theme: 'dark',
+      characterName: 'New Name',
+    },
+  },
+  '*'
+)
 ```
 
 ### Listen for Widget Events
 
 ```javascript
-window.addEventListener('message', function(event) {
-    switch(event.data.type) {
-        case 'WIDGET_READY':
-            console.log('Widget is ready for interaction');
-            break;
-            
-        case 'CHAT_UPDATE':
-            console.log('Chat log updated:', event.data.chatLog);
-            // Handle chat updates (save to database, etc.)
-            break;
-            
-        case 'TOGGLE_FULLSCREEN':
-            // Handle fullscreen toggle request
-            toggleWidgetFullscreen();
-            break;
-    }
-});
+window.addEventListener('message', function (event) {
+  switch (event.data.type) {
+    case 'WIDGET_READY':
+      console.log('Widget is ready for interaction')
+      break
+
+    case 'CHAT_UPDATE':
+      console.log('Chat log updated:', event.data.chatLog)
+      // Handle chat updates (save to database, etc.)
+      break
+
+    case 'TOGGLE_FULLSCREEN':
+      // Handle fullscreen toggle request
+      toggleWidgetFullscreen()
+      break
+  }
+})
 ```
 
 ## API Integration
@@ -156,22 +180,24 @@ window.addEventListener('message', function(event) {
 ### Using Your Own API Keys
 
 ```html
-<iframe 
-    src="http://localhost:3000/widget?apiKey=YOUR_API_KEY&aiService=openai&model=gpt-4"
-    width="400" 
-    height="600"
-    frameborder="0">
+<iframe
+  src="http://localhost:3000/widget?apiKey=YOUR_API_KEY&aiService=openai&model=gpt-4"
+  width="400"
+  height="600"
+  frameborder="0"
+>
 </iframe>
 ```
 
 ### Custom Character Setup
 
 ```html
-<iframe 
-    src="http://localhost:3000/widget?characterModel=/vrm/custom.vrm&characterName=Custom&systemPrompt=You are a helpful assistant"
-    width="400" 
-    height="600"
-    frameborder="0">
+<iframe
+  src="http://localhost:3000/widget?characterModel=/vrm/custom.vrm&characterName=Custom&systemPrompt=You are a helpful assistant"
+  width="400"
+  height="600"
+  frameborder="0"
+>
 </iframe>
 ```
 
@@ -181,18 +207,18 @@ window.addEventListener('message', function(event) {
 
 ```css
 .widget-container {
-    width: 100%;
-    max-width: 400px;
-    height: 600px;
-    border: none;
-    border-radius: 8px;
-    overflow: hidden;
+  width: 100%;
+  max-width: 400px;
+  height: 600px;
+  border: none;
+  border-radius: 8px;
+  overflow: hidden;
 }
 
 @media (max-width: 768px) {
-    .widget-container {
-        height: 500px;
-    }
+  .widget-container {
+    height: 500px;
+  }
 }
 ```
 
@@ -200,23 +226,26 @@ window.addEventListener('message', function(event) {
 
 ```javascript
 function resizeWidget() {
-    const widget = document.getElementById('ai-widget');
-    const container = widget.parentElement;
-    
-    widget.width = container.clientWidth;
-    widget.height = container.clientHeight;
-    
-    // Update widget configuration
-    widget.contentWindow.postMessage({
-        type: 'WIDGET_CONFIG',
-        config: {
-            width: container.clientWidth + 'px',
-            height: container.clientHeight + 'px'
-        }
-    }, '*');
+  const widget = document.getElementById('ai-widget')
+  const container = widget.parentElement
+
+  widget.width = container.clientWidth
+  widget.height = container.clientHeight
+
+  // Update widget configuration
+  widget.contentWindow.postMessage(
+    {
+      type: 'WIDGET_CONFIG',
+      config: {
+        width: container.clientWidth + 'px',
+        height: container.clientHeight + 'px',
+      },
+    },
+    '*'
+  )
 }
 
-window.addEventListener('resize', resizeWidget);
+window.addEventListener('resize', resizeWidget)
 ```
 
 ## Security Considerations
@@ -236,7 +265,10 @@ When deploying, ensure your domain is allowed in CORS settings.
 Add appropriate CSP headers:
 
 ```html
-<meta http-equiv="Content-Security-Policy" content="frame-src 'self' https://your-domain.com;">
+<meta
+  http-equiv="Content-Security-Policy"
+  content="frame-src 'self' https://your-domain.com;"
+/>
 ```
 
 ## Advanced Customization
@@ -247,47 +279,51 @@ Override widget styles using CSS injection:
 
 ```javascript
 // Send custom CSS to widget
-document.getElementById('ai-widget').contentWindow.postMessage({
+document.getElementById('ai-widget').contentWindow.postMessage(
+  {
     type: 'WIDGET_CONFIG',
     config: {
-        customCSS: `
+      customCSS: `
             .widget-form { background: linear-gradient(45deg, #ff6b6b, #4ecdc4); }
             .chat-message { border-radius: 20px; }
-        `
-    }
-}, '*');
+        `,
+    },
+  },
+  '*'
+)
 ```
 
 ### Event Callbacks
 
 ```javascript
 const widgetCallbacks = {
-    onReady: () => console.log('Widget ready'),
-    onMessage: (msg) => console.log('New message:', msg),
-    onError: (err) => console.error('Widget error:', err)
-};
+  onReady: () => console.log('Widget ready'),
+  onMessage: (msg) => console.log('New message:', msg),
+  onError: (err) => console.error('Widget error:', err),
+}
 
 // Setup widget with callbacks
 function setupWidget() {
-    window.addEventListener('message', function(event) {
-        switch(event.data.type) {
-            case 'WIDGET_READY':
-                widgetCallbacks.onReady();
-                break;
-            case 'CHAT_UPDATE':
-                widgetCallbacks.onMessage(event.data.chatLog);
-                break;
-            case 'ERROR':
-                widgetCallbacks.onError(event.data.error);
-                break;
-        }
-    });
+  window.addEventListener('message', function (event) {
+    switch (event.data.type) {
+      case 'WIDGET_READY':
+        widgetCallbacks.onReady()
+        break
+      case 'CHAT_UPDATE':
+        widgetCallbacks.onMessage(event.data.chatLog)
+        break
+      case 'ERROR':
+        widgetCallbacks.onError(event.data.error)
+        break
+    }
+  })
 }
 ```
 
 ## Testing
 
 View the example implementation at:
+
 ```
 http://localhost:3000/embed-example.html
 ```
@@ -327,7 +363,7 @@ NEXT_PUBLIC_WIDGET_CORS_ORIGINS=https://example.com,https://another-site.com
 Enable debug mode by adding `debug=true` to widget URL:
 
 ```html
-<iframe src="http://localhost:3000/widget?debug=true" ...>
+<iframe src="http://localhost:3000/widget?debug=true" ...></iframe>
 ```
 
-This will show console logs and error details in the widget. 
+This will show console logs and error details in the widget.

@@ -27,7 +27,7 @@ export const ChatLog = () => {
         block: 'center',
       })
     }, 100)
-    
+
     return () => clearTimeout(timeoutId)
   }, [])
 
@@ -39,7 +39,7 @@ export const ChatLog = () => {
         block: 'center',
       })
     }, 50)
-    
+
     return () => clearTimeout(timeoutId)
   }, [messages])
 
@@ -87,16 +87,19 @@ export const ChatLog = () => {
       className="absolute h-[100svh] pb-24 z-10 max-w-full"
       style={{ width: `${chatLogWidth}px` }}
     >
-              <div className="relative max-h-full px-4 pt-24 pb-24">
+      <div className="relative max-h-full px-4 pt-24 pb-24">
         {/* Fade gradient overlays */}
         <div className="absolute top-24 left-0 right-0 h-6 bg-gradient-to-b from-black/20 via-black/10 to-transparent pointer-events-none z-20"></div>
         <div className="absolute bottom-24 left-0 right-0 h-8 bg-gradient-to-t from-black/20 via-black/10 to-transparent pointer-events-none z-20"></div>
-        
+
         {/* Scrollable content */}
         <div className="max-h-full overflow-y-auto scroll-hidden relative">
           {messages.map((msg, i) => {
             return (
-              <div key={i} ref={messages.length - 1 === i ? chatScrollRef : null}>
+              <div
+                key={i}
+                ref={messages.length - 1 === i ? chatScrollRef : null}
+              >
                 {typeof msg.content === 'string' ? (
                   <Chat
                     role={msg.role}
@@ -149,8 +152,8 @@ const Chat = ({
 
   const isUser = role === 'user'
   const alignment = isUser ? 'ml-auto mr-0' : 'mr-auto ml-0'
-  const bubbleColor = isUser 
-    ? 'bg-blue-500 text-white' 
+  const bubbleColor = isUser
+    ? 'bg-blue-500 text-white'
     : 'bg-white/90 backdrop-blur-sm text-gray-800 border border-white/50 shadow-lg'
   const maxWidth = isUser ? 'max-w-[70%]' : 'max-w-[80%]'
 

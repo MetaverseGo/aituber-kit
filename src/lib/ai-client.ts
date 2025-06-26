@@ -10,15 +10,17 @@ export async function callAI(messages: Message[]): Promise<string> {
     console.log('Making AI call with messages:', messages.length, 'messages')
     const response = await getVercelAIChatResponse(messages)
     console.log('AI response received:', response)
-    
+
     if (!response || !response.text) {
       console.error('Empty or invalid AI response:', response)
       throw new Error('Received empty response from AI service')
     }
-    
+
     return response.text
   } catch (error) {
     console.error('AI call failed:', error)
-    throw new Error(`AI service error: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    throw new Error(
+      `AI service error: ${error instanceof Error ? error.message : 'Unknown error'}`
+    )
   }
 }

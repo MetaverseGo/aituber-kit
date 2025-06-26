@@ -73,11 +73,19 @@ const Widget = () => {
   useEffect(() => {
     const checkCompletionStatus = () => {
       try {
-        const completed = localStorage.getItem('personality_analysis_completed') === 'true'
-        const hasResult = localStorage.getItem('last_matchmaking_result') !== null
-        const hasDismissed = localStorage.getItem('personality_panel_dismissed') === 'true'
+        const completed =
+          localStorage.getItem('personality_analysis_completed') === 'true'
+        const hasResult =
+          localStorage.getItem('last_matchmaking_result') !== null
+        const hasDismissed =
+          localStorage.getItem('personality_panel_dismissed') === 'true'
         const shouldShow = completed && hasResult && !hasDismissed
-        console.log('🎨 Widget - Personality completion check:', { completed, hasResult, hasDismissed, shouldShow })
+        console.log('🎨 Widget - Personality completion check:', {
+          completed,
+          hasResult,
+          hasDismissed,
+          shouldShow,
+        })
         setIsPersonalityCompleted(shouldShow)
       } catch (error) {
         console.log('🎨 Widget - Error checking personality completion:', error)
@@ -90,16 +98,22 @@ const Widget = () => {
 
     // Listen for localStorage changes
     const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'personality_analysis_completed' || e.key === 'last_matchmaking_result' || e.key === 'personality_panel_dismissed') {
+      if (
+        e.key === 'personality_analysis_completed' ||
+        e.key === 'last_matchmaking_result' ||
+        e.key === 'personality_panel_dismissed'
+      ) {
         console.log('🎨 Widget - Storage changed:', e.key)
         checkCompletionStatus()
       }
     }
-    
+
     // Listen for chat log changes (in case completion happens)
     const unsubscribe = homeStore.subscribe((state, prevState) => {
       if (state.chatLog !== prevState.chatLog) {
-        console.log('🎨 Widget - Chat log changed, checking completion status...')
+        console.log(
+          '🎨 Widget - Chat log changed, checking completion status...'
+        )
         // Small delay to allow localStorage to be updated
         setTimeout(checkCompletionStatus, 100)
       }
@@ -238,15 +252,16 @@ const Widget = () => {
       if (chatScrollRef.current) {
         chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight
       }
-      // Scroll the hidden input chat container  
+      // Scroll the hidden input chat container
       if (chatScrollRefHidden.current) {
-        chatScrollRefHidden.current.scrollTop = chatScrollRefHidden.current.scrollHeight
+        chatScrollRefHidden.current.scrollTop =
+          chatScrollRefHidden.current.scrollHeight
       }
     }
 
     // Add a small delay to ensure the new message elements are fully rendered
     const timeoutId = setTimeout(scrollToBottom, 50)
-    
+
     return () => clearTimeout(timeoutId)
   }, [chatLog])
 
@@ -279,14 +294,17 @@ const Widget = () => {
 
   // Debug logging
   console.log('🎨 Widget - isPersonalityCompleted:', isPersonalityCompleted)
-  console.log('🎨 Widget - Rendering main content with right constraint:', isPersonalityCompleted ? '320px' : '0')
+  console.log(
+    '🎨 Widget - Rendering main content with right constraint:',
+    isPersonalityCompleted ? '320px' : '0'
+  )
 
   // Force canvas resize when personality panel state changes
   useEffect(() => {
     const timer = setTimeout(() => {
       // Trigger window resize event to force character viewers to recalculate their dimensions
       window.dispatchEvent(new Event('resize'))
-      
+
       // Also try to call resize methods directly if available
       const { viewer, live2dViewer } = homeStore.getState()
       if (viewer && typeof viewer.resize === 'function') {
@@ -297,8 +315,6 @@ const Widget = () => {
 
     return () => clearTimeout(timer)
   }, [isPersonalityCompleted])
-
-
 
   return (
     <div
@@ -324,15 +340,18 @@ const Widget = () => {
 
         {/* Chat Log - positioned just above input */}
         {config.showChatLog && chatLog.length > 0 && config.showInput && (
-          <div ref={chatScrollRef} className="absolute bottom-20 left-2 right-2 max-h-32 overflow-y-auto scroll-hidden z-10">
+          <div
+            ref={chatScrollRef}
+            className="absolute bottom-20 left-2 right-2 max-h-32 overflow-y-auto scroll-hidden z-10"
+          >
             <div className="space-y-2 p-2">
               {chatLog.slice(-2).map((msg, i) => {
                 const isUser = msg.role === 'user'
                 const alignment = isUser ? 'ml-auto' : 'mr-auto'
-                const bubbleColor = isUser 
-                  ? 'bg-blue-500 text-white' 
+                const bubbleColor = isUser
+                  ? 'bg-blue-500 text-white'
                   : 'bg-white/90 backdrop-blur-sm text-gray-800 border border-white/50 shadow-lg'
-                
+
                 return (
                   <div
                     key={i}
@@ -357,15 +376,18 @@ const Widget = () => {
 
         {/* Chat Log - for when input is hidden, show at bottom */}
         {config.showChatLog && chatLog.length > 0 && !config.showInput && (
-          <div ref={chatScrollRefHidden} className="absolute bottom-2 left-2 right-2 max-h-32 overflow-y-auto scroll-hidden z-10">
+          <div
+            ref={chatScrollRefHidden}
+            className="absolute bottom-2 left-2 right-2 max-h-32 overflow-y-auto scroll-hidden z-10"
+          >
             <div className="space-y-2 p-2">
               {chatLog.slice(-2).map((msg, i) => {
                 const isUser = msg.role === 'user'
                 const alignment = isUser ? 'ml-auto' : 'mr-auto'
-                const bubbleColor = isUser 
-                  ? 'bg-blue-500 text-white' 
+                const bubbleColor = isUser
+                  ? 'bg-blue-500 text-white'
                   : 'bg-white/90 backdrop-blur-sm text-gray-800 border border-white/50 shadow-lg'
-                
+
                 return (
                   <div
                     key={i}

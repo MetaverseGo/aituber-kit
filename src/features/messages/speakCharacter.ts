@@ -40,7 +40,7 @@ export function preprocessMessage(
   // "Emi" と "emi" の発音を修正（ElevenLabs などの TTS で正しく発音されるように）
   // 大文字小文字両方に対応（emi は自分のことを小文字で言うため）
   processed = processed.replace(/\bemi\b/gi, 'Emmy')
-  
+
   // "Van Gogh" の発音を修正（正しいオランダ語発音に近づける）
   processed = processed.replace(/\bvan gogh\b/gi, 'Van Go')
 

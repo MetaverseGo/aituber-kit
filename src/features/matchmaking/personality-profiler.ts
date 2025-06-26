@@ -220,7 +220,14 @@ export const PERSONALITY_CATEGORIES: PersonalityCategory[] = [
     description:
       "You're the quiet one with hidden depths. Sweet on the surface but spicy underneath, you surprise people with your adventurous side when they least expect it.",
     imageUrl: '/images/personalities/secret-deviant.png',
-    traits: ['mysterious', 'sensual', 'submissive', 'surprising', 'playful', 'hidden'],
+    traits: [
+      'mysterious',
+      'sensual',
+      'submissive',
+      'surprising',
+      'playful',
+      'hidden',
+    ],
     archetype: {
       direction: 'sw',
       dominance: 0.15,
@@ -257,14 +264,7 @@ export const PERSONALITY_CATEGORIES: PersonalityCategory[] = [
     description:
       "You're the loveable sexy one everyone adores. Sweet, fun, and unapologetically hot, you bring joy and spice in equal measure with zero pretense.",
     imageUrl: '/images/personalities/himbo-bimbo-babe.png',
-    traits: [
-      'sweet',
-      'sexy',
-      'fun',
-      'carefree',
-      'loveable',
-      'enthusiastic',
-    ],
+    traits: ['sweet', 'sexy', 'fun', 'carefree', 'loveable', 'enthusiastic'],
     archetype: {
       direction: 's',
       dominance: 0.05,

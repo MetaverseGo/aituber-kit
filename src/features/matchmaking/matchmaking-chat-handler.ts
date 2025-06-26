@@ -82,8 +82,12 @@ export class MatchmakingChatHandler {
     message: string,
     sessionId: string
   ): Promise<MatchmakingResult | null> {
-    console.log('🎪 Chat Handler - processChatMessage called:', { message, sessionId, isActive: this.isMatchmakingActive })
-    
+    console.log('🎪 Chat Handler - processChatMessage called:', {
+      message,
+      sessionId,
+      isActive: this.isMatchmakingActive,
+    })
+
     // If matchmaking is not active, auto-start it (for mandatory personality analysis)
     if (!this.isMatchmakingActive) {
       console.log('🎪 Chat Handler - Matchmaking not active, auto-starting...')
@@ -92,30 +96,41 @@ export class MatchmakingChatHandler {
       this.currentSessionId = sessionId
 
       try {
-        console.log('🎪 Chat Handler - Starting orchestrator with message:', message)
-        
+        console.log(
+          '🎪 Chat Handler - Starting orchestrator with message:',
+          message
+        )
+
         // Start the orchestrator with the user's message
-        const result = await this.orchestrator.processMessage(message, sessionId)
+        const result = await this.orchestrator.processMessage(
+          message,
+          sessionId
+        )
         console.log('🎪 Chat Handler - Orchestrator returned result:', result)
 
         return result
       } catch (error) {
         console.error('Error starting matchmaking:', error)
-        
+
         // Don't immediately give up - provide helpful error message instead
-        if (error instanceof Error && error.message.includes('API key is not configured')) {
+        if (
+          error instanceof Error &&
+          error.message.includes('API key is not configured')
+        ) {
           this.isMatchmakingActive = false
           this.currentSessionId = null
           return {
-            message: 'I need an API key to start your personality analysis! Please configure it in Settings → Model Provider, then try again!',
+            message:
+              'I need an API key to start your personality analysis! Please configure it in Settings → Model Provider, then try again!',
             isComplete: false,
             step: 'api_key_error',
           }
         }
-        
+
         // For other errors, still try to stay active but show error
         return {
-          message: 'I had a small hiccup starting your personality analysis! Please try sending a message again.',
+          message:
+            'I had a small hiccup starting your personality analysis! Please try sending a message again.',
           isComplete: false,
           step: 'startup_error',
         }
@@ -124,16 +139,23 @@ export class MatchmakingChatHandler {
 
     // If matchmaking is active, process through orchestrator
     if (this.orchestrator && this.currentSessionId === sessionId) {
-      console.log('🎪 Chat Handler - Matchmaking active, processing through orchestrator...')
+      console.log(
+        '🎪 Chat Handler - Matchmaking active, processing through orchestrator...'
+      )
       try {
         const result = await this.orchestrator.processMessage(
           message,
           sessionId
         )
-        console.log('🎪 Chat Handler - Orchestrator result for active session:', result)
+        console.log(
+          '🎪 Chat Handler - Orchestrator result for active session:',
+          result
+        )
 
         // Step progress is now stored earlier in handlers.ts before speaking
-        console.log('🎪 Chat Handler - Step progress will be stored by main handler before speaking')
+        console.log(
+          '🎪 Chat Handler - Step progress will be stored by main handler before speaking'
+        )
 
         // Check if matchmaking is complete
         if (result.isComplete) {
@@ -146,22 +168,27 @@ export class MatchmakingChatHandler {
         return result
       } catch (error) {
         console.error('Error in matchmaking processing:', error)
-        
+
         // Don't immediately give up on matchmaking - try to continue with a helpful error message
         // Only deactivate if it's a persistent configuration issue
-        if (error instanceof Error && error.message.includes('API key is not configured')) {
+        if (
+          error instanceof Error &&
+          error.message.includes('API key is not configured')
+        ) {
           this.isMatchmakingActive = false
           this.currentSessionId = null
           return {
-            message: 'I need an API key to continue your personality analysis! Please configure it in Settings → Model Provider, then try again!',
+            message:
+              'I need an API key to continue your personality analysis! Please configure it in Settings → Model Provider, then try again!',
             isComplete: false,
             step: 'api_key_error',
           }
         }
-        
+
         // For other errors, stay in matchmaking mode but show a helpful message
         return {
-          message: 'I had a small hiccup there! Please send your response again and I\'ll continue with your personality analysis.',
+          message:
+            "I had a small hiccup there! Please send your response again and I'll continue with your personality analysis.",
           isComplete: false,
           step: 'error_retry',
         }
@@ -169,7 +196,14 @@ export class MatchmakingChatHandler {
     }
 
     // Session mismatch, deactivate matchmaking
-    console.log('🎪 Chat Handler - Session mismatch or no orchestrator! Current:', this.currentSessionId, 'Incoming:', sessionId, 'Has orchestrator:', !!this.orchestrator)
+    console.log(
+      '🎪 Chat Handler - Session mismatch or no orchestrator! Current:',
+      this.currentSessionId,
+      'Incoming:',
+      sessionId,
+      'Has orchestrator:',
+      !!this.orchestrator
+    )
     this.isMatchmakingActive = false
     this.currentSessionId = null
     return null

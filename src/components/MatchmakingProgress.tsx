@@ -1,13 +1,17 @@
 import React, { useState, useEffect } from 'react'
 import homeStore from '@/features/stores/home'
-import { getChatStats, DAILY_MESSAGE_LIMIT, getTimeUntilNextRefill } from '@/utils/chatLimits'
+import {
+  getChatStats,
+  DAILY_MESSAGE_LIMIT,
+  getTimeUntilNextRefill,
+} from '@/utils/chatLimits'
 
 interface MatchmakingProgressProps {
   className?: string
 }
 
-export const MatchmakingProgress: React.FC<MatchmakingProgressProps> = ({ 
-  className = "" 
+export const MatchmakingProgress: React.FC<MatchmakingProgressProps> = ({
+  className = '',
 }) => {
   const [isVisible, setIsVisible] = useState(false)
   const [stepProgress, setStepProgress] = useState<{
@@ -17,7 +21,9 @@ export const MatchmakingProgress: React.FC<MatchmakingProgressProps> = ({
     phase: string
   } | null>(null)
   const [chatStats, setChatStats] = useState(() => getChatStats())
-  const [timeUntilRefill, setTimeUntilRefill] = useState(() => getTimeUntilNextRefill())
+  const [timeUntilRefill, setTimeUntilRefill] = useState(() =>
+    getTimeUntilNextRefill()
+  )
 
   // Check if user has completed personality analysis
   const hasCompletedPersonalityAnalysis = (): boolean => {
@@ -46,10 +52,13 @@ export const MatchmakingProgress: React.FC<MatchmakingProgressProps> = ({
   const updateProgress = () => {
     const stepData = getStoredStepProgress()
     const completed = hasCompletedPersonalityAnalysis()
-    
+
     console.log('Progress Bar - Update:', { stepData, completed })
-    
-    if (stepData && (stepData.phase === 'questions' || stepData.phase === 'analyzing')) {
+
+    if (
+      stepData &&
+      (stepData.phase === 'questions' || stepData.phase === 'analyzing')
+    ) {
       // Show question progress bar
       console.log('Progress Bar - Showing questions progress')
       setStepProgress(stepData)
@@ -78,7 +87,10 @@ export const MatchmakingProgress: React.FC<MatchmakingProgressProps> = ({
     updateProgress() // Initial check
 
     const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'matchmaking_step_progress' || e.key === 'personality_analysis_completed') {
+      if (
+        e.key === 'matchmaking_step_progress' ||
+        e.key === 'personality_analysis_completed'
+      ) {
         updateProgress()
       }
       if (e.key === 'chat_stats') {
@@ -99,14 +111,17 @@ export const MatchmakingProgress: React.FC<MatchmakingProgressProps> = ({
     const updateStaminaTimer = setInterval(() => {
       const newStats = getChatStats()
       const newTimeUntilRefill = getTimeUntilNextRefill()
-      
+
       // Only update if something changed to avoid unnecessary re-renders
-      if (JSON.stringify(newStats) !== JSON.stringify(chatStats) || newTimeUntilRefill !== timeUntilRefill) {
+      if (
+        JSON.stringify(newStats) !== JSON.stringify(chatStats) ||
+        newTimeUntilRefill !== timeUntilRefill
+      ) {
         setChatStats(newStats)
         setTimeUntilRefill(newTimeUntilRefill)
       }
     }, 10000) // Update every 10 seconds
-    
+
     return () => clearInterval(updateStaminaTimer)
   }, [chatStats, timeUntilRefill])
 
@@ -119,7 +134,9 @@ export const MatchmakingProgress: React.FC<MatchmakingProgressProps> = ({
     const progressPercentage = (stepProgress.current / stepProgress.total) * 100
 
     return (
-      <div className={`absolute top-0 left-0 right-0 z-50 bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg ${className}`}>
+      <div
+        className={`absolute top-0 left-0 right-0 z-50 bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg ${className}`}
+      >
         <div className="px-4 py-2">
           <div className="flex items-center justify-between mb-1">
             <div className="flex items-center space-x-2">
@@ -131,10 +148,10 @@ export const MatchmakingProgress: React.FC<MatchmakingProgressProps> = ({
               </span>
             </div>
           </div>
-          
+
           {/* Progress Bar */}
           <div className="w-full bg-white/20 rounded-full h-1.5">
-            <div 
+            <div
               className="bg-white rounded-full h-1.5 transition-all duration-300 ease-out"
               style={{ width: `${progressPercentage}%` }}
             />
@@ -146,17 +163,26 @@ export const MatchmakingProgress: React.FC<MatchmakingProgressProps> = ({
 
   // Show chat limits after personality analysis is complete
   if (hasCompletedPersonalityAnalysis()) {
-    const remainingMessages = Math.max(0, DAILY_MESSAGE_LIMIT - chatStats.dailyMessages)
-    const dailyPercentage = Math.min((remainingMessages / DAILY_MESSAGE_LIMIT) * 100, 100)
-    const intimacyPercentage = Math.min((chatStats.intimacyLevel / 100) * 100, 100)
-    
+    const remainingMessages = Math.max(
+      0,
+      DAILY_MESSAGE_LIMIT - chatStats.dailyMessages
+    )
+    const dailyPercentage = Math.min(
+      (remainingMessages / DAILY_MESSAGE_LIMIT) * 100,
+      100
+    )
+    const intimacyPercentage = Math.min(
+      (chatStats.intimacyLevel / 100) * 100,
+      100
+    )
+
     const formatTimeUntilRefill = (ms: number): string => {
       if (ms === 0 || remainingMessages === DAILY_MESSAGE_LIMIT) return ''
       const minutes = Math.floor(ms / 60000)
       const seconds = Math.floor((ms % 60000) / 1000)
       return `${minutes}:${seconds.toString().padStart(2, '0')}`
     }
-    
+
     const getIntimacyLevel = (points: number): string => {
       if (points >= 75) return 'Best Friend'
       if (points >= 50) return 'Close Friend'
@@ -166,7 +192,9 @@ export const MatchmakingProgress: React.FC<MatchmakingProgressProps> = ({
     }
 
     return (
-      <div className={`absolute top-0 left-0 right-0 z-50 bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg ${className}`}>
+      <div
+        className={`absolute top-0 left-0 right-0 z-50 bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg ${className}`}
+      >
         <div className="px-4 py-2">
           {/* Daily Messages */}
           <div className="flex items-center justify-between mb-1">
@@ -184,10 +212,10 @@ export const MatchmakingProgress: React.FC<MatchmakingProgressProps> = ({
               </span>
             </div>
           </div>
-          
+
           {/* Daily Progress Bar */}
           <div className="w-full bg-white/20 rounded-full h-1.5 mb-2">
-            <div 
+            <div
               className="bg-white rounded-full h-1.5 transition-all duration-300 ease-out"
               style={{ width: `${dailyPercentage}%` }}
             />
@@ -200,14 +228,15 @@ export const MatchmakingProgress: React.FC<MatchmakingProgressProps> = ({
                 <span className="text-xs font-bold">💜</span>
               </div>
               <span className="font-semibold text-sm">
-                {getIntimacyLevel(chatStats.intimacyLevel)}: {Math.floor(chatStats.intimacyLevel)}/100
+                {getIntimacyLevel(chatStats.intimacyLevel)}:{' '}
+                {Math.floor(chatStats.intimacyLevel)}/100
               </span>
             </div>
           </div>
-          
+
           {/* Intimacy Progress Bar */}
           <div className="w-full bg-white/20 rounded-full h-1.5">
-            <div 
+            <div
               className="bg-white rounded-full h-1.5 transition-all duration-300 ease-out"
               style={{ width: `${intimacyPercentage}%` }}
             />
@@ -220,4 +249,4 @@ export const MatchmakingProgress: React.FC<MatchmakingProgressProps> = ({
   return null
 }
 
-export default MatchmakingProgress 
+export default MatchmakingProgress

@@ -58,11 +58,11 @@ export class KokologyAnalyst {
         encouragement: [
           'you are doing amazing! these answers are giving me SUCH good vibes',
           'your personality is already shining through, keep going!',
-          "this is so fun! your answers are perfect data",
+          'this is so fun! your answers are perfect data',
           'your energy is unmatched, I can feel it through the screen',
         ],
         completion: [
-          "we did it! your answers were perfection",
+          'we did it! your answers were perfection',
           'that was so fun! now comes the exciting part - your personality analysis!',
           "we're done with questions! time for me to work my data magic",
           'your brain is literally so interesting! processing all this good data now',
@@ -213,7 +213,7 @@ Remember: Kokology reveals truth through imagination, not direct questioning. Ke
             role: 'assistant',
             content: qa.question,
           })
-          
+
           // Add the user's answer if it exists
           if (qa.answer) {
             messages.push({
@@ -245,13 +245,29 @@ Remember: Kokology reveals truth through imagination, not direct questioning. Ke
         content: questionPrompt,
       })
 
-      console.log(`🧠 Kokology Analyst - Question ${questionNumber} prompt:`, questionPrompt)
-      console.log(`🧠 Kokology Analyst - Previous answers passed:`, JSON.stringify(previousAnswers, null, 2))
-      console.log(`🧠 Kokology Analyst - Built conversation history:`, JSON.stringify(messages.filter(m => m.role !== 'system'), null, 2))
+      console.log(
+        `🧠 Kokology Analyst - Question ${questionNumber} prompt:`,
+        questionPrompt
+      )
+      console.log(
+        `🧠 Kokology Analyst - Previous answers passed:`,
+        JSON.stringify(previousAnswers, null, 2)
+      )
+      console.log(
+        `🧠 Kokology Analyst - Built conversation history:`,
+        JSON.stringify(
+          messages.filter((m) => m.role !== 'system'),
+          null,
+          2
+        )
+      )
 
       const response = await callAI(messages)
 
-      console.log(`🧠 Kokology Analyst - Question ${questionNumber} response:`, response)
+      console.log(
+        `🧠 Kokology Analyst - Question ${questionNumber} response:`,
+        response
+      )
 
       return {
         question: response,

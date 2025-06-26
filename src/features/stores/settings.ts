@@ -2,7 +2,10 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
 import { KoeiroParam, DEFAULT_PARAM } from '@/features/constants/koeiroParam'
-import { SYSTEM_PROMPT, SYSTEM_PROMPT_EN } from '@/features/constants/systemPromptConstants'
+import {
+  SYSTEM_PROMPT,
+  SYSTEM_PROMPT_EN,
+} from '@/features/constants/systemPromptConstants'
 import {
   AIService,
   AIVoice,
