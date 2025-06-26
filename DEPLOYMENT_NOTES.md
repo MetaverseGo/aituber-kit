@@ -91,3 +91,50 @@ Monitor these directories to prevent future size issues:
 ✅ **Build size**: ~78MB (under 230MB limit)  
 ✅ **Amplify deployment**: Should work now  
 ✅ **Essential functionality**: Preserved with your nikechan_v2.vrm model
+
+# AI Tuber Kit - Deployment Optimization
+
+## Build Size Optimization
+
+To meet AWS Amplify's 230MB build size limit, several optimizations have been implemented:
+
+### Asset Management
+
+- Large VRM models moved to `assets_backup/` directory (excluded from deployment)
+- Only essential avatar model (`nikechan_v2.vrm`) kept for production
+- Live2D assets moved to backup to reduce size
+
+### Canvas Package Optimization
+
+The `canvas` npm package (~100MB+) has been conditionally removed from production builds to reduce deployment size:
+
+#### Changes Made:
+
+1. **Conditional Import**: `src/pages/api/convertSlide.ts` now imports canvas conditionally
+2. **Graceful Degradation**: PDF slide conversion will show a user-friendly error when canvas is unavailable
+3. **Amplify Configuration**: `amplify.yml` removes the canvas package after build
+
+#### Impact:
+
+- **Reduced build size**: ~100MB reduction
+- **Feature availability**: PDF slide conversion feature will be disabled in production
+- **User experience**: Clear error messages when attempting to use unavailable features
+
+#### Local Development:
+
+- All features work normally in local development
+- Canvas package remains available for `npm run dev`
+
+### File Exclusions
+
+- Build cache and logs excluded via `.gitignore`
+- Documentation and backup assets excluded from deployment
+
+## Current Build Size
+
+- Local measurement: ~78MB
+- Amplify deployment: Should be under 230MB limit
+
+## Deployment Configuration
+
+See `amplify.yml` for build configuration and `next.config.js` for optimization settings.

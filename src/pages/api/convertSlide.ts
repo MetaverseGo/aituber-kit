@@ -2,7 +2,14 @@ import type { NextApiRequest, NextApiResponse } from 'next'
 import formidable from 'formidable'
 import fs from 'fs'
 import path from 'path'
-import { createCanvas } from 'canvas'
+// Conditional canvas import
+let createCanvas: any
+try {
+  const canvasModule = require('canvas')
+  createCanvas = canvasModule.createCanvas
+} catch (error) {
+  createCanvas = null
+}
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs'
 import { createOpenAI } from '@ai-sdk/openai'
 import { createAnthropic } from '@ai-sdk/anthropic'
@@ -110,6 +117,13 @@ Remember:
 Now, analyze the provided slide image and create the appropriate JSON response.`
 
 async function convertPdfToImages(pdfBuffer: Buffer): Promise<string[]> {
+  // Check if canvas is available
+  if (!createCanvas) {
+    throw new Error(
+      'Canvas package is not available. PDF conversion feature is disabled in this deployment.'
+    )
+  }
+
   // PDFファイルを読み込む
   const pdfData = new Uint8Array(pdfBuffer)
   const pdf = await pdfjsLib.getDocument({
