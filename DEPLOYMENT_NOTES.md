@@ -138,3 +138,4 @@ The `canvas` npm package (~100MB+) has been conditionally removed from productio
 ## Deployment Configuration
 
 See `amplify.yml` for build configuration and `next.config.js` for optimization settings.
+Add NEXT*PUBLIC* to Amplify Environment Variables settings
