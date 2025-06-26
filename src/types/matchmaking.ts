@@ -77,3 +77,14 @@ export interface MatchmakingConfig {
   profilerPersonality?: 'analytical' | 'intuitive' | 'systematic' | 'emi'
   questionCount?: number
 }
+
+export interface MatchProfile {
+  uid: string
+  role: 'host' | 'guest'
+  status: 'ONLINE' | 'OFFLINE' | 'BUSY'
+  lastActive: Date
+  currentSession: MatchmakingSession
+  profileData?: Record<string, any>
+  createdAt?: Date
+  updatedAt?: Date
+}
