@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Form } from '@/components/form'
 import MessageReceiver from '@/components/messageReceiver'
@@ -35,28 +35,31 @@ const Home = () => {
   const messageReceiverEnabled = settingsStore((s) => s.messageReceiverEnabled)
   const modelType = settingsStore((s) => s.modelType)
   const { t } = useTranslation()
-  const characterPresets = [
-    {
-      key: 'characterPreset1',
-      value: settingsStore((s) => s.characterPreset1),
-    },
-    {
-      key: 'characterPreset2',
-      value: settingsStore((s) => s.characterPreset2),
-    },
-    {
-      key: 'characterPreset3',
-      value: settingsStore((s) => s.characterPreset3),
-    },
-    {
-      key: 'characterPreset4',
-      value: settingsStore((s) => s.characterPreset4),
-    },
-    {
-      key: 'characterPreset5',
-      value: settingsStore((s) => s.characterPreset5),
-    },
-  ]
+  const characterPresets = useMemo(
+    () => [
+      {
+        key: 'characterPreset1',
+        value: settingsStore((s) => s.characterPreset1),
+      },
+      {
+        key: 'characterPreset2',
+        value: settingsStore((s) => s.characterPreset2),
+      },
+      {
+        key: 'characterPreset3',
+        value: settingsStore((s) => s.characterPreset3),
+      },
+      {
+        key: 'characterPreset4',
+        value: settingsStore((s) => s.characterPreset4),
+      },
+      {
+        key: 'characterPreset5',
+        value: settingsStore((s) => s.characterPreset5),
+      },
+    ],
+    []
+  )
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -91,7 +94,7 @@ const Home = () => {
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [])
+  }, [t, characterPresets])
 
   // Auto-start personality analysis for new users
   useEffect(() => {

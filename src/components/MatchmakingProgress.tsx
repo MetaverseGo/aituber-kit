@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import homeStore from '@/features/stores/home'
 import {
   getChatStats,
@@ -26,14 +26,14 @@ export const MatchmakingProgress: React.FC<MatchmakingProgressProps> = ({
   )
 
   // Check if user has completed personality analysis
-  const hasCompletedPersonalityAnalysis = (): boolean => {
+  const hasCompletedPersonalityAnalysis = useCallback(() => {
+    if (typeof window === 'undefined') return false
     try {
-      const completed = localStorage.getItem('personality_analysis_completed')
-      return completed === 'true'
+      return localStorage.getItem('personality_analysis_completed') === 'true'
     } catch {
       return false
     }
-  }
+  }, [])
 
   // Get step progress from localStorage
   const getStoredStepProgress = () => {
@@ -49,7 +49,7 @@ export const MatchmakingProgress: React.FC<MatchmakingProgressProps> = ({
   }
 
   // Update progress based on step data
-  const updateProgress = () => {
+  const updateProgress = useCallback(() => {
     const stepData = getStoredStepProgress()
     const completed = hasCompletedPersonalityAnalysis()
 
@@ -74,7 +74,7 @@ export const MatchmakingProgress: React.FC<MatchmakingProgressProps> = ({
       setStepProgress(null)
       setIsVisible(false)
     }
-  }
+  }, [hasCompletedPersonalityAnalysis])
 
   // Subscribe to chat log updates
   useEffect(() => {
@@ -104,7 +104,7 @@ export const MatchmakingProgress: React.FC<MatchmakingProgressProps> = ({
       unsubscribe()
       window.removeEventListener('storage', handleStorageChange)
     }
-  }, [])
+  }, [updateProgress])
 
   // Update stamina stats and refill timer every 10 seconds
   useEffect(() => {

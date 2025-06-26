@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import homeStore from '@/features/stores/home'
 import {
   hostProfiler,
   HostIntroduction,
 } from '@/features/matchmaking/host-profiler'
 import { CachedTTS } from '@/features/matchmaking/cached-tts'
+import Image from 'next/image'
 
 interface PersonalityCompletionData {
   personalityCategory?: string
@@ -364,7 +365,7 @@ export const PersonalityPanel: React.FC<PersonalityPanelProps> = ({
   }
 
   // Update panel visibility
-  const updatePanel = () => {
+  const updatePanel = useCallback(() => {
     const completed = hasCompletedPersonalityAnalysis()
     const hasDismissed =
       localStorage.getItem('personality_panel_dismissed') === 'true'
@@ -392,7 +393,7 @@ export const PersonalityPanel: React.FC<PersonalityPanelProps> = ({
       console.log('PersonalityPanel - Hiding panel')
       setIsVisible(false)
     }
-  }
+  }, [])
 
   // Subscribe to changes
   useEffect(() => {
@@ -451,7 +452,7 @@ export const PersonalityPanel: React.FC<PersonalityPanelProps> = ({
       // Stop any playing audio when component unmounts
       CachedTTS.stopAudio()
     }
-  }, [])
+  }, [updatePanel])
 
   if (!isVisible || !personalityData) {
     return null
@@ -508,16 +509,22 @@ export const PersonalityPanel: React.FC<PersonalityPanelProps> = ({
             {/* Profile Picture with Frame */}
             <div className="relative mx-auto mb-4 flex items-center justify-center">
               {currentMatch.privileges?.avatarFrame?.mediaUrls?.web && (
-                <img
+                <Image
                   src={currentMatch.privileges.avatarFrame.mediaUrls.web}
                   alt="Frame"
                   className="absolute w-32 h-32 object-cover"
+                  width={128}
+                  height={128}
+                  unoptimized
                 />
               )}
-              <img
+              <Image
                 src={currentMatch.profilePic || '/default-avatar.png'}
                 alt={currentMatch.username}
                 className="w-28 h-28 rounded-full object-cover border-4 border-white shadow-lg relative z-10"
+                width={112}
+                height={112}
+                unoptimized
               />
             </div>
 
@@ -528,10 +535,13 @@ export const PersonalityPanel: React.FC<PersonalityPanelProps> = ({
                   {currentMatch.username}
                 </h3>
                 {currentMatch.missionProfile?.chatBadgeUrl && (
-                  <img
+                  <Image
                     src={currentMatch.missionProfile.chatBadgeUrl}
                     alt={`Level ${currentMatch.missionProfile.level}`}
                     className="w-6 h-6"
+                    width={24}
+                    height={24}
+                    unoptimized
                   />
                 )}
               </div>
@@ -551,7 +561,7 @@ export const PersonalityPanel: React.FC<PersonalityPanelProps> = ({
                   <span className="text-xs text-white font-bold">E</span>
                 </div>
                 <span className="text-sm font-semibold text-purple-700">
-                  Emi's Take
+                  Emi&apos;s Take
                 </span>
                 {generatingIntro && (
                   <div className="ml-auto flex items-center gap-1 text-xs text-purple-600">
@@ -574,7 +584,7 @@ export const PersonalityPanel: React.FC<PersonalityPanelProps> = ({
                   onClick={() => generateAndSpeakIntroduction(currentMatch)}
                   className="text-sm text-purple-600 hover:text-purple-700 underline"
                 >
-                  Get Emi's introduction ➤
+                  Get Emi&apos;s introduction ➤
                 </button>
               )}
             </div>
@@ -630,10 +640,13 @@ export const PersonalityPanel: React.FC<PersonalityPanelProps> = ({
 
             {personalityData.personalityImageUrl ? (
               <div className="mb-6">
-                <img
+                <Image
                   src={personalityData.personalityImageUrl}
                   alt={personalityData.personalityCategory || 'Personality'}
                   className="w-64 h-auto object-contain rounded-lg shadow-lg mx-auto"
+                  width={256}
+                  height={256}
+                  unoptimized
                 />
               </div>
             ) : (
@@ -660,10 +673,14 @@ export const PersonalityPanel: React.FC<PersonalityPanelProps> = ({
                 <button
                   onClick={() => {
                     const tweetText = `I just discovered my personality type: ${personalityData.personalityCategory}! 🎉 Take the personality analysis and find your perfect match! #PersonalityAnalysis #MatchMaking`
-                    let tweetUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(tweetText)}`
+                    let tweetUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(
+                      tweetText
+                    )}`
 
                     if (personalityData.personalityImageUrl) {
-                      tweetUrl += `&url=${encodeURIComponent(personalityData.personalityImageUrl)}`
+                      tweetUrl += `&url=${encodeURIComponent(
+                        personalityData.personalityImageUrl
+                      )}`
                     }
 
                     window.open(tweetUrl, '_blank', 'width=550,height=420')
@@ -686,7 +703,9 @@ export const PersonalityPanel: React.FC<PersonalityPanelProps> = ({
                     if (personalityData.personalityImageUrl) {
                       const link = document.createElement('a')
                       link.href = personalityData.personalityImageUrl
-                      link.download = `${personalityData.personalityCategory?.toLowerCase().replace(/\s+/g, '-')}-personality.jpg`
+                      link.download = `${personalityData.personalityCategory
+                        ?.toLowerCase()
+                        .replace(/\s+/g, '-')}-personality.jpg`
                       document.body.appendChild(link)
                       link.click()
                       document.body.removeChild(link)

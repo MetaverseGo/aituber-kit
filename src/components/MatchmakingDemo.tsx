@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useMatchmaking } from '@/hooks/useMatchmaking'
 import { MatchmakingResult } from '@/types/matchmaking'
+import Image from 'next/image'
 
 interface MatchmakingDemoProps {
   userId?: string
@@ -173,7 +174,9 @@ export const MatchmakingDemo: React.FC<MatchmakingDemoProps> = ({
                 <div
                   className="bg-blue-600 h-2 rounded-full transition-all duration-300"
                   style={{
-                    width: `${(stepProgress.current / stepProgress.total) * 100}%`,
+                    width: `${
+                      (stepProgress.current / stepProgress.total) * 100
+                    }%`,
                   }}
                 />
               </div>
@@ -205,9 +208,11 @@ export const MatchmakingDemo: React.FC<MatchmakingDemoProps> = ({
           </div>
           {personalityResult.imageUrl && (
             <div className="mt-2">
-              <img
+              <Image
                 src={personalityResult.imageUrl}
                 alt={personalityResult.category || 'Personality'}
+                width={128}
+                height={128}
                 className="w-32 h-32 object-cover rounded-lg"
                 onError={(e) => {
                   console.log(
@@ -226,14 +231,17 @@ export const MatchmakingDemo: React.FC<MatchmakingDemoProps> = ({
       <div className="mb-4 h-64 overflow-y-auto border border-gray-200 rounded-lg p-4 bg-gray-50">
         {chatHistory.length === 0 ? (
           <div className="text-center text-gray-500 mt-8">
-            Click "Start Analysis" to begin your personality discovery journey!
+            Click &quot;Start Analysis&quot; to begin your personality discovery
+            journey!
           </div>
         ) : (
           <div className="space-y-3">
             {chatHistory.map((msg, index) => (
               <div
                 key={index}
-                className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                className={`flex ${
+                  msg.role === 'user' ? 'justify-end' : 'justify-start'
+                }`}
               >
                 <div
                   className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${

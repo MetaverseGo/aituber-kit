@@ -10,6 +10,17 @@ const STAMINA_LIMIT = 10
 const REFILL_INTERVAL_MINUTES = 5
 
 export const getChatStats = (): ChatStats => {
+  // Return default stats if localStorage is not available (SSR)
+  if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+    return {
+      dailyMessages: 0,
+      lastResetDate: new Date().toDateString(),
+      intimacyLevel: 0,
+      totalMessages: 0,
+      lastRefillTime: Date.now(),
+    }
+  }
+
   try {
     const stored = localStorage.getItem('chat_stats')
     if (stored) {
@@ -74,6 +85,11 @@ export const getRemainingStamina = (): number => {
 }
 
 export const incrementChatStats = (intimacyGain: number = 1.5): ChatStats => {
+  // Return current stats if localStorage is not available (SSR)
+  if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+    return getChatStats()
+  }
+
   const stats = getChatStats()
   const newStats = {
     ...stats,
@@ -88,6 +104,11 @@ export const incrementChatStats = (intimacyGain: number = 1.5): ChatStats => {
 }
 
 export const resetDailyStats = (): void => {
+  // Do nothing if localStorage is not available (SSR)
+  if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+    return
+  }
+
   const stats = getChatStats()
   const resetStats = {
     ...stats,

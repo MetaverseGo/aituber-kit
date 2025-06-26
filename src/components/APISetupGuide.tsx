@@ -13,7 +13,7 @@ export const APISetupGuide: React.FC<APISetupGuideProps> = ({ onClose }) => {
             🌸 Welcome to Your Personality Journey!
           </h2>
           <p className="text-gray-600">
-            Let's get you set up to discover your unique personality type
+            Let&apos;s get you set up to discover your unique personality type
           </p>
         </div>
 
@@ -22,10 +22,10 @@ export const APISetupGuide: React.FC<APISetupGuideProps> = ({ onClose }) => {
             <h3 className="font-semibold text-purple-800 mb-2">Quick Setup:</h3>
             <ol className="list-decimal list-inside space-y-2 text-sm text-gray-700">
               <li>Click the Settings gear icon (⚙️) in the menu</li>
-              <li>Go to "Model Provider" tab</li>
-              <li>Choose "Anthropic" as your AI service</li>
+              <li>Go to &quot;Model Provider&quot; tab</li>
+              <li>Choose &quot;Anthropic&quot; as your AI service</li>
               <li>Enter your Anthropic API key</li>
-              <li>Come back and say "hello" to start!</li>
+              <li>Come back and say &quot;hello&quot; to start!</li>
             </ol>
           </div>
 

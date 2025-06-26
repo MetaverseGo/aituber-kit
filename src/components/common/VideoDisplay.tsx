@@ -69,9 +69,10 @@ export const VideoDisplay = forwardRef<HTMLDivElement, VideoDisplayProps>(
         }
       }
 
+      const bgVideo = backgroundVideoRef.current
       return () => {
-        if (backgroundVideoRef.current) {
-          backgroundVideoRef.current.srcObject = null
+        if (bgVideo) {
+          bgVideo.srcObject = null
         }
       }
     }, [useVideoAsBackground, videoRef])

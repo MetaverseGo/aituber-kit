@@ -112,7 +112,7 @@ const Live2DComponent = (): JSX.Element => {
         app.destroy(true)
       }
     }
-  }, [])
+  }, [app])
 
   useEffect(() => {
     if (app && selectedLive2DPath) {
@@ -336,7 +336,14 @@ const Live2DComponent = (): JSX.Element => {
       canvas.removeEventListener('touchmove', handleTouchMove)
       canvas.removeEventListener('touchend', handleTouchEnd)
     }
-  }, [model, isDragging, dragOffset, pinchDistance, initialScale])
+  }, [
+    model,
+    isDragging,
+    dragOffset,
+    pinchDistance,
+    initialScale,
+    saveModelPosition,
+  ])
 
   useEffect(() => {
     if (!app || !model) return

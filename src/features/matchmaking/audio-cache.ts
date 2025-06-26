@@ -7,10 +7,19 @@ class AudioCacheManager {
   private currentAudio: HTMLAudioElement | null = null
 
   constructor() {
-    this.initDB()
+    // Only initialize in browser environment
+    if (typeof window !== 'undefined' && typeof indexedDB !== 'undefined') {
+      this.initDB()
+    }
   }
 
   private async initDB(): Promise<void> {
+    // Additional safety check
+    if (typeof window === 'undefined' || typeof indexedDB === 'undefined') {
+      console.warn('⚠️ Audio Cache - IndexedDB not available (SSR environment)')
+      return Promise.resolve()
+    }
+
     return new Promise((resolve, reject) => {
       const request = indexedDB.open(this.dbName, this.dbVersion)
 

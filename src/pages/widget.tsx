@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { useRouter } from 'next/router'
 import { WidgetForm } from '@/components/widgetForm'
 import VrmViewer from '@/components/vrmViewer'
@@ -70,29 +70,32 @@ const Widget = () => {
   const [isPersonalityCompleted, setIsPersonalityCompleted] = useState(false)
 
   // Check for personality completion status
-  useEffect(() => {
-    const checkCompletionStatus = () => {
-      try {
-        const completed =
-          localStorage.getItem('personality_analysis_completed') === 'true'
-        const hasResult =
-          localStorage.getItem('last_matchmaking_result') !== null
-        const hasDismissed =
-          localStorage.getItem('personality_panel_dismissed') === 'true'
-        const shouldShow = completed && hasResult && !hasDismissed
-        console.log('🎨 Widget - Personality completion check:', {
-          completed,
-          hasResult,
-          hasDismissed,
-          shouldShow,
-        })
-        setIsPersonalityCompleted(shouldShow)
-      } catch (error) {
-        console.log('🎨 Widget - Error checking personality completion:', error)
-        setIsPersonalityCompleted(false)
-      }
+  const checkCompletionStatus = useCallback(() => {
+    try {
+      const completed =
+        localStorage.getItem('personality_analysis_completed') === 'true'
+      const hasResult = localStorage.getItem('last_matchmaking_result') !== null
+      const hasDismissed =
+        localStorage.getItem('personality_panel_dismissed') === 'true'
+      // Personality is completed if analysis is done and has result, regardless of dismissal
+      const isCompleted = completed && hasResult
+      const shouldShow = isCompleted && !hasDismissed
+      console.log('🎨 Widget - Personality completion check:', {
+        completed,
+        hasResult,
+        hasDismissed,
+        isCompleted,
+        shouldShow,
+      })
+      // Only adjust layout when panel should actually be visible
+      setIsPersonalityCompleted(shouldShow)
+    } catch (error) {
+      console.log('🎨 Widget - Error checking personality completion:', error)
+      setIsPersonalityCompleted(false)
     }
+  }, [])
 
+  useEffect(() => {
     // Initial check
     checkCompletionStatus()
 
@@ -108,7 +111,15 @@ const Widget = () => {
       }
     }
 
-    // Listen for chat log changes (in case completion happens)
+    window.addEventListener('storage', handleStorageChange)
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange)
+    }
+  }, [checkCompletionStatus])
+
+  // Separate useEffect for chat log subscription to prevent infinite loops
+  useEffect(() => {
     const unsubscribe = homeStore.subscribe((state, prevState) => {
       if (state.chatLog !== prevState.chatLog) {
         console.log(
@@ -119,15 +130,10 @@ const Widget = () => {
       }
     })
 
-    window.addEventListener('storage', handleStorageChange)
-
     return () => {
-      window.removeEventListener('storage', handleStorageChange)
       unsubscribe()
     }
-  }, [])
-
-  // Remove the DOM detection interval as it causes flickering and conflicts with dismissal logic
+  }, [checkCompletionStatus])
 
   // Parse URL parameters and PostMessage config
   useEffect(() => {
@@ -194,6 +200,7 @@ const Widget = () => {
     if (urlConfig.model) {
       settingsStore.setState({ selectAIModel: urlConfig.model })
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // PostMessage communication with parent
@@ -230,7 +237,7 @@ const Widget = () => {
     return () => {
       window.removeEventListener('message', handleMessage)
     }
-  }, [config.postMessages])
+  }, [config])
 
   // Send chat updates to parent
   useEffect(() => {
@@ -298,23 +305,6 @@ const Widget = () => {
     '🎨 Widget - Rendering main content with right constraint:',
     isPersonalityCompleted ? '320px' : '0'
   )
-
-  // Force canvas resize when personality panel state changes
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      // Trigger window resize event to force character viewers to recalculate their dimensions
-      window.dispatchEvent(new Event('resize'))
-
-      // Also try to call resize methods directly if available
-      const { viewer, live2dViewer } = homeStore.getState()
-      if (viewer && typeof viewer.resize === 'function') {
-        viewer.resize()
-      }
-      // Live2D uses window resize event which we already triggered above
-    }, 100) // Small delay to ensure layout has updated
-
-    return () => clearTimeout(timer)
-  }, [isPersonalityCompleted])
 
   return (
     <div
