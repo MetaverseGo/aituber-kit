@@ -80,6 +80,7 @@ export const useVoiceRecognition = ({
       )
       currentHook.startListening()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [continuousMicListeningMode, speechRecognitionMode, currentHook])
 
   // 発話完了時のコールバックを登録
@@ -127,6 +128,7 @@ export const useVoiceRecognition = ({
         currentHook.stopListening()
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []) // マウント時のみ実行
 
   // ----- キーボードショートカットの設定 -----
@@ -167,6 +169,7 @@ export const useVoiceRecognition = ({
       window.removeEventListener('keydown', handleKeyDown)
       window.removeEventListener('keyup', handleKeyUp)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentHook, handleStopSpeaking, onChatProcessStart])
 
   // 現在のモードに基づいて適切なフックのAPIを返す

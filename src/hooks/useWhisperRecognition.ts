@@ -26,6 +26,7 @@ export const useWhisperRecognition = (
   const { startRecording, stopRecording } = useAudioProcessing()
 
   // ----- Whisper APIに音声データを送信して文字起こし -----
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const processWhisperRecognition = async (
     audioBlob: Blob
   ): Promise<string> => {

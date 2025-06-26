@@ -401,6 +401,7 @@ export const useRealtimeVoiceAPI = (
       }
       clearSilenceDetection()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // WebSocketの準備ができているかを確認

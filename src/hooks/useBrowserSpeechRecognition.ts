@@ -235,6 +235,7 @@ export const useBrowserSpeechRecognition = (
         }, 300)
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recognition, checkMicrophonePermission])
 
   // ----- 音声認識トグル処理 -----
@@ -248,6 +249,7 @@ export const useBrowserSpeechRecognition = (
       // AIの発話を停止
       homeStore.setState({ isSpeaking: false })
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [startListening, stopListening])
 
   // ----- メッセージ送信 -----
@@ -510,6 +512,7 @@ export const useBrowserSpeechRecognition = (
       clearSilenceDetection()
       clearInitialSpeechCheckTimer()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     selectLanguage,
     initialSpeechTimeout,

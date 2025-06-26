@@ -171,6 +171,7 @@ export const useSilenceDetection = ({
         }
       }, 100) // 100msごとにチェック
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [onTextDetected, setUserMessage, speechDetectedRef, t]
   )
 
