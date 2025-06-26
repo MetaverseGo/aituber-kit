@@ -205,23 +205,27 @@ Remember: Kokology reveals truth through imagination, not direct questioning. Ke
         content: this.systemPrompt,
       })
 
-      // Add context from previous questions and answers
+      // Build proper conversation history from previous questions and answers
       if (previousAnswers.length > 0) {
-        const context = previousAnswers
-          .map(
-            (qa) =>
-              `Q${qa.id}: ${qa.question}\nA${qa.id}: ${qa.answer || 'No answer yet'}`
-          )
-          .join('\n\n')
-
-        messages.push({
-          role: 'assistant',
-          content: `Previous questions and answers:\n${context}`,
-        })
+        for (const qa of previousAnswers) {
+          // Add the assistant's question
+          messages.push({
+            role: 'assistant',
+            content: qa.question,
+          })
+          
+          // Add the user's answer if it exists
+          if (qa.answer) {
+            messages.push({
+              role: 'user',
+              content: qa.answer,
+            })
+          }
+        }
       }
 
-      // Add user's response if provided
-      if (userResponse) {
+      // Add current user's response if provided (this would be for the latest question)
+      if (userResponse && questionNumber > 1) {
         messages.push({
           role: 'user',
           content: userResponse,
@@ -242,7 +246,8 @@ Remember: Kokology reveals truth through imagination, not direct questioning. Ke
       })
 
       console.log(`🧠 Kokology Analyst - Question ${questionNumber} prompt:`, questionPrompt)
-      console.log(`🧠 Kokology Analyst - Full messages:`, messages)
+      console.log(`🧠 Kokology Analyst - Previous answers passed:`, JSON.stringify(previousAnswers, null, 2))
+      console.log(`🧠 Kokology Analyst - Built conversation history:`, JSON.stringify(messages.filter(m => m.role !== 'system'), null, 2))
 
       const response = await callAI(messages)
 

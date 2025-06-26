@@ -44,11 +44,15 @@ export const ChatMenu: React.FC<ChatMenuProps> = ({ isWidget = false }) => {
 
   const startOver = async () => {
     try {
+      // Clear chat history FIRST
+      homeStore.setState({ chatLog: [] })
+      
       // Clear personality analysis data
       localStorage.removeItem('personality_analysis_completed')
       localStorage.removeItem('personality_session_id')
       localStorage.removeItem('matchmaking_step_progress')
       localStorage.removeItem('last_matchmaking_result')
+      localStorage.removeItem('personality_panel_dismissed') // Also clear panel dismissal
       
       // Reset character name to default "Emi", language to English, and system prompt to English
       settingsStore.setState({ 
@@ -76,8 +80,7 @@ export const ChatMenu: React.FC<ChatMenuProps> = ({ isWidget = false }) => {
         // Send the trigger message to start personality analysis
         await handleSendChat(personalityTrigger)
         
-        // Clear the chat log immediately after to hide the trigger message
-        // This will remove the "begin personality analysis" user message
+        // Clear the chat log after the response to hide the trigger message
         setTimeout(() => {
           const currentChatLog = homeStore.getState().chatLog
           // Keep only Emi's response (assistant messages), remove user trigger message

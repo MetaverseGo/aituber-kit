@@ -262,6 +262,9 @@ export const PersonalityPanel: React.FC<PersonalityPanelProps> = ({
   }
 
   const nextMatch = () => {
+    // Stop any currently playing audio when switching matches
+    CachedTTS.stopAudio()
+    
     if (currentMatchIndex < matches.length - 1) {
       setCurrentMatchIndex(currentMatchIndex + 1)
     } else {
@@ -307,7 +310,9 @@ export const PersonalityPanel: React.FC<PersonalityPanelProps> = ({
 
   const connectWithMatch = (profile: PlayFriendsProfile) => {
     console.log('Connecting with match:', profile.username)
-    // Implementation for connecting would go here
+    // Navigate to PlayFriends profile page
+    const profileUrl = `https://app.playfriends.gg/profile/${profile.uid}`
+    window.open(profileUrl, '_blank', 'noopener,noreferrer')
   }
 
   const calculateAge = (birthday: string) => {
@@ -366,9 +371,10 @@ export const PersonalityPanel: React.FC<PersonalityPanelProps> = ({
         updatePanel()
       }
       
-      // If panel gets dismissed via storage event, immediately hide it
+      // If panel gets dismissed via storage event, immediately hide it and stop audio
       if (e.key === 'personality_panel_dismissed' && e.newValue === 'true') {
         console.log('PersonalityPanel - Panel dismissed via storage, hiding immediately')
+        CachedTTS.stopAudio()
         setIsVisible(false)
         setPersonalityData(null)
       }
@@ -392,6 +398,8 @@ export const PersonalityPanel: React.FC<PersonalityPanelProps> = ({
       unsubscribe()
       window.removeEventListener('storage', handleStorageChange)
       window.removeEventListener('showPersonalityPanel', handleShowPersonalityPanel)
+      // Stop any playing audio when component unmounts
+      CachedTTS.stopAudio()
     }
   }, [])
 
@@ -405,7 +413,7 @@ export const PersonalityPanel: React.FC<PersonalityPanelProps> = ({
     const age = currentMatch.birthday ? calculateAge(currentMatch.birthday) : null
     
     return (
-      <div className={`fixed top-0 right-0 bottom-0 w-80 z-40 ${className}`}>
+      <div className={`fixed top-0 right-0 bottom-0 w-80 z-[60] ${className}`}>
         <div className="h-full bg-gradient-to-br from-purple-50 to-pink-50 flex flex-col relative">
           {/* Close Button */}
           <button
@@ -542,26 +550,9 @@ export const PersonalityPanel: React.FC<PersonalityPanelProps> = ({
 
   // Show completion panel
   return (
-    <div className={`fixed top-0 right-0 bottom-0 w-80 z-40 ${className}`}>
+    <div className={`fixed top-0 right-0 bottom-0 w-80 z-[60] ${className}`}>
       {/* Right side - Personality Image Panel */}
       <div className="h-full bg-gradient-to-br from-purple-50 to-pink-50 flex flex-col relative">
-        {/* Close Button */}
-        <button
-          onClick={() => {
-            CachedTTS.stopAudio()
-            setIsVisible(false)
-            setPersonalityData(null)
-            localStorage.setItem('personality_panel_dismissed', 'true')
-            console.log('PersonalityPanel - Panel dismissed by user')
-          }}
-          className="absolute top-4 right-4 p-2 bg-white/80 hover:bg-white rounded-full shadow-md transition-colors z-10"
-          title="Hide panel"
-        >
-          <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-
         {/* Scrollable Content Area */}
         <div className="flex-1 overflow-y-auto p-6 flex flex-col items-center justify-center">
           <div className="text-center">
@@ -639,6 +630,22 @@ export const PersonalityPanel: React.FC<PersonalityPanelProps> = ({
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Fixed Close Link at Bottom */}
+        <div className="p-3">
+          <button
+            onClick={() => {
+              CachedTTS.stopAudio()
+              setIsVisible(false)
+              setPersonalityData(null)
+              localStorage.setItem('personality_panel_dismissed', 'true')
+              console.log('PersonalityPanel - Panel dismissed by user')
+            }}
+            className="w-full px-3 py-1 text-sm text-purple-600 hover:text-purple-700 transition-colors"
+          >
+            ← Hide Panel
+          </button>
         </div>
       </div>
     </div>

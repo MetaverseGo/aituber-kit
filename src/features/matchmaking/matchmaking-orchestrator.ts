@@ -267,6 +267,8 @@ export class MatchmakingOrchestrator {
       // Generate next question or complete analysis
       const nextStep = currentStep + 1
       console.log('🎭 Orchestrator - Asking for question', nextStep, 'current questions:', questions.length)
+      console.log('🎭 Orchestrator - Questions array being passed to AI:', JSON.stringify(questions, null, 2))
+      console.log('🎭 Orchestrator - Current user response:', message)
       const result = await this.kokologyAnalyst.askQuestion(
         nextStep,
         questions,

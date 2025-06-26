@@ -281,6 +281,23 @@ const Widget = () => {
   console.log('🎨 Widget - isPersonalityCompleted:', isPersonalityCompleted)
   console.log('🎨 Widget - Rendering main content with right constraint:', isPersonalityCompleted ? '320px' : '0')
 
+  // Force canvas resize when personality panel state changes
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      // Trigger window resize event to force character viewers to recalculate their dimensions
+      window.dispatchEvent(new Event('resize'))
+      
+      // Also try to call resize methods directly if available
+      const { viewer, live2dViewer } = homeStore.getState()
+      if (viewer && typeof viewer.resize === 'function') {
+        viewer.resize()
+      }
+      // Live2D uses window resize event which we already triggered above
+    }, 100) // Small delay to ensure layout has updated
+
+    return () => clearTimeout(timer)
+  }, [isPersonalityCompleted])
+
 
 
   return (
@@ -299,6 +316,7 @@ const Widget = () => {
           <div
             className="absolute top-0 left-0 bottom-0 right-0 pointer-events-none z-0"
             style={{ paddingBottom: config.showInput ? '80px' : '0' }}
+            key={`character-${isPersonalityCompleted}`} // Force re-render when panel state changes
           >
             {modelType === 'vrm' ? <VrmViewer /> : <Live2DViewer />}
           </div>
