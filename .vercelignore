@@ -1,0 +1,17 @@
+# Exclude large VRM model files from deployment
+public/vrm/
+public/live2d/nike01/
+
+# Keep only essential VRM files
+!public/vrm/AvatarSample_A.vrm
+!public/vrm/AvatarSample_B.vrm
+
+# Exclude other large assets
+*.wav
+public/voice_test.wav
+public/ogp.png
+
+# Build artifacts
+.next/cache/
+node_modules/
+logs/ 
