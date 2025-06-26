@@ -16,8 +16,8 @@ const SlideConvert: React.FC<SlideConvertProps> = ({ onFolderUpdate }) => {
   const { t } = useTranslation()
   const [file, setFile] = useState<File | null>(null)
   const [folderName, setFolderName] = useState<string>('')
-  const aiService = settingsStore(s => s.selectAIService)
-  const selectLanguage = settingsStore(s => s.selectLanguage)
+  const aiService = settingsStore((s) => s.selectAIService)
+  const selectLanguage = settingsStore((s) => s.selectLanguage)
 
   const [model, setModel] = useState<string>('')
 
@@ -106,59 +106,59 @@ const SlideConvert: React.FC<SlideConvertProps> = ({ onFolderUpdate }) => {
   }
 
   return (
-    <div className='mt-6'>
+    <div className="mt-6">
       <form onSubmit={handleFormSubmit}>
-        <div className='my-4 mb-4 text-xl font-bold'>
+        <div className="my-4 mb-4 text-xl font-bold">
           {t('PdfConvertLabel')}
         </div>
-        <p className=''>{t('PdfConvertDescription')}</p>
-        <div className='my-4 flex items-center'>
+        <p className="">{t('PdfConvertDescription')}</p>
+        <div className="my-4 flex items-center">
           <input
-            type='file'
+            type="file"
             onChange={handleFileChange}
-            className='hidden'
-            id='fileInput'
-            accept='.pdf'
+            className="hidden"
+            id="fileInput"
+            accept=".pdf"
           />
           <TextButton
-            onClick={e => {
+            onClick={(e) => {
               e.preventDefault()
               document.getElementById('fileInput')?.click()
             }}
-            type='button'
+            type="button"
           >
             {t('PdfConvertFileUpload')}
           </TextButton>
           {selectedFileName && (
-            <span className='ml-4 text-ellipsis overflow-hidden'>
+            <span className="ml-4 text-ellipsis overflow-hidden">
               {selectedFileName}
             </span>
           )}
         </div>
-        <div className='my-4 font-bold'>{t('PdfConvertFolderName')}</div>
+        <div className="my-4 font-bold">{t('PdfConvertFolderName')}</div>
         <input
-          type='text'
-          placeholder='Folder Name'
+          type="text"
+          placeholder="Folder Name"
           value={folderName}
-          onChange={e => setFolderName(e.target.value)}
+          onChange={(e) => setFolderName(e.target.value)}
           required
-          className='text-ellipsis px-4 py-2 w-col-span-4 bg-white hover:bg-white-hover rounded-lg'
+          className="text-ellipsis px-4 py-2 w-col-span-4 bg-white hover:bg-white-hover rounded-lg"
         />
-        <div className='my-4 font-bold'>{t('PdfConvertModelSelect')}</div>
+        <div className="my-4 font-bold">{t('PdfConvertModelSelect')}</div>
         <select
           value={model}
-          onChange={e => setModel(e.target.value)}
-          className='text-ellipsis px-4 py-2 w-col-span-4 bg-white hover:bg-white-hover rounded-lg'
+          onChange={(e) => setModel(e.target.value)}
+          className="text-ellipsis px-4 py-2 w-col-span-4 bg-white hover:bg-white-hover rounded-lg"
         >
           {aiService &&
-            getMultiModalModels(aiService).map(model => (
+            getMultiModalModels(aiService).map((model) => (
               <option key={model} value={model}>
                 {model}
               </option>
             ))}
         </select>
-        <div className='mt-4'>
-          <TextButton type='submit' disabled={isLoading}>
+        <div className="mt-4">
+          <TextButton type="submit" disabled={isLoading}>
             {isLoading ? t('PdfConvertLoading') : t('PdfConvertButton')}
           </TextButton>
         </div>
