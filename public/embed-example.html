@@ -59,15 +59,40 @@
         border-radius: 5px;
         overflow-x: auto;
       }
+      .important-note {
+        background: #fff3cd;
+        border: 1px solid #ffeaa7;
+        border-radius: 5px;
+        padding: 15px;
+        margin: 15px 0;
+      }
     </style>
   </head>
   <body>
     <div class="container">
       <h1>AI Tuber Widget Embed Examples</h1>
 
+      <div class="important-note">
+        <h3>🎤 Important: Microphone & Audio Permissions</h3>
+        <p>
+          For voice features to work in iframes, you must include these
+          permissions:
+        </p>
+        <ul>
+          <li><code>allow="microphone; autoplay; speaker-selection"</code></li>
+          <li><code>allowfullscreen</code> (for full audio context access)</li>
+        </ul>
+        <p>
+          <strong>Note:</strong> The user must click/interact with the iframe
+          for AudioContext to start (browser security requirement).
+        </p>
+      </div>
+
       <div class="demo-section">
         <h2>Basic Widget</h2>
-        <p>Simple embedding with default settings:</p>
+        <p>
+          Simple embedding with default settings and microphone permissions:
+        </p>
         <div class="widget-container">
           <iframe
             id="basic-widget"
@@ -75,6 +100,8 @@
             width="800"
             height="600"
             frameborder="0"
+            allow="microphone; autoplay; speaker-selection"
+            allowfullscreen
           >
           </iframe>
         </div>
@@ -82,7 +109,9 @@
     src="http://localhost:3000/widget?theme=light&width=800px&height=600px"
     width="800" 
     height="600"
-    frameborder="0"&gt;
+    frameborder="0"
+    allow="microphone; autoplay; speaker-selection"
+    allowfullscreen&gt;
 &lt;/iframe&gt;</code></pre>
       </div>
 
@@ -96,6 +125,8 @@
             width="800"
             height="600"
             frameborder="0"
+            allow="microphone; autoplay; speaker-selection"
+            allowfullscreen
           >
           </iframe>
         </div>
@@ -103,7 +134,9 @@
     src="http://localhost:3000/widget?theme=minimal&width=800px&height=600px&showBackground=false&showChatLog=false"
     width="800" 
     height="600"
-    frameborder="0"&gt;
+    frameborder="0"
+    allow="microphone; autoplay; speaker-selection"
+    allowfullscreen&gt;
 &lt;/iframe&gt;</code></pre>
       </div>
 
@@ -117,6 +150,8 @@
             width="800"
             height="600"
             frameborder="0"
+            allow="microphone; autoplay; speaker-selection"
+            allowfullscreen
           >
           </iframe>
         </div>
@@ -124,7 +159,9 @@
     src="http://localhost:3000/widget?theme=dark&width=800px&height=600px&characterName=AI Assistant"
     width="800" 
     height="600"
-    frameborder="0"&gt;
+    frameborder="0"
+    allow="microphone; autoplay; speaker-selection"
+    allowfullscreen&gt;
 &lt;/iframe&gt;</code></pre>
       </div>
 
@@ -138,6 +175,8 @@
             width="800"
             height="600"
             frameborder="0"
+            allow="microphone; autoplay; speaker-selection"
+            allowfullscreen
           >
           </iframe>
         </div>
@@ -176,7 +215,9 @@
     src="http://localhost:3000/widget?postMessages=true&allowFullscreen=true"
     width="800" 
     height="600"
-    frameborder="0"&gt;
+    frameborder="0"
+    allow="microphone; autoplay; speaker-selection"
+    allowfullscreen&gt;
 &lt;/iframe&gt;
 
 &lt;script&gt;
