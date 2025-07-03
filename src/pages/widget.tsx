@@ -485,7 +485,7 @@ const Widget = () => {
               <div
                 className='absolute top-0 left-0 bottom-0 right-0 pointer-events-none z-0'
                 style={{ paddingBottom: config.showInput ? '80px' : '0' }}
-                key={`character-${isPersonalityCompleted}`} // Force re-render when panel state changes
+                key={`character-${isPersonalityCompleted}`}
               >
                 {modelType === 'vrm' ? <VrmViewer /> : <Live2DViewer />}
               </div>
