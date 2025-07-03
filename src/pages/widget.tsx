@@ -86,9 +86,9 @@ const Widget = () => {
     allowFullscreen: false,
   })
 
-  const modelType = settingsStore(s => s.modelType)
-  const backgroundImageUrl = homeStore(s => s.backgroundImageUrl)
-  const chatLog = homeStore(s => s.chatLog)
+  const modelType = settingsStore((s) => s.modelType)
+  const backgroundImageUrl = homeStore((s) => s.backgroundImageUrl)
+  const chatLog = homeStore((s) => s.chatLog)
 
   // Auth state
   const [isAuthenticated, setIsAuthenticated] = useState(false)
@@ -97,7 +97,7 @@ const Widget = () => {
 
   // Listen for WIDGET_AUTH event
   useEffect(() => {
-    function handleAuthEvent (event: MessageEvent) {
+    function handleAuthEvent(event: MessageEvent) {
       if (event.data) {
         console.log('[Widget] Received postMessage event:', event.data)
       }
@@ -137,44 +137,6 @@ const Widget = () => {
       }
     }
   }, [authChecked, isAuthenticated])
-
-  // Only render UI if authenticated
-  if (!authChecked) {
-    return (
-      <div className='flex items-center justify-center h-screen text-lg'>
-        Loading...
-      </div>
-    )
-  }
-  if (!isAuthenticated) {
-    return (
-      <div
-        className='fixed inset-0 flex items-center justify-center w-screen h-screen'
-        style={{
-          backgroundImage: "url('/backgrounds/static-noise.gif')",
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          backgroundRepeat: 'no-repeat',
-          backgroundColor: '#18181b',
-          zIndex: 9999,
-        }}
-      >
-        <span
-          style={{
-            color: '#f22897',
-            fontWeight: 'bold',
-            fontSize: '1.5rem',
-            textShadow: '0 2px 8px #18181b, 0 0 2px #000',
-            background: 'rgba(24,24,27,0.7)',
-            borderRadius: '8px',
-            padding: '1.5rem 2.5rem',
-          }}
-        >
-          You are not authenticated. Please sign in.
-        </span>
-      </div>
-    )
-  }
 
   // Audio context initialization with user gesture
   const handleUserInteraction = useCallback(async () => {
@@ -279,7 +241,7 @@ const Widget = () => {
     const urlConfig: Partial<WidgetConfig> = {}
 
     // Parse all URL parameters
-    Object.keys(config).forEach(key => {
+    Object.keys(config).forEach((key) => {
       const value = urlParams.get(key)
       if (value !== null) {
         if (typeof config[key as keyof WidgetConfig] === 'boolean') {
@@ -292,7 +254,7 @@ const Widget = () => {
       }
     })
 
-    setConfig(prev => ({ ...prev, ...urlConfig }))
+    setConfig((prev) => ({ ...prev, ...urlConfig }))
 
     // Apply settings from URL
     if (urlConfig.characterModel) {
@@ -347,7 +309,7 @@ const Widget = () => {
 
     const handleMessage = (event: MessageEvent) => {
       if (event.data.type === 'WIDGET_CONFIG') {
-        setConfig(prev => ({ ...prev, ...event.data.config }))
+        setConfig((prev) => ({ ...prev, ...event.data.config }))
       }
 
       if (event.data.type === 'SEND_MESSAGE') {
@@ -456,160 +418,198 @@ const Widget = () => {
   )
 
   return (
-    <div
-      className={`relative overflow-hidden ${getThemeClasses()}`}
-      style={{ ...containerStyle, ...backgroundStyle }}
-    >
-      {/* Audio Context Permission Banner */}
-      {!audioContextReady && (
+    <>
+      {!authChecked ? (
+        <div className="flex items-center justify-center h-screen text-lg">
+          Loading...
+        </div>
+      ) : !isAuthenticated ? (
         <div
-          onClick={handleUserInteraction}
-          className='absolute top-0 left-0 right-0 bg-blue-500 text-white text-sm py-2 px-4 z-50 cursor-pointer hover:bg-blue-600 transition-colors'
+          className="fixed inset-0 flex items-center justify-center w-screen h-screen"
+          style={{
+            backgroundImage: "url('/backgrounds/static-noise.gif')",
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat',
+            backgroundColor: '#18181b',
+            zIndex: 9999,
+          }}
         >
-          <div className='flex items-center justify-center gap-2'>
-            <svg className='w-4 h-4' fill='currentColor' viewBox='0 0 24 24'>
-              <path d='M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z' />
-              <path d='M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z' />
-            </svg>
-            <span>Click to enable microphone & audio features</span>
+          <span
+            style={{
+              color: '#f22897',
+              fontWeight: 'bold',
+              fontSize: '1.5rem',
+              textShadow: '0 2px 8px #18181b, 0 0 2px #000',
+              background: 'rgba(24,24,27,0.7)',
+              borderRadius: '8px',
+              padding: '1.5rem 2.5rem',
+            }}
+          >
+            You are not authenticated. Please sign in.
+          </span>
+        </div>
+      ) : (
+        <div
+          className={`relative overflow-hidden ${getThemeClasses()}`}
+          style={{ ...containerStyle, ...backgroundStyle }}
+        >
+          {/* Audio Context Permission Banner */}
+          {!audioContextReady && (
+            <div
+              onClick={handleUserInteraction}
+              className="absolute top-0 left-0 right-0 bg-blue-500 text-white text-sm py-2 px-4 z-50 cursor-pointer hover:bg-blue-600 transition-colors"
+            >
+              <div className="flex items-center justify-center gap-2">
+                <svg
+                  className="w-4 h-4"
+                  fill="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z" />
+                  <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z" />
+                </svg>
+                <span>Click to enable microphone & audio features</span>
+              </div>
+            </div>
+          )}
+
+          {/* Matchmaking Progress Bar */}
+          <MatchmakingProgress />
+          <PersonalityPanel />
+
+          {/* Main content */}
+          <div className="absolute inset-0">
+            {/* Character Display */}
+            {config.showCharacter && (
+              <div
+                className="absolute top-0 left-0 bottom-0 right-0 pointer-events-none z-0"
+                style={{ paddingBottom: config.showInput ? '80px' : '0' }}
+                key={`character-${isPersonalityCompleted}`} // Force re-render when panel state changes
+              >
+                {modelType === 'vrm' ? <VrmViewer /> : <Live2DViewer />}
+              </div>
+            )}
+
+            {/* Chat Log - positioned just above input */}
+            {config.showChatLog && chatLog.length > 0 && config.showInput && (
+              <div
+                ref={chatScrollRef}
+                className="absolute bottom-20 left-2 right-2 max-h-32 overflow-y-auto scroll-hidden z-10"
+              >
+                <div className="space-y-2 p-2">
+                  {chatLog.slice(-2).map((msg, i) => {
+                    const isUser = msg.role === 'user'
+                    const alignment = isUser ? 'ml-auto' : 'mr-auto'
+                    const bubbleColor = isUser
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-white/90 backdrop-blur-sm text-gray-800 border border-white/50 shadow-lg'
+
+                    return (
+                      <div
+                        key={i}
+                        className={`text-sm p-3 rounded-2xl max-w-[80%] ${bubbleColor} ${alignment}`}
+                      >
+                        {!isUser && (
+                          <div className="font-semibold text-xs mb-1 opacity-70">
+                            {settingsStore.getState().characterName}
+                          </div>
+                        )}
+                        <div className="leading-relaxed">
+                          {typeof msg.content === 'string'
+                            ? msg.content.replace(/\[.*?\]/g, '')
+                            : 'Image message'}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Chat Log - for when input is hidden, show at bottom */}
+            {config.showChatLog && chatLog.length > 0 && !config.showInput && (
+              <div
+                ref={chatScrollRefHidden}
+                className="absolute bottom-2 left-2 right-2 max-h-32 overflow-y-auto scroll-hidden z-10"
+              >
+                <div className="space-y-2 p-2">
+                  {chatLog.slice(-2).map((msg, i) => {
+                    const isUser = msg.role === 'user'
+                    const alignment = isUser ? 'ml-auto' : 'mr-auto'
+                    const bubbleColor = isUser
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-white/90 backdrop-blur-sm text-gray-800 border border-white/50 shadow-lg'
+
+                    return (
+                      <div
+                        key={i}
+                        className={`text-sm p-3 rounded-2xl max-w-[80%] ${bubbleColor} ${alignment}`}
+                      >
+                        {!isUser && (
+                          <div className="font-semibold text-xs mb-1 opacity-70">
+                            {settingsStore.getState().characterName}
+                          </div>
+                        )}
+                        <div className="leading-relaxed">
+                          {typeof msg.content === 'string'
+                            ? msg.content.replace(/\[.*?\]/g, '')
+                            : 'Image message'}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Input Form */}
+            {config.showInput && (
+              <div className="absolute bottom-0 left-0 right-0 p-2 z-20">
+                <div className="bg-white/95 backdrop-blur-sm rounded-lg shadow-lg">
+                  <WidgetForm
+                    showVoiceButton={config.showVoiceButton}
+                    showSettingsButton={config.showSettingsButton}
+                    autoFocus={config.autoFocus}
+                    allowFullscreen={config.allowFullscreen}
+                  />
+                </div>
+              </div>
+            )}
           </div>
+
+          {/* Fullscreen Button */}
+          {config.allowFullscreen && (
+            <button
+              onClick={() => {
+                if (config.postMessages) {
+                  window.parent.postMessage({ type: 'TOGGLE_FULLSCREEN' }, '*')
+                }
+              }}
+              className="absolute top-2 right-2 p-2 bg-white/80 hover:bg-white rounded-full shadow-lg z-30"
+              title="Toggle Fullscreen"
+            >
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"
+                />
+              </svg>
+            </button>
+          )}
+
+          <Toasts />
+          <ChatMenu isWidget={true} />
         </div>
       )}
-
-      {/* Matchmaking Progress Bar */}
-      <MatchmakingProgress />
-      <PersonalityPanel />
-
-      {/* Main content */}
-      <div className='absolute inset-0'>
-        {/* Character Display */}
-        {config.showCharacter && (
-          <div
-            className='absolute top-0 left-0 bottom-0 right-0 pointer-events-none z-0'
-            style={{ paddingBottom: config.showInput ? '80px' : '0' }}
-            key={`character-${isPersonalityCompleted}`} // Force re-render when panel state changes
-          >
-            {modelType === 'vrm' ? <VrmViewer /> : <Live2DViewer />}
-          </div>
-        )}
-
-        {/* Chat Log - positioned just above input */}
-        {config.showChatLog && chatLog.length > 0 && config.showInput && (
-          <div
-            ref={chatScrollRef}
-            className='absolute bottom-20 left-2 right-2 max-h-32 overflow-y-auto scroll-hidden z-10'
-          >
-            <div className='space-y-2 p-2'>
-              {chatLog.slice(-2).map((msg, i) => {
-                const isUser = msg.role === 'user'
-                const alignment = isUser ? 'ml-auto' : 'mr-auto'
-                const bubbleColor = isUser
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-white/90 backdrop-blur-sm text-gray-800 border border-white/50 shadow-lg'
-
-                return (
-                  <div
-                    key={i}
-                    className={`text-sm p-3 rounded-2xl max-w-[80%] ${bubbleColor} ${alignment}`}
-                  >
-                    {!isUser && (
-                      <div className='font-semibold text-xs mb-1 opacity-70'>
-                        {settingsStore.getState().characterName}
-                      </div>
-                    )}
-                    <div className='leading-relaxed'>
-                      {typeof msg.content === 'string'
-                        ? msg.content.replace(/\[.*?\]/g, '')
-                        : 'Image message'}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Chat Log - for when input is hidden, show at bottom */}
-        {config.showChatLog && chatLog.length > 0 && !config.showInput && (
-          <div
-            ref={chatScrollRefHidden}
-            className='absolute bottom-2 left-2 right-2 max-h-32 overflow-y-auto scroll-hidden z-10'
-          >
-            <div className='space-y-2 p-2'>
-              {chatLog.slice(-2).map((msg, i) => {
-                const isUser = msg.role === 'user'
-                const alignment = isUser ? 'ml-auto' : 'mr-auto'
-                const bubbleColor = isUser
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-white/90 backdrop-blur-sm text-gray-800 border border-white/50 shadow-lg'
-
-                return (
-                  <div
-                    key={i}
-                    className={`text-sm p-3 rounded-2xl max-w-[80%] ${bubbleColor} ${alignment}`}
-                  >
-                    {!isUser && (
-                      <div className='font-semibold text-xs mb-1 opacity-70'>
-                        {settingsStore.getState().characterName}
-                      </div>
-                    )}
-                    <div className='leading-relaxed'>
-                      {typeof msg.content === 'string'
-                        ? msg.content.replace(/\[.*?\]/g, '')
-                        : 'Image message'}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Input Form */}
-        {config.showInput && (
-          <div className='absolute bottom-0 left-0 right-0 p-2 z-20'>
-            <div className='bg-white/95 backdrop-blur-sm rounded-lg shadow-lg'>
-              <WidgetForm
-                showVoiceButton={config.showVoiceButton}
-                showSettingsButton={config.showSettingsButton}
-                autoFocus={config.autoFocus}
-                allowFullscreen={config.allowFullscreen}
-              />
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Fullscreen Button */}
-      {config.allowFullscreen && (
-        <button
-          onClick={() => {
-            if (config.postMessages) {
-              window.parent.postMessage({ type: 'TOGGLE_FULLSCREEN' }, '*')
-            }
-          }}
-          className='absolute top-2 right-2 p-2 bg-white/80 hover:bg-white rounded-full shadow-lg z-30'
-          title='Toggle Fullscreen'
-        >
-          <svg
-            className='w-4 h-4'
-            fill='none'
-            stroke='currentColor'
-            viewBox='0 0 24 24'
-          >
-            <path
-              strokeLinecap='round'
-              strokeLinejoin='round'
-              strokeWidth={2}
-              d='M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4'
-            />
-          </svg>
-        </button>
-      )}
-
-      <Toasts />
-      <ChatMenu isWidget={true} />
-    </div>
+    </>
   )
 }
 
