@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 import homeStore from '@/features/stores/home'
-import { handleSendChatFn } from '../features/chat/handlers'
+import { handleWidgetChatFn } from '../features/chat/handlers'
 import { MessageInputContainer } from './messageInputContainer'
 
 interface WidgetFormProps {
@@ -16,11 +16,11 @@ export const WidgetForm = ({
   autoFocus = true,
   allowFullscreen = false,
 }: WidgetFormProps) => {
-  const handleSendChat = handleSendChatFn()
+  const handleSendChat = handleWidgetChatFn()
 
   const hookSendChat = useCallback(
     (text: string) => {
-      // Widget mode: simplified chat without webcam integration
+      // Widget mode: all chat goes through matchmaking orchestrator (MamaSan flow)
       handleSendChat(text)
     },
     [handleSendChat]

@@ -23,6 +23,23 @@ const CODE_DELIMITER = '```'
 // Global matchmaking handler instance
 let globalMatchmakingHandler: MatchmakingChatHandler | null = null
 
+// Store the authentication token received from the parent
+let widgetAuthToken: string | null = null
+
+// Listen for WIDGET_AUTH event from parent
+if (typeof window !== 'undefined') {
+  window.addEventListener('message', (event) => {
+    if (event.data && event.data.type === 'WIDGET_AUTH' && event.data.token) {
+      widgetAuthToken = event.data.token
+    }
+  })
+}
+
+// Utility to get the widget's current auth token
+async function getWidgetAuthToken(): Promise<string> {
+  return widgetAuthToken || ''
+}
+
 // Check if user has completed personality analysis
 const hasCompletedPersonalityAnalysis = (): boolean => {
   try {
@@ -65,10 +82,17 @@ const markPersonalityAnalysisCompleted = (): void => {
 
 // Initialize matchmaking handler
 export const initializeMatchmakingHandler = () => {
+  console.log(
+    '🔧 initializeMatchmakingHandler called - globalMatchmakingHandler exists:',
+    !!globalMatchmakingHandler
+  )
   if (!globalMatchmakingHandler) {
+    console.log('🔧 Creating NEW MatchmakingChatHandler instance')
     // Use a simple user ID for now - could be enhanced with actual user management
     const userId = 'default-user'
     globalMatchmakingHandler = new MatchmakingChatHandler(userId)
+  } else {
+    console.log('🔧 Reusing existing MatchmakingChatHandler instance')
   }
   return globalMatchmakingHandler
 }
@@ -720,175 +744,8 @@ export const handleSendChatFn = () => async (text: string) => {
       }
     }
 
-    // Check if user has completed personality analysis
-    const hasCompleted = hasCompletedPersonalityAnalysis()
-    console.log(
-      '🎯 Chat Handler - Personality analysis completed:',
-      hasCompleted
-    )
-    console.log('🎯 Chat Handler - Modal image present:', !!modalImage)
-
-    // If not completed, force matchmaking mode (only for text messages, not images)
-    if (!hasCompleted && !modalImage) {
-      console.log(
-        '🎯 Chat Handler - Entering matchmaking mode for message:',
-        newMessage
-      )
-      homeStore.setState({ chatProcessing: true })
-
-      // Add user message
-      homeStore.getState().upsertMessage({
-        role: 'user',
-        content: newMessage,
-        timestamp: timestamp,
-      })
-
-      const matchmakingHandler = initializeMatchmakingHandler()
-
-      try {
-        console.log('🎯 Chat Handler - Processing with matchmaking handler...')
-        // Process matchmaking flow (either start new or continue existing)
-        const matchmakingResult = await matchmakingHandler.processChatMessage(
-          newMessage,
-          sessionId
-        )
-        console.log('🎯 Chat Handler - Matchmaking result:', matchmakingResult)
-
-        if (matchmakingResult) {
-          console.log('🎯 Chat Handler - Got matchmaking result:', {
-            isComplete: matchmakingResult.isComplete,
-            step: matchmakingResult.step,
-            hasData: !!matchmakingResult.data,
-            dataKeys: matchmakingResult.data
-              ? Object.keys(matchmakingResult.data)
-              : [],
-            data: matchmakingResult.data,
-          })
-
-          // Store step progress in localStorage BEFORE speaking message to fix progress bar timing
-          if (matchmakingResult.data?.stepProgress) {
-            console.log(
-              '🎯 Chat Handler - Storing step progress before speaking:',
-              matchmakingResult.data.stepProgress
-            )
-            localStorage.setItem(
-              'matchmaking_step_progress',
-              JSON.stringify(matchmakingResult.data.stepProgress)
-            )
-          }
-
-          // Store the complete result for split layout display
-          if (matchmakingResult.isComplete && matchmakingResult.data) {
-            console.log(
-              '🎯 Chat Handler - Storing complete matchmaking result for split layout:',
-              matchmakingResult.data
-            )
-            localStorage.setItem(
-              'last_matchmaking_result',
-              JSON.stringify(matchmakingResult)
-            )
-          } else if (matchmakingResult.isComplete) {
-            console.log(
-              '🎯 Chat Handler - Analysis complete but no data to store:',
-              matchmakingResult
-            )
-          }
-
-          console.log(
-            '🎯 Chat Handler - Speaking message:',
-            matchmakingResult.message
-          )
-          // Use speakMessageHandler for the response
-          await speakMessageHandler(matchmakingResult.message)
-
-          // Check if completed
-          if (matchmakingResult.isComplete) {
-            console.log(
-              '🎯 Chat Handler - Personality analysis completed! Marking as done.'
-            )
-            markPersonalityAnalysisCompleted()
-            // Clear step progress when complete
-            localStorage.removeItem('matchmaking_step_progress')
-
-            // 🎯 Ensure Emi's personality is restored after analysis completion
-            console.log(
-              '🎯 Chat Handler - Ensuring Emi personality is restored after analysis completion'
-            )
-            const currentSystemPrompt = settingsStore.getState().systemPrompt
-            console.log(
-              '🎯 Chat Handler - Current system prompt:',
-              currentSystemPrompt.substring(0, 100) + '...'
-            )
-
-            // If system prompt doesn't contain Emi's personality, restore it
-            if (
-              !currentSystemPrompt.includes(
-                'You are Emi, a friendly and engaging conversation partner'
-              )
-            ) {
-              console.log(
-                '🎯 Chat Handler - System prompt missing Emi personality, restoring...'
-              )
-              settingsStore.setState({
-                systemPrompt: SYSTEM_PROMPT_EN,
-                characterName: 'Emi',
-              })
-            }
-          }
-
-          homeStore.setState({ chatProcessing: false })
-          return
-        } else {
-          console.log('🎯 Chat Handler - No matchmaking result returned!')
-        }
-      } catch (error) {
-        console.error('🎯 Chat Handler - Matchmaking error:', error)
-
-        // Handle specific API key error
-        if (
-          error instanceof Error &&
-          error.message.includes('API key is not configured')
-        ) {
-          console.log('🎯 Chat Handler - API key error detected')
-          const errorMessage = `🌸 To start your personality analysis, I need you to configure your Anthropic API key first! 
-
-Please:
-1. Click the Settings menu (⚙️)
-2. Go to "Model Provider" 
-3. Enter your Anthropic API key
-4. Then come back and we can begin your personality journey! ✨`
-
-          await speakMessageHandler(errorMessage)
-          homeStore.setState({ chatProcessing: false })
-          return
-        }
-
-        // For other errors, show a helpful message but stay in matchmaking mode
-        console.log(
-          '🎯 Chat Handler - Generic error, staying in matchmaking mode'
-        )
-        const errorMessage = `🌸 I encountered a small hiccup with your personality analysis! Let me try again. 
-
-Please make sure:
-• Your internet connection is stable
-• Your API key is properly configured in Settings
-• Then send any message to continue! ✨`
-
-        await speakMessageHandler(errorMessage)
-        homeStore.setState({ chatProcessing: false })
-        return
-      }
-    } else {
-      console.log(
-        '🎯 Chat Handler - Skipping matchmaking mode - completed:',
-        hasCompleted,
-        'modalImage:',
-        !!modalImage
-      )
-    }
-
-    // Check stamina limit for free chat mode
-    if (hasCompleted && !modalImage) {
+    // Check stamina limit for regular chat mode (removed auto-trigger matchmaking)
+    if (!modalImage) {
       const checkStaminaLimit = async () => {
         try {
           const {
@@ -929,13 +786,12 @@ Please make sure:
 
     homeStore.setState({ chatProcessing: true })
 
-    // 🎯 Debug: Log system prompt being used after personality analysis completion
+    // 🎯 Debug: Log system prompt being used for regular chat
     console.log(
-      '🎯 Free Chat - System prompt being used:',
+      '🎯 Regular Chat - System prompt being used:',
       systemPrompt.substring(0, 100) + '...'
     )
-    console.log('🎯 Free Chat - Character name:', ss.characterName)
-    console.log('🎯 Free Chat - Analysis completed:', hasCompleted)
+    console.log('🎯 Regular Chat - Character name:', ss.characterName)
 
     const userMessageContent: Message['content'] = modalImage
       ? [
@@ -970,8 +826,8 @@ Please make sure:
     try {
       await processAIResponse(messages)
 
-      // Increment chat stats for free chat mode (after successful AI response)
-      if (hasCompleted && !modalImage) {
+      // Increment chat stats for regular chat mode (after successful AI response)
+      if (!modalImage) {
         console.log(
           '🎯 Chat Handler - Incrementing chat stats after successful message'
         )
@@ -1152,5 +1008,212 @@ export const handleReceiveTextFromRtFn = () => {
     if (type === 'response.content_part.done') {
       currentSessionId = null
     }
+  }
+}
+
+/**
+ * Explicitly start personality profiling flow
+ * This function can be called from menus/widgets to start the profiling process
+ */
+export const startPersonalityProfiling = async (
+  message: string = 'Start personality analysis!',
+  sessionId?: string
+) => {
+  const matchmakingHandler = initializeMatchmakingHandler()
+
+  // Use a consistent sessionId or generate a new one
+  let sid = sessionId
+  if (!sid) {
+    sid = localStorage.getItem('personality_session_id') || generateSessionId()
+    localStorage.setItem('personality_session_id', sid)
+  }
+
+  const timestamp = new Date().toISOString()
+
+  try {
+    homeStore.setState({ chatProcessing: true })
+
+    // Add user message to chat log
+    homeStore.getState().upsertMessage({
+      role: 'user',
+      content: message,
+      timestamp: timestamp,
+    })
+
+    console.log(
+      '🎯 Explicit Profiling - Starting matchmaking with message:',
+      message
+    )
+
+    // Start the matchmaking flow
+    const matchmakingResult = await matchmakingHandler.startMatchmaking(
+      message,
+      sid
+    )
+
+    console.log(
+      '🎯 Explicit Profiling - Matchmaking result:',
+      matchmakingResult
+    )
+
+    if (matchmakingResult) {
+      // Store step progress in localStorage
+      if (matchmakingResult.data?.stepProgress) {
+        console.log(
+          '🎯 Explicit Profiling - Storing step progress:',
+          matchmakingResult.data.stepProgress
+        )
+        localStorage.setItem(
+          'matchmaking_step_progress',
+          JSON.stringify(matchmakingResult.data.stepProgress)
+        )
+      }
+
+      // Store the complete result for split layout display
+      if (matchmakingResult.isComplete && matchmakingResult.data) {
+        console.log(
+          '🎯 Explicit Profiling - Storing complete matchmaking result:',
+          matchmakingResult.data
+        )
+        localStorage.setItem(
+          'last_matchmaking_result',
+          JSON.stringify(matchmakingResult)
+        )
+      }
+
+      console.log(
+        '🎯 Explicit Profiling - Speaking message:',
+        matchmakingResult.message
+      )
+      // Use speakMessageHandler for the response
+      await speakMessageHandler(matchmakingResult.message)
+
+      // Check if completed
+      if (matchmakingResult.isComplete) {
+        console.log('🎯 Explicit Profiling - Personality analysis completed!')
+        markPersonalityAnalysisCompleted()
+        // Clear step progress when complete
+        localStorage.removeItem('matchmaking_step_progress')
+      }
+
+      homeStore.setState({ chatProcessing: false })
+      return matchmakingResult
+    } else {
+      console.log('🎯 Explicit Profiling - No matchmaking result returned!')
+      homeStore.setState({ chatProcessing: false })
+      return null
+    }
+  } catch (error) {
+    console.error('🎯 Explicit Profiling - Error:', error)
+    homeStore.setState({ chatProcessing: false })
+
+    // Handle specific API key error
+    if (
+      error instanceof Error &&
+      error.message.includes('API key is not configured')
+    ) {
+      const errorMessage = `🌸 To start your personality analysis, I need you to configure your Anthropic API key first! 
+
+Please:
+1. Click the Settings menu (⚙️)
+2. Go to "Model Provider" 
+3. Enter your Anthropic API key
+4. Then try starting the analysis again! ✨`
+
+      await speakMessageHandler(errorMessage)
+      return {
+        message: errorMessage,
+        isComplete: false,
+        step: 'api_key_error',
+      }
+    }
+
+    // For other errors, show a helpful message
+    const errorMessage = `🌸 I encountered a small hiccup starting your personality analysis! 
+
+Please make sure:
+• Your internet connection is stable
+• Your API key is properly configured in Settings
+• Then try again! ✨`
+
+    await speakMessageHandler(errorMessage)
+    return {
+      message: errorMessage,
+      isComplete: false,
+      step: 'startup_error',
+    }
+  }
+}
+
+/**
+ * Widget-specific chat handler that routes all chat through matchmaking orchestrator
+ * This ensures that all widget conversations go through the MamaSan flow by default
+ */
+export const handleWidgetChatFn = () => async (text: string) => {
+  const newMessage = text
+  const timestamp = new Date().toISOString()
+
+  if (newMessage === null) return
+
+  try {
+    homeStore.setState({ chatProcessing: true })
+    window.parent.postMessage({ type: 'WIDGET_CHAT_PROCESSING' }, '*')
+
+    // Add user message to chat log
+    homeStore.getState().upsertMessage({
+      role: 'user',
+      content: newMessage,
+      timestamp: timestamp,
+    })
+
+    // Get the token from the parent
+    const token = await getWidgetAuthToken()
+    if (!token) {
+      window.parent.postMessage(
+        { type: 'WIDGET_ERROR', reason: 'unauthenticated' },
+        '*'
+      )
+      homeStore.setState({ chatProcessing: false })
+      return
+    }
+
+    // Call the server-side matchmaking API
+    const response = await fetch('/api/matchmaking', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: newMessage, token }),
+    })
+    if (!response.ok) {
+      window.parent.postMessage(
+        { type: 'WIDGET_ERROR', reason: 'api_error' },
+        '*'
+      )
+      homeStore.setState({ chatProcessing: false })
+      return
+    }
+    const data = await response.json()
+
+    // Add assistant message to chat log
+    homeStore.getState().upsertMessage({
+      role: 'assistant',
+      content: data.message,
+      timestamp: new Date().toISOString(),
+    })
+
+    // Use speakMessageHandler for the response (it handles TTS, etc.)
+    await speakMessageHandler(data.message)
+
+    homeStore.setState({ chatProcessing: false })
+    window.parent.postMessage(
+      { type: 'WIDGET_CHAT_DONE', message: data.message },
+      '*'
+    )
+  } catch (error) {
+    console.error('🎪 Widget Chat - Error:', error)
+    homeStore.setState({ chatProcessing: false })
+    window.parent.postMessage(
+      { type: 'WIDGET_ERROR', reason: 'exception', error: String(error) },
+      '*'
+    )
   }
 }

@@ -12,6 +12,7 @@ import homeStore from '@/features/stores/home'
 import settingsStore from '@/features/stores/settings'
 import '@/lib/i18n'
 import { buildUrl } from '@/utils/buildUrl'
+import { MamaSanSpecialist } from '@/features/matchmaking/mama-san-specialist'
 
 interface WidgetConfig {
   // Display options
@@ -88,6 +89,92 @@ const Widget = () => {
   const modelType = settingsStore(s => s.modelType)
   const backgroundImageUrl = homeStore(s => s.backgroundImageUrl)
   const chatLog = homeStore(s => s.chatLog)
+
+  // Auth state
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [authChecked, setAuthChecked] = useState(false)
+  const [authError, setAuthError] = useState<string | null>(null)
+
+  // Listen for WIDGET_AUTH event
+  useEffect(() => {
+    function handleAuthEvent (event: MessageEvent) {
+      if (event.data) {
+        console.log('[Widget] Received postMessage event:', event.data)
+      }
+      if (event.data && event.data.type === 'WIDGET_AUTH' && event.data.token) {
+        setIsAuthenticated(true)
+        setAuthChecked(true)
+        setAuthError(null)
+      }
+    }
+    window.addEventListener('message', handleAuthEvent)
+    // If no auth after a short delay, show error
+    const timeout = setTimeout(() => {
+      if (!isAuthenticated) {
+        setAuthChecked(true)
+        setAuthError(
+          'You are not authenticated. Please sign in to use the widget.'
+        )
+      }
+    }, 1500)
+    return () => {
+      window.removeEventListener('message', handleAuthEvent)
+      clearTimeout(timeout)
+    }
+  }, [isAuthenticated])
+
+  // Clear all persisted state if not authenticated
+  useEffect(() => {
+    if (authChecked && !isAuthenticated) {
+      try {
+        localStorage.clear()
+        sessionStorage.clear()
+        if (homeStore.persist?.clearStorage) homeStore.persist.clearStorage()
+        if (settingsStore.persist?.clearStorage)
+          settingsStore.persist.clearStorage()
+      } catch (e) {
+        // ignore
+      }
+    }
+  }, [authChecked, isAuthenticated])
+
+  // Only render UI if authenticated
+  if (!authChecked) {
+    return (
+      <div className='flex items-center justify-center h-screen text-lg'>
+        Loading...
+      </div>
+    )
+  }
+  if (!isAuthenticated) {
+    return (
+      <div
+        className='fixed inset-0 flex items-center justify-center w-screen h-screen'
+        style={{
+          backgroundImage: "url('/backgrounds/static-noise.gif')",
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat',
+          backgroundColor: '#18181b',
+          zIndex: 9999,
+        }}
+      >
+        <span
+          style={{
+            color: '#f22897',
+            fontWeight: 'bold',
+            fontSize: '1.5rem',
+            textShadow: '0 2px 8px #18181b, 0 0 2px #000',
+            background: 'rgba(24,24,27,0.7)',
+            borderRadius: '8px',
+            padding: '1.5rem 2.5rem',
+          }}
+        >
+          You are not authenticated. Please sign in.
+        </span>
+      </div>
+    )
+  }
 
   // Audio context initialization with user gesture
   const handleUserInteraction = useCallback(async () => {
@@ -322,6 +409,17 @@ const Widget = () => {
 
     return () => clearTimeout(timeoutId)
   }, [chatLog])
+
+  useEffect(() => {
+    // On initial load, if chat log is empty, insert Emi's greeting
+    if (homeStore.getState().chatLog.length === 0) {
+      homeStore.getState().upsertMessage({
+        role: 'assistant',
+        content: new MamaSanSpecialist().getIntro(),
+        timestamp: new Date().toISOString(),
+      })
+    }
+  }, [])
 
   const getThemeClasses = () => {
     switch (config.theme) {

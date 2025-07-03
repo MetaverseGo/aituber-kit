@@ -4,6 +4,7 @@ import homeStore from '@/features/stores/home'
 import settingsStore from '@/features/stores/settings'
 import { handleSendChatFn } from '@/features/chat/handlers'
 import { SYSTEM_PROMPT_EN } from '@/features/constants/systemPromptConstants'
+import { MamaSanSpecialist } from '@/features/matchmaking/mama-san-specialist'
 
 interface ChatMenuProps {
   isWidget?: boolean
@@ -73,27 +74,12 @@ export const ChatMenu: React.FC<ChatMenuProps> = ({ isWidget = false }) => {
         'Chat cleared, personality analysis reset, and character name reset to Emi'
       )
 
-      // Auto-start conversation with a message that triggers personality analysis
-      const handleSendChat = handleSendChatFn()
-
-      // Use a specific trigger phrase to start the personality assessment
-      const personalityTrigger = 'begin personality analysis'
-
-      // Small delay to ensure settings are updated before starting
-      setTimeout(async () => {
-        // Send the trigger message to start personality analysis
-        await handleSendChat(personalityTrigger)
-
-        // Clear the chat log after the response to hide the trigger message
-        setTimeout(() => {
-          const currentChatLog = homeStore.getState().chatLog
-          // Keep only Emi's response (assistant messages), remove user trigger message
-          const filteredLog = currentChatLog.filter(
-            (msg) => msg.role === 'assistant'
-          )
-          homeStore.setState({ chatLog: filteredLog })
-        }, 100)
-      }, 500)
+      // Insert Emi's greeting as the first message
+      homeStore.getState().upsertMessage({
+        role: 'assistant',
+        content: new MamaSanSpecialist().getIntro(),
+        timestamp: new Date().toISOString(),
+      })
     } catch (error) {
       console.error('Error starting over:', error)
     }
@@ -121,7 +107,9 @@ export const ChatMenu: React.FC<ChatMenuProps> = ({ isWidget = false }) => {
       {/* Menu Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className={`${isWidget ? 'absolute top-2 right-12' : 'fixed top-4 right-4'} z-50 p-2 bg-white/90 hover:bg-white rounded-full shadow-lg transition-all duration-200 border border-gray-200`}
+        className={`${
+          isWidget ? 'absolute top-2 right-12' : 'fixed top-4 right-4'
+        } z-50 p-2 bg-white/90 hover:bg-white rounded-full shadow-lg transition-all duration-200 border border-gray-200`}
         title="Chat Commands"
       >
         <svg
@@ -142,7 +130,9 @@ export const ChatMenu: React.FC<ChatMenuProps> = ({ isWidget = false }) => {
       {/* Menu Dropdown */}
       {isOpen && (
         <div
-          className={`${isWidget ? 'absolute top-12 right-2' : 'fixed top-16 right-4'} z-50 w-64 bg-white rounded-lg shadow-xl border border-gray-200 overflow-hidden`}
+          className={`${
+            isWidget ? 'absolute top-12 right-2' : 'fixed top-16 right-4'
+          } z-50 w-64 bg-white rounded-lg shadow-xl border border-gray-200 overflow-hidden`}
         >
           {/* Header */}
           <div className="bg-gradient-to-r from-pink-500 to-purple-600 text-white px-4 py-3">

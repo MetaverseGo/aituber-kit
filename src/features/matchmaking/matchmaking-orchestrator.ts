@@ -1,11 +1,13 @@
 import { KokologyAnalyst } from './kokology-analyst'
 import { PersonalityWriter } from './personality-writer'
 import { PersonalityProfiler } from './personality-profiler'
+import { MamaSanSpecialist } from './mama-san-specialist'
 import {
   MatchmakingResult,
   MatchmakingConfig,
   MatchmakingSession,
   PersonalityCategory,
+  MamaSanSessionState,
 } from '@/types/matchmaking'
 
 // Emi's analyzing messages (no AI inference required)
@@ -22,14 +24,84 @@ const ANALYZING_MESSAGES = [
   'running diagnostics on your personality, this is so cool! oh also are you a boy or girl? helps with the visual vibes',
 ]
 
+/**
+ * Keywords and phrases that trigger specific modes
+ */
+const MODE_TRIGGERS = {
+  kokology: [
+    'personality analysis',
+    'personality test',
+    'kokology',
+    'analyze my personality',
+    "what's my personality",
+    'personality type',
+    'tell me about myself',
+    'what am i like',
+    'analyze me',
+    'personality quiz',
+    'who am i',
+    'what type am i',
+    'start matchmaking',
+    'begin analysis',
+    'personality discovery',
+    'kokology analysis',
+  ],
+  profiling: [
+    'help me find someone',
+    'dating personality',
+    'relationship type',
+    'compatibility analysis',
+    'what kind of partner',
+  ],
+  mamasan: [
+    'recommend hosts',
+    'find me a host',
+    'host recommendations',
+    'mama-san help',
+    'match me with hosts',
+  ],
+}
+
+const MAMASAN_START_TRIGGERS = [
+  'start matchmaking',
+  'begin analysis',
+  'personality analysis',
+  'kokology',
+  'matchmaking',
+  'analyze my personality',
+  "what's my personality",
+  'personality type',
+  'help me find someone',
+  'dating personality',
+  'relationship type',
+  'compatibility analysis',
+  'what kind of partner',
+]
+
+function isMamaSanStartTrigger(message: string): boolean {
+  const lower = message.toLowerCase().trim()
+  return MAMASAN_START_TRIGGERS.some((trigger) => lower.includes(trigger))
+}
+
 export class MatchmakingOrchestrator {
   private kokologyAnalyst: KokologyAnalyst
   private personalityWriter: PersonalityWriter
   private personalityProfiler: PersonalityProfiler
+  private mamaSan: MamaSanSpecialist
   private config: MatchmakingConfig
   private sessionKey: string
 
+  // Core state management
+  private isActive: boolean = false
+  private currentSessionId: string | null = null
+  private mode: 'mamasan' | 'kokology' | 'profiling' = 'mamasan'
+
+  // Mode-specific state
+  private mamaSanState: MamaSanSessionState
+  private session: MatchmakingSession | null = null
+
   constructor(userId: string, config: MatchmakingConfig = {}) {
+    console.log('[Orchestrator] Constructor called for userId:', userId)
     this.config = {
       kokologyPersonality: 'emi',
       writerPersonality: 'emi',
@@ -39,6 +111,7 @@ export class MatchmakingOrchestrator {
     }
 
     this.sessionKey = `matchmaking_session_${userId}`
+    console.log('[Orchestrator] Session key:', this.sessionKey)
 
     this.kokologyAnalyst = new KokologyAnalyst({
       personality: this.config.kokologyPersonality!,
@@ -53,151 +126,366 @@ export class MatchmakingOrchestrator {
     this.personalityProfiler = new PersonalityProfiler({
       personality: this.config.profilerPersonality!,
     })
+
+    this.mamaSan = new MamaSanSpecialist()
+
+    // Initialize MamaSan state and try to restore from localStorage
+    this.mamaSanState = { currentQuestion: 0, answers: [], isComplete: false }
+    console.log('[Orchestrator] Initial mamaSanState:', this.mamaSanState)
+    this.restoreMamaSanState()
+    console.log(
+      '[Orchestrator] mamaSanState after restoration:',
+      this.mamaSanState
+    )
   }
 
+  /**
+   * Determine user intent and activate appropriate mode
+   */
+  private determineIntent(
+    message: string
+  ): 'mamasan' | 'kokology' | 'profiling' | null {
+    const lowerMessage = message.toLowerCase().trim()
+
+    // Check for kokology triggers
+    if (
+      MODE_TRIGGERS.kokology.some((trigger) =>
+        lowerMessage.includes(trigger.toLowerCase())
+      )
+    ) {
+      return 'kokology'
+    }
+
+    // Check for profiling triggers
+    if (
+      MODE_TRIGGERS.profiling.some((trigger) =>
+        lowerMessage.includes(trigger.toLowerCase())
+      )
+    ) {
+      return 'profiling'
+    }
+
+    // Check for mama-san triggers
+    if (
+      MODE_TRIGGERS.mamasan.some((trigger) =>
+        lowerMessage.includes(trigger.toLowerCase())
+      )
+    ) {
+      return 'mamasan'
+    }
+
+    // Default to mama-san for general conversation
+    return 'mamasan'
+  }
+
+  /**
+   * Check if orchestrator is currently active
+   */
+  isActiveSession(): boolean {
+    return this.isActive
+  }
+
+  /**
+   * Get current session ID
+   */
+  getCurrentSessionId(): string | null {
+    return this.currentSessionId
+  }
+
+  /**
+   * Get current mode
+   */
+  getCurrentMode(): 'mamasan' | 'kokology' | 'profiling' {
+    return this.mode
+  }
+
+  /**
+   * Main processing method - handles all conversational flow and state management
+   */
   async processMessage(
     message: string,
     sessionId: string
   ): Promise<MatchmakingResult> {
-    try {
-      console.log('🎭 Orchestrator - Processing message:', {
-        message,
-        sessionId,
-      })
+    console.log('[Orchestrator] processMessage called:', {
+      message,
+      sessionId,
+      isActive: this.isActive,
+      currentSessionId: this.currentSessionId,
+      mode: this.mode,
+    })
 
-      // Get or create session
-      let session = this.getSession()
-      console.log('🎭 Orchestrator - Current session:', session)
+    // If not active, activate and determine intent
+    if (!this.isActive) {
+      this.isActive = true
+      this.currentSessionId = sessionId
 
-      if (!session || session.sessionId !== sessionId) {
-        // Reset session for new sessionId
-        session = this.createNewSession(sessionId)
-        console.log(
-          `🎭 Orchestrator - Created new matchmaking session: ${sessionId}`
-        )
+      // Restore MamaSan state when activating
+      if (this.mode === 'mamasan') {
+        this.restoreMamaSanState()
       }
 
-      console.log(
-        `🎭 Orchestrator - Processing message in status: ${session.status}, step: ${session.step}`
-      )
-
-      // Route to appropriate handler based on current status
-      console.log(
-        '🎭 Orchestrator - Routing to handler for status:',
-        session.status
-      )
-      switch (session.status) {
-        case 'idle':
-        case 'kokology_analysis': {
-          console.log('🎭 Orchestrator - In idle/kokology_analysis branch')
-          const questions = session.kokologyQuestions || []
-
-          // If there is an unanswered question, handle reloads defensively
-          if (questions.length > 0 && !questions[questions.length - 1].answer) {
-            console.log(
-              '🎭 Orchestrator - Found unanswered question, last question:',
-              questions[questions.length - 1]
-            )
-            // If the incoming message is empty (likely a reload), return no new message
-            if (!message || message.trim() === '') {
-              console.log(
-                '🎭 Orchestrator - Empty message, returning no new message'
-              )
-              return {
-                message: '', // No new message
-                isComplete: false,
-                step: `kokology_question_${questions.length}`,
-                data: {
-                  stepProgress: {
-                    current: questions.length,
-                    total: this.config.questionCount!,
-                    label: `Question ${questions.length} of ${this.config.questionCount}`,
-                    phase: 'questions',
-                  },
-                },
-              }
-            }
-            // If the incoming message is NOT empty, treat it as an answer and process it
-            console.log(
-              '🎭 Orchestrator - Non-empty message, handling as kokology response'
-            )
-            return await this.handleKokologyResponse(session, message)
-          }
-
-          // If all questions are answered, check if complete
-          if (
-            questions.length >= this.config.questionCount! &&
-            questions[questions.length - 1]?.answer
-          ) {
-            console.log(
-              '🎭 Orchestrator - All questions answered, generating personality summary'
-            )
-            return await this.generatePersonalitySummary(session)
-          }
-
-          // Otherwise, generate a new question as usual
-          console.log(
-            '🎭 Orchestrator - Starting new kokology analysis question'
-          )
-          return await this.startKokologyAnalysis(session, message)
-        }
-
-        case 'personality_summary':
-          return await this.generatePersonalitySummary(session)
-
-        case 'awaiting_gender':
-          return await this.handleGenderResponse(session, message)
-
-        case 'personality_profiling':
-          return await this.profilePersonality(session)
-
-        case 'completed':
-          return {
-            message: `Your personality analysis is complete! You've been categorized as "${session.personalityCategory}". Feel free to ask me anything else or let's start finding you some amazing connections!`,
-            isComplete: true,
-            step: 'completed',
-            data: {
-              personalityCategory: session.personalityCategory,
-              personalityImageUrl: this.getPersonalityImageUrl(
-                session.personalityCategory || '',
-                session.gender
-              ),
-              profile: this.getPublicProfileData(session),
-              stepProgress: {
-                current: this.config.questionCount!,
-                total: this.config.questionCount!,
-                label: 'Analysis complete!',
-                phase: 'completed' as const,
-              },
-            },
-          }
-
-        default:
-          return await this.handleError(session, 'Unknown session status')
-      }
-    } catch (error) {
-      console.error('Error in matchmaking orchestrator:', error)
-
-      // Check if it's an API key error
-      if (
-        error instanceof Error &&
-        error.message.includes('API key is not configured')
-      ) {
-        return {
-          message:
-            'I need an API key to analyze your personality! Please configure it in Settings → Model Provider, then try again!',
-          isComplete: false,
-          step: 'api_key_error',
+      // Determine intent from message
+      const intent = this.determineIntent(message)
+      if (intent) {
+        this.mode = intent
+        // If mode changed to mamasan, restore state
+        if (this.mode === 'mamasan') {
+          this.restoreMamaSanState()
         }
       }
 
-      return {
-        message:
-          'Oh no! I encountered an error. Let me reset and we can start fresh!',
-        isComplete: false,
-        step: 'error',
+      console.log('[Orchestrator] Activated with mode:', this.mode)
+    }
+
+    // For MamaSan mode, we don't need strict session ID matching
+    // because MamaSan conversations can span multiple sessions
+    if (this.mode === 'mamasan') {
+      // Update current session ID for MamaSan mode
+      this.currentSessionId = sessionId
+      console.log(
+        '[Orchestrator] Updated sessionId for MamaSan mode:',
+        sessionId
+      )
+    } else {
+      // For kokology/profiling modes, validate session continuity strictly
+      if (this.currentSessionId !== sessionId) {
+        console.log('[Orchestrator] Session mismatch, resetting')
+        this.resetSession()
+        this.isActive = true
+        this.currentSessionId = sessionId
+
+        // Re-determine intent for new session
+        const intent = this.determineIntent(message)
+        if (intent) {
+          this.mode = intent
+        }
       }
     }
+
+    // Process based on current mode
+    switch (this.mode) {
+      case 'mamasan':
+        return await this.processMamaSanMode(message, sessionId)
+      case 'kokology':
+        return await this.processKokologyMode(message, sessionId)
+      case 'profiling':
+        return await this.processProfilingMode(message, sessionId)
+      default:
+        return {
+          message:
+            "I need to determine what you want to do. Please tell me what you're looking for!",
+          isComplete: false,
+          step: 'intent_unclear',
+        }
+    }
+  }
+
+  /**
+   * Process mama-san mode (default conversational flow)
+   */
+  private async processMamaSanMode(
+    message: string,
+    sessionId: string
+  ): Promise<MatchmakingResult> {
+    // Always restore the latest MamaSan state from localStorage to ensure correct progression
+    this.restoreMamaSanState()
+    console.log('[MamaSan] Processing message:', { message, sessionId })
+    console.log('[MamaSan] Current state before processing:', {
+      currentQuestion: this.mamaSanState.currentQuestion,
+      answersLength: this.mamaSanState.answers.length,
+      isComplete: this.mamaSanState.isComplete,
+      answers: this.mamaSanState.answers,
+    })
+
+    // Only treat as a new session if the message is a start trigger
+    const isNewSession =
+      this.mamaSanState.currentQuestion === 0 &&
+      this.mamaSanState.answers.length === 0 &&
+      isMamaSanStartTrigger(message)
+
+    // If session is just starting, greet and ask first question
+    if (isNewSession) {
+      console.log(
+        '[MamaSan] Detected new session - currentQuestion=0, answers.length=0, and start trigger message'
+      )
+      this.mamaSanState.currentQuestion = 0
+      this.mamaSanState.answers = []
+      this.mamaSanState.isComplete = false
+
+      // Save initial state
+      this.saveMamaSanState()
+
+      const intro = this.mamaSan.getIntro()
+      const firstQ = this.mamaSan.getCurrentQuestion(this.mamaSanState)
+      console.log('[MamaSan] New session started. Greeting:', intro)
+      console.log('[MamaSan] Asking first question:', firstQ)
+      return {
+        message: intro + '\n' + firstQ,
+        isComplete: false,
+        step: 'mamasan_0',
+      }
+    }
+
+    console.log('[MamaSan] Continuing existing session')
+    // Analyze user response to current question
+    const question = this.mamaSan.getCurrentQuestion(this.mamaSanState)
+    console.log('[MamaSan] Analyzing user response:', {
+      question,
+      userMessage: message,
+      currentQuestionIndex: this.mamaSanState.currentQuestion,
+    })
+    const analysis = await this.mamaSan.analyzeResponse(question, message)
+
+    console.log('[MamaSan] Analysis result:', analysis)
+
+    if (!analysis.answered) {
+      // If not answered, repeat the question
+      console.log(
+        '[MamaSan] User response did not answer the question. Re-asking:',
+        question
+      )
+      return {
+        message: `hmm, i didn't quite get that! ${question}`,
+        isComplete: false,
+        step: `mamasan_${this.mamaSanState.currentQuestion}`,
+      }
+    }
+
+    console.log('[MamaSan] User answered the question, moving to next...')
+    console.log('[MamaSan] State before updating:', {
+      currentQuestion: this.mamaSanState.currentQuestion,
+      answersLength: this.mamaSanState.answers.length,
+      answers: this.mamaSanState.answers,
+    })
+
+    // Save answer and move to next question
+    this.mamaSanState.answers[this.mamaSanState.currentQuestion] = message
+    this.mamaSanState.currentQuestion++
+
+    console.log('[MamaSan] State after updating:', {
+      currentQuestion: this.mamaSanState.currentQuestion,
+      answersLength: this.mamaSanState.answers.length,
+      answers: this.mamaSanState.answers,
+    })
+
+    // Save state after updating
+    this.saveMamaSanState()
+
+    // If more questions, ask next
+    if (!this.mamaSan.isSessionComplete(this.mamaSanState)) {
+      const nextQ = this.mamaSan.getCurrentQuestion(this.mamaSanState)
+      console.log('[MamaSan] Moving to next question:', nextQ)
+      return {
+        message: nextQ,
+        isComplete: false,
+        step: `mamasan_${this.mamaSanState.currentQuestion}`,
+      }
+    } else {
+      // All questions answered, recommend hosts
+      this.mamaSanState.isComplete = true
+
+      // Save final state
+      this.saveMamaSanState()
+
+      const searchQuery = this.mamaSan.buildSearchQuery(this.mamaSanState)
+      console.log(
+        '[MamaSan] All questions answered. Recommending hosts. Search query:',
+        searchQuery
+      )
+
+      // Mark session as complete
+      this.isActive = false
+      this.currentSessionId = null
+
+      return {
+        message: this.mamaSan.getRecommendationPrompt(this.mamaSanState),
+        isComplete: true,
+        step: 'mamasan_recommend',
+        data: {
+          mamasan: {
+            searchQuery,
+            answers: this.mamaSanState.answers,
+          },
+        },
+      }
+    }
+  }
+
+  /**
+   * Process kokology mode
+   */
+  private async processKokologyMode(
+    message: string,
+    sessionId: string
+  ): Promise<MatchmakingResult> {
+    // Initialize session if needed
+    if (!this.session) {
+      this.session = this.createNewSession(sessionId)
+    }
+
+    // Handle based on current status
+    switch (this.session.status) {
+      case 'idle':
+        return await this.startKokologyAnalysis(this.session, message)
+      case 'kokology_analysis':
+        return await this.handleKokologyResponse(this.session, message)
+      case 'personality_summary':
+        return await this.generatePersonalitySummary(this.session)
+      case 'awaiting_gender':
+        return await this.handleGenderResponse(this.session, message)
+      case 'personality_profiling':
+        return await this.profilePersonality(this.session)
+      case 'completed':
+        // Session already completed
+        this.isActive = false
+        this.currentSessionId = null
+        return {
+          message:
+            'Your personality analysis is already complete! Would you like to start a new analysis?',
+          isComplete: true,
+          step: 'already_completed',
+        }
+      default:
+        return await this.handleError(this.session, 'Unknown session status')
+    }
+  }
+
+  /**
+   * Process profiling mode
+   */
+  private async processProfilingMode(
+    message: string,
+    sessionId: string
+  ): Promise<MatchmakingResult> {
+    // For now, redirect to kokology mode
+    this.mode = 'kokology'
+    return await this.processKokologyMode(message, sessionId)
+  }
+
+  /**
+   * Force stop current session and reset state
+   */
+  resetSession(): void {
+    this.isActive = false
+    this.currentSessionId = null
+    this.mode = 'mamasan'
+    this.mamaSanState = { currentQuestion: 0, answers: [], isComplete: false }
+    this.session = null
+
+    // Clear localStorage
+    try {
+      localStorage.removeItem(this.sessionKey)
+      console.log('[MamaSan] Cleared session from localStorage')
+    } catch (error) {
+      console.error('Error clearing session:', error)
+    }
+  }
+
+  /**
+   * Set specific mode (for external control)
+   */
+  setMode(mode: 'mamasan' | 'kokology' | 'profiling') {
+    this.mode = mode
   }
 
   private createNewSession(sessionId: string): MatchmakingSession {
@@ -488,6 +776,10 @@ export class MatchmakingOrchestrator {
       session.status = 'completed'
       this.saveSession(session)
 
+      // Mark orchestrator as inactive
+      this.isActive = false
+      this.currentSessionId = null
+
       const resultData = {
         message: `Your personality analysis is complete! You are: **${
           profileResult.category.name
@@ -664,7 +956,7 @@ export class MatchmakingOrchestrator {
 
   private getPublicProfileData(session: MatchmakingSession) {
     return {
-      uid: session.sessionId,
+      uid: session.sessionId || 'unknown',
       role: 'guest' as const,
       personalityCategory: session.personalityCategory,
       completedAnalysis: session.status === 'completed',
@@ -695,6 +987,7 @@ export class MatchmakingOrchestrator {
   private saveSession(session: MatchmakingSession): void {
     try {
       localStorage.setItem(this.sessionKey, JSON.stringify(session))
+      this.session = session
     } catch (error) {
       console.error('Error saving session to localStorage:', error)
     }
@@ -702,18 +995,177 @@ export class MatchmakingOrchestrator {
 
   // Helper methods for external access
   getUserSession(): MatchmakingSession | null {
-    return this.getSession()
+    return this.session || this.getSession()
   }
 
   resetUserSession(): void {
-    try {
-      localStorage.removeItem(this.sessionKey)
-    } catch (error) {
-      console.error('Error resetting session:', error)
-    }
+    this.resetSession()
   }
 
   getPersonalityCategories(): PersonalityCategory[] {
     return this.personalityProfiler.getAllCategories()
+  }
+
+  // New method to restore MamaSan state from localStorage
+  private restoreMamaSanState(): void {
+    try {
+      console.log('[MamaSan] Attempting to restore state from localStorage...')
+      const sessionData = localStorage.getItem(this.sessionKey)
+      console.log('[MamaSan] Raw session data from localStorage:', sessionData)
+      if (sessionData) {
+        const session = JSON.parse(sessionData)
+        console.log('[MamaSan] Parsed session from localStorage:', session)
+
+        // Always check if there's valid MamaSan state, regardless of other session data
+        if (session.mamasan) {
+          console.log(
+            '[MamaSan] Found mamasan state in session:',
+            session.mamasan
+          )
+
+          // Only restore if the MamaSan session is actually in progress
+          if (
+            !session.mamasan.isComplete &&
+            (session.mamasan.currentQuestion > 0 ||
+              session.mamasan.answers.length > 0)
+          ) {
+            this.mamaSanState = session.mamasan
+            console.log(
+              '[MamaSan] Successfully restored active MamaSan state from localStorage:',
+              this.mamaSanState
+            )
+          } else {
+            console.log(
+              '[MamaSan] Found mamasan state but it was completed or empty, starting fresh'
+            )
+          }
+        } else {
+          console.log('[MamaSan] No mamasan state found in session data')
+        }
+      } else {
+        console.log('[MamaSan] No session data found in localStorage')
+      }
+    } catch (error) {
+      console.error('Error restoring MamaSan state:', error)
+    }
+  }
+
+  // New method to save MamaSan state to localStorage
+  private saveMamaSanState(): void {
+    try {
+      console.log('[MamaSan] Attempting to save state to localStorage...')
+
+      // Get existing session or create a new one
+      let session = this.getSession()
+      if (!session) {
+        console.log('[MamaSan] No existing session found, creating new one')
+        session = {
+          sessionId: this.currentSessionId || 'unknown',
+          status: 'idle' as const,
+          step: this.mamaSanState.currentQuestion,
+          missingFields: [],
+          kokologyQuestions: [],
+        }
+      } else {
+        console.log('[MamaSan] Found existing session, updating MamaSan state')
+        // Update session metadata for MamaSan mode
+        session.sessionId = this.currentSessionId || session.sessionId
+        session.step = this.mamaSanState.currentQuestion
+      }
+
+      // Always update the mamasan state
+      session.mamasan = this.mamaSanState
+
+      console.log(
+        '[MamaSan] Saving session with updated MamaSan state:',
+        session
+      )
+      this.saveSession(session)
+      console.log(
+        '[MamaSan] Successfully saved state to localStorage:',
+        this.mamaSanState
+      )
+    } catch (error) {
+      console.error('Error saving MamaSan state:', error)
+    }
+  }
+
+  // Server-friendly, stateless version for API usage
+  async processMamaSanModeServer(
+    message: string,
+    mamasanState: MamaSanSessionState
+  ): Promise<{
+    message: string
+    isComplete: boolean
+    step: string
+    updatedState: MamaSanSessionState
+    data?: any
+  }> {
+    // Only treat as a new session if the message is a start trigger
+    const isNewSession =
+      mamasanState.currentQuestion === 0 &&
+      mamasanState.answers.length === 0 &&
+      isMamaSanStartTrigger(message)
+
+    if (isNewSession) {
+      const intro = this.mamaSan.getIntro()
+      const firstQ = this.mamaSan.getCurrentQuestion(mamasanState)
+      return {
+        message: intro + '\n' + firstQ,
+        isComplete: false,
+        step: 'mamasan_0',
+        updatedState: { currentQuestion: 0, answers: [], isComplete: false },
+      }
+    }
+
+    // Analyze user response to current question
+    const question = this.mamaSan.getCurrentQuestion(mamasanState)
+    const analysis = await this.mamaSan.analyzeResponse(question, message)
+
+    if (!analysis.answered) {
+      return {
+        message: `hmm, i didn't quite get that! ${question}`,
+        isComplete: false,
+        step: `mamasan_${mamasanState.currentQuestion}`,
+        updatedState: { ...mamasanState },
+      }
+    }
+
+    // Save answer and move to next question
+    const newAnswers = [...mamasanState.answers]
+    newAnswers[mamasanState.currentQuestion] = message
+    const nextQuestion = mamasanState.currentQuestion + 1
+    const updatedState: MamaSanSessionState = {
+      ...mamasanState,
+      answers: newAnswers,
+      currentQuestion: nextQuestion,
+    }
+
+    // If more questions, ask next
+    if (!this.mamaSan.isSessionComplete(updatedState)) {
+      const nextQ = this.mamaSan.getCurrentQuestion(updatedState)
+      return {
+        message: nextQ,
+        isComplete: false,
+        step: `mamasan_${updatedState.currentQuestion}`,
+        updatedState,
+      }
+    } else {
+      // All questions answered, recommend hosts
+      updatedState.isComplete = true
+      const searchQuery = this.mamaSan.buildSearchQuery(updatedState)
+      return {
+        message: this.mamaSan.getRecommendationPrompt(updatedState),
+        isComplete: true,
+        step: 'mamasan_recommend',
+        updatedState,
+        data: {
+          mamasan: {
+            searchQuery,
+            answers: updatedState.answers,
+          },
+        },
+      }
+    }
   }
 }

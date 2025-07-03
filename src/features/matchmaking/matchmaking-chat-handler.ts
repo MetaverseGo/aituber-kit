@@ -38,17 +38,18 @@ const MATCHMAKING_TRIGGERS = [
 ]
 
 /**
- * Enhanced chat handler that can route between regular AI chat and matchmaking
+ * Chat handler focused on input/output processing
+ * All conversational flow and state management is handled by the orchestrator
  */
 export class MatchmakingChatHandler {
-  private orchestrator: MatchmakingOrchestrator | null = null
-  private isMatchmakingActive = false
-  private currentSessionId: string | null = null
+  private orchestrator: MatchmakingOrchestrator
 
   constructor(
     private userId: string,
     private config: MatchmakingConfig = {}
-  ) {}
+  ) {
+    this.orchestrator = new MatchmakingOrchestrator(this.userId, this.config)
+  }
 
   /**
    * Check if a message should trigger matchmaking mode
@@ -62,21 +63,8 @@ export class MatchmakingChatHandler {
   }
 
   /**
-   * Check if we're currently in an active matchmaking session
-   */
-  isInMatchmakingMode(): boolean {
-    return this.isMatchmakingActive
-  }
-
-  /**
-   * Get the current matchmaking session if active
-   */
-  getCurrentMatchmakingSession() {
-    return this.orchestrator?.getUserSession() || null
-  }
-
-  /**
-   * Main method to process chat messages with matchmaking integration
+   * Main method to process chat messages
+   * Handles input/output processing and delegates state management to orchestrator
    */
   async processChatMessage(
     message: string,
@@ -85,182 +73,105 @@ export class MatchmakingChatHandler {
     console.log('🎪 Chat Handler - processChatMessage called:', {
       message,
       sessionId,
-      isActive: this.isMatchmakingActive,
     })
 
-    // If matchmaking is not active, auto-start it (for mandatory personality analysis)
-    if (!this.isMatchmakingActive) {
-      console.log('🎪 Chat Handler - Matchmaking not active, auto-starting...')
-      this.orchestrator = new MatchmakingOrchestrator(this.userId, this.config)
-      this.isMatchmakingActive = true
-      this.currentSessionId = sessionId
+    try {
+      // Delegate all processing to orchestrator
+      const result = await this.orchestrator.processMessage(message, sessionId)
+      console.log('🎪 Chat Handler - Orchestrator returned result:', result)
 
-      try {
-        console.log(
-          '🎪 Chat Handler - Starting orchestrator with message:',
-          message
-        )
+      return result
+    } catch (error) {
+      console.error('🎪 Chat Handler - Error processing message:', error)
 
-        // Start the orchestrator with the user's message
-        const result = await this.orchestrator.processMessage(
-          message,
-          sessionId
-        )
-        console.log('🎪 Chat Handler - Orchestrator returned result:', result)
-
-        return result
-      } catch (error) {
-        console.error('Error starting matchmaking:', error)
-
-        // Don't immediately give up - provide helpful error message instead
-        if (
-          error instanceof Error &&
-          error.message.includes('API key is not configured')
-        ) {
-          this.isMatchmakingActive = false
-          this.currentSessionId = null
-          return {
-            message:
-              'I need an API key to start your personality analysis! Please configure it in Settings → Model Provider, then try again!',
-            isComplete: false,
-            step: 'api_key_error',
-          }
-        }
-
-        // For other errors, still try to stay active but show error
+      // Handle specific API key errors
+      if (
+        error instanceof Error &&
+        error.message.includes('API key is not configured')
+      ) {
         return {
           message:
-            'I had a small hiccup starting your personality analysis! Please try sending a message again.',
+            'I need an API key to continue! Please configure it in Settings → Model Provider, then try again!',
           isComplete: false,
-          step: 'startup_error',
+          step: 'api_key_error',
         }
       }
-    }
 
-    // If matchmaking is active, process through orchestrator
-    if (this.orchestrator && this.currentSessionId === sessionId) {
-      console.log(
-        '🎪 Chat Handler - Matchmaking active, processing through orchestrator...'
-      )
-      try {
-        const result = await this.orchestrator.processMessage(
-          message,
-          sessionId
-        )
-        console.log(
-          '🎪 Chat Handler - Orchestrator result for active session:',
-          result
-        )
-
-        // Step progress is now stored earlier in handlers.ts before speaking
-        console.log(
-          '🎪 Chat Handler - Step progress will be stored by main handler before speaking'
-        )
-
-        // Check if matchmaking is complete
-        if (result.isComplete) {
-          console.log('🎪 Chat Handler - Matchmaking complete, deactivating')
-          this.isMatchmakingActive = false
-          this.currentSessionId = null
-          // Step progress clearing is now handled in handlers.ts
-        }
-
-        return result
-      } catch (error) {
-        console.error('Error in matchmaking processing:', error)
-
-        // Don't immediately give up on matchmaking - try to continue with a helpful error message
-        // Only deactivate if it's a persistent configuration issue
-        if (
-          error instanceof Error &&
-          error.message.includes('API key is not configured')
-        ) {
-          this.isMatchmakingActive = false
-          this.currentSessionId = null
-          return {
-            message:
-              'I need an API key to continue your personality analysis! Please configure it in Settings → Model Provider, then try again!',
-            isComplete: false,
-            step: 'api_key_error',
-          }
-        }
-
-        // For other errors, stay in matchmaking mode but show a helpful message
-        return {
-          message:
-            "I had a small hiccup there! Please send your response again and I'll continue with your personality analysis.",
-          isComplete: false,
-          step: 'error_retry',
-        }
+      // For other errors, provide helpful message
+      return {
+        message:
+          "I had a small hiccup there! Please send your response again and I'll continue.",
+        isComplete: false,
+        step: 'error_retry',
       }
     }
-
-    // Session mismatch, deactivate matchmaking
-    console.log(
-      '🎪 Chat Handler - Session mismatch or no orchestrator! Current:',
-      this.currentSessionId,
-      'Incoming:',
-      sessionId,
-      'Has orchestrator:',
-      !!this.orchestrator
-    )
-    this.isMatchmakingActive = false
-    this.currentSessionId = null
-    return null
   }
 
   /**
-   * Start a new matchmaking session
+   * Check if orchestrator is currently active
+   */
+  isInMatchmakingMode(): boolean {
+    return this.orchestrator.isActiveSession()
+  }
+
+  /**
+   * Get the current matchmaking session if active
+   */
+  getCurrentMatchmakingSession() {
+    return this.orchestrator.getUserSession()
+  }
+
+  /**
+   * Get current session ID from orchestrator
+   */
+  getCurrentSessionId(): string | null {
+    return this.orchestrator.getCurrentSessionId()
+  }
+
+  /**
+   * Get current mode from orchestrator
+   */
+  getCurrentMode(): 'mamasan' | 'kokology' | 'profiling' {
+    return this.orchestrator.getCurrentMode()
+  }
+
+  /**
+   * Start a new matchmaking session (legacy method for compatibility)
    */
   async startMatchmaking(
     message: string,
     sessionId: string
   ): Promise<MatchmakingResult> {
-    this.orchestrator = new MatchmakingOrchestrator(this.userId, this.config)
-    this.isMatchmakingActive = true
-    this.currentSessionId = sessionId
+    console.log('🎪 Chat Handler - startMatchmaking called (legacy):', {
+      message,
+      sessionId,
+    })
 
-    try {
-      const result = await this.orchestrator.processMessage(message, sessionId)
-
-      if (result.isComplete) {
-        this.isMatchmakingActive = false
-        this.currentSessionId = null
-      }
-
+    // Just delegate to processChatMessage since orchestrator handles activation
+    const result = await this.processChatMessage(message, sessionId)
+    if (result) {
       return result
-    } catch (error) {
-      console.error('Error starting matchmaking:', error)
-      this.isMatchmakingActive = false
-      this.currentSessionId = null
-      throw error
+    }
+
+    // Fallback if null returned
+    return {
+      message: 'Unable to start matchmaking session. Please try again.',
+      isComplete: false,
+      step: 'startup_failed',
     }
   }
 
   /**
-   * Force stop matchmaking and reset
+   * Force stop matchmaking and reset (delegates to orchestrator)
    */
   stopMatchmaking(): void {
-    if (this.orchestrator) {
-      this.orchestrator.resetUserSession()
-    }
-    this.isMatchmakingActive = false
-    this.currentSessionId = null
-    this.orchestrator = null
+    this.orchestrator.resetSession()
   }
 
   /**
-   * Get available personality categories
+   * Get available personality categories (delegates to orchestrator)
    */
   getPersonalityCategories() {
-    if (!this.orchestrator) {
-      // Create temporary orchestrator to get categories
-      const tempOrchestrator = new MatchmakingOrchestrator(
-        this.userId,
-        this.config
-      )
-      return tempOrchestrator.getPersonalityCategories()
-    }
     return this.orchestrator.getPersonalityCategories()
   }
 
@@ -268,7 +179,7 @@ export class MatchmakingChatHandler {
    * Check if current message should use gender buttons instead of text input
    */
   shouldShowGenderButtons(): boolean {
-    if (!this.isMatchmakingActive || !this.orchestrator) return false
+    if (!this.orchestrator.isActiveSession()) return false
 
     const session = this.orchestrator.getUserSession()
     return session?.status === 'awaiting_gender'
@@ -281,23 +192,15 @@ export class MatchmakingChatHandler {
     gender: 'male' | 'female',
     sessionId: string
   ): Promise<MatchmakingResult | null> {
-    if (
-      !this.isMatchmakingActive ||
-      !this.orchestrator ||
-      this.currentSessionId !== sessionId
-    ) {
-      return null
-    }
-
     const genderMessage = gender === 'male' ? 'boy' : 'girl'
     return await this.processChatMessage(genderMessage, sessionId)
   }
 
   /**
-   * Get step progress for UI display
+   * Get step progress for UI display (delegates to orchestrator session)
    */
   getStepProgress() {
-    if (!this.isMatchmakingActive || !this.orchestrator) return null
+    if (!this.orchestrator.isActiveSession()) return null
 
     const session = this.orchestrator.getUserSession()
     if (!session) return null
@@ -316,6 +219,13 @@ export class MatchmakingChatHandler {
             ? ('analyzing' as const)
             : ('questions' as const),
     }
+  }
+
+  /**
+   * Set mode on orchestrator (for external control)
+   */
+  setMode(mode: 'mamasan' | 'kokology' | 'profiling'): void {
+    this.orchestrator.setMode(mode)
   }
 }
 

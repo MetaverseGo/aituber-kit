@@ -59,20 +59,15 @@ export const MatchmakingProgress: React.FC<MatchmakingProgressProps> = ({
       stepData &&
       (stepData.phase === 'questions' || stepData.phase === 'analyzing')
     ) {
-      // Show question progress bar
+      // Show question progress bar during personality analysis
       console.log('Progress Bar - Showing questions progress')
       setStepProgress(stepData)
       setIsVisible(true)
-    } else if (completed) {
-      // Show stamina progress bar
-      console.log('Progress Bar - Showing stamina progress')
+    } else {
+      // Show stamina/familiarity bars by default (when NOT doing personality analysis)
+      console.log('Progress Bar - Showing stamina progress (default)')
       setStepProgress(null)
       setIsVisible(true)
-    } else {
-      // Hide progress bar
-      console.log('Progress Bar - Hiding')
-      setStepProgress(null)
-      setIsVisible(false)
     }
   }, [hasCompletedPersonalityAnalysis])
 
@@ -161,92 +156,88 @@ export const MatchmakingProgress: React.FC<MatchmakingProgressProps> = ({
     )
   }
 
-  // Show chat limits after personality analysis is complete
-  if (hasCompletedPersonalityAnalysis()) {
-    const remainingMessages = Math.max(
-      0,
-      DAILY_MESSAGE_LIMIT - chatStats.dailyMessages
-    )
-    const dailyPercentage = Math.min(
-      (remainingMessages / DAILY_MESSAGE_LIMIT) * 100,
-      100
-    )
-    const intimacyPercentage = Math.min(
-      (chatStats.intimacyLevel / 100) * 100,
-      100
-    )
+  // Show chat limits by default (always show when not doing personality analysis)
+  const remainingMessages = Math.max(
+    0,
+    DAILY_MESSAGE_LIMIT - chatStats.dailyMessages
+  )
+  const dailyPercentage = Math.min(
+    (remainingMessages / DAILY_MESSAGE_LIMIT) * 100,
+    100
+  )
+  const intimacyPercentage = Math.min(
+    (chatStats.intimacyLevel / 100) * 100,
+    100
+  )
 
-    const formatTimeUntilRefill = (ms: number): string => {
-      if (ms === 0 || remainingMessages === DAILY_MESSAGE_LIMIT) return ''
-      const minutes = Math.floor(ms / 60000)
-      const seconds = Math.floor((ms % 60000) / 1000)
-      return `${minutes}:${seconds.toString().padStart(2, '0')}`
-    }
-
-    const getIntimacyLevel = (points: number): string => {
-      if (points >= 75) return 'Best Friend'
-      if (points >= 50) return 'Close Friend'
-      if (points >= 25) return 'Friend'
-      if (points >= 10) return 'Acquaintance'
-      return 'Stranger'
-    }
-
-    return (
-      <div
-        className={`absolute top-0 left-0 right-0 z-50 bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg ${className}`}
-      >
-        <div className="px-4 py-2">
-          {/* Daily Messages */}
-          <div className="flex items-center justify-between mb-1">
-            <div className="flex items-center space-x-2">
-              <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center">
-                <span className="text-xs font-bold">💬</span>
-              </div>
-              <span className="font-semibold text-sm">
-                Stamina: {remainingMessages}/{DAILY_MESSAGE_LIMIT}
-                {formatTimeUntilRefill(timeUntilRefill) && (
-                  <span className="text-xs opacity-75 ml-2">
-                    +1 in {formatTimeUntilRefill(timeUntilRefill)}
-                  </span>
-                )}
-              </span>
-            </div>
-          </div>
-
-          {/* Daily Progress Bar */}
-          <div className="w-full bg-white/20 rounded-full h-1.5 mb-2">
-            <div
-              className="bg-white rounded-full h-1.5 transition-all duration-300 ease-out"
-              style={{ width: `${dailyPercentage}%` }}
-            />
-          </div>
-
-          {/* Intimacy Level */}
-          <div className="flex items-center justify-between mb-1">
-            <div className="flex items-center space-x-2">
-              <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center">
-                <span className="text-xs font-bold">💜</span>
-              </div>
-              <span className="font-semibold text-sm">
-                {getIntimacyLevel(chatStats.intimacyLevel)}:{' '}
-                {Math.floor(chatStats.intimacyLevel)}/100
-              </span>
-            </div>
-          </div>
-
-          {/* Intimacy Progress Bar */}
-          <div className="w-full bg-white/20 rounded-full h-1.5">
-            <div
-              className="bg-white rounded-full h-1.5 transition-all duration-300 ease-out"
-              style={{ width: `${intimacyPercentage}%` }}
-            />
-          </div>
-        </div>
-      </div>
-    )
+  const formatTimeUntilRefill = (ms: number): string => {
+    if (ms === 0 || remainingMessages === DAILY_MESSAGE_LIMIT) return ''
+    const minutes = Math.floor(ms / 60000)
+    const seconds = Math.floor((ms % 60000) / 1000)
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`
   }
 
-  return null
+  const getIntimacyLevel = (points: number): string => {
+    if (points >= 75) return 'Best Friend'
+    if (points >= 50) return 'Close Friend'
+    if (points >= 25) return 'Friend'
+    if (points >= 10) return 'Acquaintance'
+    return 'Stranger'
+  }
+
+  return (
+    <div
+      className={`absolute top-0 left-0 right-0 z-50 bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg ${className}`}
+    >
+      <div className="px-4 py-2">
+        {/* Daily Messages */}
+        <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center space-x-2">
+            <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center">
+              <span className="text-xs font-bold">💬</span>
+            </div>
+            <span className="font-semibold text-sm">
+              Stamina: {remainingMessages}/{DAILY_MESSAGE_LIMIT}
+              {formatTimeUntilRefill(timeUntilRefill) && (
+                <span className="text-xs opacity-75 ml-2">
+                  +1 in {formatTimeUntilRefill(timeUntilRefill)}
+                </span>
+              )}
+            </span>
+          </div>
+        </div>
+
+        {/* Daily Progress Bar */}
+        <div className="w-full bg-white/20 rounded-full h-1.5 mb-2">
+          <div
+            className="bg-white rounded-full h-1.5 transition-all duration-300 ease-out"
+            style={{ width: `${dailyPercentage}%` }}
+          />
+        </div>
+
+        {/* Intimacy Level */}
+        <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center space-x-2">
+            <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center">
+              <span className="text-xs font-bold">💜</span>
+            </div>
+            <span className="font-semibold text-sm">
+              {getIntimacyLevel(chatStats.intimacyLevel)}:{' '}
+              {Math.floor(chatStats.intimacyLevel)}/100
+            </span>
+          </div>
+        </div>
+
+        {/* Intimacy Progress Bar */}
+        <div className="w-full bg-white/20 rounded-full h-1.5">
+          <div
+            className="bg-white rounded-full h-1.5 transition-all duration-300 ease-out"
+            style={{ width: `${intimacyPercentage}%` }}
+          />
+        </div>
+      </div>
+    </div>
+  )
 }
 
 export default MatchmakingProgress

@@ -3,14 +3,36 @@ import { MatchProfile as IMatchProfile } from '@/types/matchmaking'
 
 interface MatchProfileDocument extends IMatchProfile, Document {}
 
+// Extend IMatchProfile to include mamasanState, stamina, and intimacyLevel
+export interface MamaSanState {
+  currentQuestion: number
+  answers: string[]
+  isComplete: boolean
+}
+
+// Add stamina and intimacyLevel to the type
+export interface MatchProfileWithStats extends IMatchProfile {
+  mamasanState?: MamaSanState
+  stamina?: number
+  intimacyLevel?: number
+}
+
+declare module '@/types/matchmaking' {
+  interface MatchProfile {
+    mamasanState?: MamaSanState
+    stamina?: number
+    intimacyLevel?: number
+  }
+}
+
 const PersonalityTraitSchema = new Schema({
   name: { type: String, required: true },
-  score: { type: Number, required: true, min: 0, max: 1 }
+  score: { type: Number, required: true, min: 0, max: 1 },
 })
 
 const PersonalityValueSchema = new Schema({
   name: { type: String, required: true },
-  importance: { type: Number, required: true, min: 0, max: 1 }
+  importance: { type: Number, required: true, min: 0, max: 1 },
 })
 
 const InterestSchema = new Schema({
@@ -18,14 +40,14 @@ const InterestSchema = new Schema({
   items: [
     {
       name: { type: String, required: true },
-      level: { type: Number, required: true, min: 0, max: 1 }
-    }
-  ]
+      level: { type: Number, required: true, min: 0, max: 1 },
+    },
+  ],
 })
 
 const LanguageSchema = new Schema({
   code: { type: String, required: true },
-  proficiency: { type: Number, required: true, min: 0, max: 1 }
+  proficiency: { type: Number, required: true, min: 0, max: 1 },
 })
 
 const ServiceSchema = new Schema({
@@ -34,27 +56,33 @@ const ServiceSchema = new Schema({
   isActive: { type: Boolean, default: true },
   availability: {
     days: [String],
-    hours: [Number]
-  }
+    hours: [Number],
+  },
 })
 
 const ActivitySchema = new Schema({
   name: { type: String, required: true },
   skill: { type: Number, required: true, min: 0, max: 1 },
-  enjoyment: { type: Number, required: true, min: 0, max: 1 }
+  enjoyment: { type: Number, required: true, min: 0, max: 1 },
 })
 
 const GameSchema = new Schema({
   name: { type: String, required: true },
   skill: { type: Number, required: true, min: 0, max: 1 },
-  playTime: { type: Number, required: true, min: 0 }
+  playTime: { type: Number, required: true, min: 0 },
 })
 
 const KokologyQuestionSchema = new Schema({
   id: { type: Number, required: true },
   question: { type: String, required: true },
   answer: { type: String },
-  timestamp: { type: Date, default: Date.now }
+  timestamp: { type: Date, default: Date.now },
+})
+
+const MamaSanStateSchema = new Schema({
+  currentQuestion: { type: Number, default: 0 },
+  answers: { type: [String], default: [] },
+  isComplete: { type: Boolean, default: false },
 })
 
 const MatchProfileSchema = new Schema<MatchProfileDocument>(
@@ -63,87 +91,99 @@ const MatchProfileSchema = new Schema<MatchProfileDocument>(
       type: String,
       required: true,
       unique: true,
-      index: true
+      index: true,
     },
     role: {
       type: String,
       enum: ['host', 'guest'],
-      required: true
+      required: true,
     },
     status: {
       type: String,
       enum: ['ONLINE', 'AWAY', 'OFFLINE', 'HOSTING', 'IN_ROOM'],
-      default: 'OFFLINE'
+      default: 'OFFLINE',
     },
     lastActive: {
       type: Date,
       default: Date.now,
-      index: true
+      index: true,
+    },
+    stamina: {
+      type: Number,
+      default: 10,
+      min: 0,
+      max: 100,
+    },
+    intimacyLevel: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 100,
     },
 
     // Core Profile Data
     profileData: {
       personality: {
         traits: [PersonalityTraitSchema],
-        values: [PersonalityValueSchema]
+        values: [PersonalityValueSchema],
       },
       interests: [InterestSchema],
       interactionStyle: String,
       confidenceScores: {
         personality: { type: Map, of: Number },
         interests: { type: Map, of: Number },
-        interactionStyle: Number
+        interactionStyle: Number,
       },
       sourceTracking: {
         personality: { type: Map, of: String },
         interests: { type: Map, of: String },
-        interactionStyle: String
+        interactionStyle: String,
       },
       capabilities: {
         languages: [LanguageSchema],
         services: [ServiceSchema],
         activities: [ActivitySchema],
         games: [GameSchema],
-        teachingStyle: String
+        teachingStyle: String,
       },
       preferences: {
         matchingPrefs: {
           languageImportance: Number,
           skillLevelPreference: {
             type: String,
-            enum: ['similar', 'better', 'any']
+            enum: ['similar', 'better', 'any'],
           },
           personalityTraits: [String],
           dealBreakers: [String],
           hostPreferences: {
             energyLevel: {
               type: String,
-              enum: ['high', 'medium', 'low']
+              enum: ['high', 'medium', 'low'],
             },
             teachingStyle: String,
             desiredServices: [
               {
                 name: String,
-                importance: Number
-              }
-            ]
+                importance: Number,
+              },
+            ],
           },
           guestPreferences: {
             skillLevel: {
               type: String,
-              enum: ['beginner', 'intermediate', 'advanced']
+              enum: ['beginner', 'intermediate', 'advanced'],
             },
             interactionStyle: {
               type: String,
-              enum: ['chatty', 'focused', 'mix']
+              enum: ['chatty', 'focused', 'mix'],
             },
             groupSize: {
               min: Number,
-              max: Number
-            }
-          }
-        }
-      }
+              max: Number,
+            },
+          },
+        },
+      },
     },
 
     // Vector Embeddings
@@ -151,7 +191,7 @@ const MatchProfileSchema = new Schema<MatchProfileDocument>(
       personality: [Number],
       interests: [Number],
       capabilities: [Number],
-      lastUpdated: Date
+      lastUpdated: Date,
     },
 
     // Session Management
@@ -165,9 +205,9 @@ const MatchProfileSchema = new Schema<MatchProfileDocument>(
           'personality_summary',
           'awaiting_gender',
           'personality_profiling',
-          'completed'
+          'completed',
         ],
-        default: 'idle'
+        default: 'idle',
       },
       step: { type: Number, default: 0 },
       missingFields: [String],
@@ -177,8 +217,14 @@ const MatchProfileSchema = new Schema<MatchProfileDocument>(
       personalityCategory: String,
       gender: {
         type: String,
-        enum: ['female', 'male']
-      }
+        enum: ['female', 'male'],
+      },
+    },
+
+    // MamaSan AI State
+    mamasanState: {
+      type: MamaSanStateSchema,
+      default: () => ({}),
     },
 
     // Matching History & Feedback
@@ -194,14 +240,14 @@ const MatchProfileSchema = new Schema<MatchProfileDocument>(
           comment: String,
           serviceQuality: Number,
           teachingQuality: Number,
-          wouldBookAgain: Boolean
+          wouldBookAgain: Boolean,
         },
         interactionMetrics: {
           messageCount: Number,
           duration: Number,
-          bookingMade: Boolean
-        }
-      }
+          bookingMade: Boolean,
+        },
+      },
     ],
 
     // Optimization Metrics
@@ -211,8 +257,8 @@ const MatchProfileSchema = new Schema<MatchProfileDocument>(
         {
           service: String,
           avgRating: Number,
-          count: Number
-        }
+          count: Number,
+        },
       ],
       successfulMatches: Number,
       bookingConversion: Number,
@@ -220,21 +266,21 @@ const MatchProfileSchema = new Schema<MatchProfileDocument>(
       complementaryScores: {
         teachingSuccess: Number,
         learningProgress: Number,
-        personalityMatch: Number
-      }
+        personalityMatch: Number,
+      },
     },
 
     completionStatus: {
       personality: Number,
       interests: Number,
       overall: Number,
-      lastUpdated: Date
+      lastUpdated: Date,
     },
 
-    profileHistory: [Schema.Types.Mixed]
+    profileHistory: [Schema.Types.Mixed],
   },
   {
-    timestamps: true
+    timestamps: true,
   }
 )
 
@@ -244,7 +290,7 @@ MatchProfileSchema.index({ 'currentSession.status': 1, lastActive: -1 })
 MatchProfileSchema.index({ 'matchingMetrics.averageRating': -1 })
 MatchProfileSchema.index({
   role: 1,
-  'profileData.capabilities.services.isActive': 1
+  'profileData.capabilities.services.isActive': 1,
 })
 MatchProfileSchema.index({ status: 1, lastActive: -1 })
 

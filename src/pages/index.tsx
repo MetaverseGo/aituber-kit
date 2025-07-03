@@ -61,6 +61,8 @@ const Home = () => {
     []
   )
 
+  const handleSendChat = handleSendChatFn()
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.shiftKey) {
@@ -106,8 +108,6 @@ const Home = () => {
         if (completed !== 'true') {
           // Wait a moment for app to fully initialize
           setTimeout(() => {
-            const handleSendChat = handleSendChatFn()
-            // Auto-trigger personality analysis with a welcome message
             handleSendChat('Hello')
           }, 1000)
         }
@@ -117,7 +117,7 @@ const Home = () => {
     }
 
     checkAndStartPersonalityAnalysis()
-  }, [])
+  }, [handleSendChat])
 
   return (
     <div className="h-[100svh] bg-cover" style={{ backgroundImage: bgUrl }}>

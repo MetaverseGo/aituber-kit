@@ -1,6 +1,6 @@
 import React from 'react'
 
-export default function DebugEnv () {
+export default function DebugEnv() {
   const nextPublicVars = {
     NEXT_PUBLIC_SELECT_VOICE: process.env.NEXT_PUBLIC_SELECT_VOICE,
     NEXT_PUBLIC_SELECT_AI_SERVICE: process.env.NEXT_PUBLIC_SELECT_AI_SERVICE,
@@ -25,8 +25,8 @@ export default function DebugEnv () {
         style={{ background: '#f0f0f0', padding: '10px', borderRadius: '5px' }}
       >
         {Object.keys(process.env)
-          .filter(key => key.startsWith('NEXT_PUBLIC_'))
-          .map(key => `${key}: ${process.env[key]}`)
+          .filter((key) => key.startsWith('NEXT_PUBLIC_'))
+          .map((key) => `${key}: ${process.env[key]}`)
           .join('\n')}
       </pre>
 
