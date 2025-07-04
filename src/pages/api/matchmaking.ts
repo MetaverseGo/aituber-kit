@@ -3,6 +3,7 @@ import MatchProfile from '@/models/MatchProfile'
 import { MatchmakingOrchestrator } from '@/features/matchmaking/matchmaking-orchestrator'
 import { MamaSanState } from '@/models/MatchProfile'
 import { getFirebaseAdmin } from '@/lib/firebase-admin'
+import { connectMongoDB } from '@/lib/mongodb'
 
 // Helper to get or create a MatchProfile for a UID
 async function getOrCreateProfile(uid: string) {
@@ -22,6 +23,8 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
+  await connectMongoDB()
+
   // Log request method and headers (masking sensitive info)
   console.log('[Matchmaking API] Incoming request:', {
     method: req.method,

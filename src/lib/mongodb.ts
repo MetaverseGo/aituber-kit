@@ -10,11 +10,16 @@ interface Connection {
 const connection: Connection = {}
 
 export async function connectMongoDB(): Promise<void> {
-  if (connection.isConnected) {
-    console.log('MongoDB already connected')
+  // 0 = disconnected, 1 = connected, 2 = connecting, 3 = disconnecting
+  if (mongoose.connection.readyState === 1) {
+    connection.isConnected = 1
+    console.log('MongoDB already connected (readyState=1)')
     return
   }
-
+  if (mongoose.connection.readyState === 2) {
+    console.log('MongoDB connection is in progress (readyState=2)')
+    return
+  }
   try {
     const mongoUri =
       process.env.MONGODB_URI ||
@@ -26,7 +31,11 @@ export async function connectMongoDB(): Promise<void> {
     })
 
     connection.isConnected = db.connections[0].readyState
-    console.log('MongoDB connected successfully')
+    console.log(
+      'MongoDB connected successfully (readyState=' +
+        db.connections[0].readyState +
+        ')'
+    )
   } catch (error) {
     console.error('MongoDB connection error:', error)
     throw error
@@ -34,7 +43,7 @@ export async function connectMongoDB(): Promise<void> {
 }
 
 export async function disconnectMongoDB(): Promise<void> {
-  if (connection.isConnected) {
+  if (mongoose.connection.readyState === 1) {
     await mongoose.disconnect()
     connection.isConnected = 0
     console.log('MongoDB disconnected')
