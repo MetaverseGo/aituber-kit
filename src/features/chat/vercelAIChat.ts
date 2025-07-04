@@ -68,7 +68,11 @@ export async function getVercelAIChatResponse(messages: Message[]) {
   } = getAIConfig()
 
   // APIエンドポイントを決定
-  const apiEndpoint = getApiEndpoint(selectAIService)
+  const relativeEndpoint = getApiEndpoint(selectAIService)
+  const isServer = typeof window === 'undefined'
+  const apiEndpoint = isServer
+    ? `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}${relativeEndpoint}`
+    : relativeEndpoint
 
   try {
     // 共通リクエストデータ

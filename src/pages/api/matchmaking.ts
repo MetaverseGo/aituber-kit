@@ -4,6 +4,7 @@ import { MatchmakingOrchestrator } from '@/features/matchmaking/matchmaking-orch
 import { MamaSanState } from '@/models/MatchProfile'
 import { getFirebaseAdmin } from '@/lib/firebase-admin'
 import { connectMongoDB } from '@/lib/mongodb'
+import settingsStore from '@/features/stores/settings'
 
 // Helper to get or create a MatchProfile for a UID
 async function getOrCreateProfile(uid: string) {
@@ -24,6 +25,15 @@ export default async function handler(
   res: NextApiResponse
 ) {
   await connectMongoDB()
+  // Log AI service environment and settings
+  console.log(
+    '[Matchmaking API] ENV NEXT_PUBLIC_SELECT_AI_SERVICE:',
+    process.env.NEXT_PUBLIC_SELECT_AI_SERVICE
+  )
+  console.log(
+    '[Matchmaking API] settingsStore.getState().selectAIService:',
+    settingsStore.getState().selectAIService
+  )
 
   // Log request method and headers (masking sensitive info)
   console.log('[Matchmaking API] Incoming request:', {

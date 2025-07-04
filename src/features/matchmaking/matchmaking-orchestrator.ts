@@ -129,14 +129,17 @@ export class MatchmakingOrchestrator {
 
     this.mamaSan = new MamaSanSpecialist()
 
-    // Initialize MamaSan state and try to restore from localStorage
+    // Initialize MamaSan state
     this.mamaSanState = { currentQuestion: 0, answers: [], isComplete: false }
     console.log('[Orchestrator] Initial mamaSanState:', this.mamaSanState)
-    this.restoreMamaSanState()
-    console.log(
-      '[Orchestrator] mamaSanState after restoration:',
-      this.mamaSanState
-    )
+    // Only restore from localStorage in the browser
+    if (typeof window !== 'undefined') {
+      this.restoreMamaSanState()
+      console.log(
+        '[Orchestrator] mamaSanState after restoration:',
+        this.mamaSanState
+      )
+    }
   }
 
   /**
@@ -1008,6 +1011,10 @@ export class MatchmakingOrchestrator {
 
   // New method to restore MamaSan state from localStorage
   private restoreMamaSanState(): void {
+    if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+      // Server environment: skip restoring from localStorage
+      return
+    }
     try {
       console.log('[MamaSan] Attempting to restore state from localStorage...')
       const sessionData = localStorage.getItem(this.sessionKey)
@@ -1015,15 +1022,7 @@ export class MatchmakingOrchestrator {
       if (sessionData) {
         const session = JSON.parse(sessionData)
         console.log('[MamaSan] Parsed session from localStorage:', session)
-
-        // Always check if there's valid MamaSan state, regardless of other session data
         if (session.mamasan) {
-          console.log(
-            '[MamaSan] Found mamasan state in session:',
-            session.mamasan
-          )
-
-          // Only restore if the MamaSan session is actually in progress
           if (
             !session.mamasan.isComplete &&
             (session.mamasan.currentQuestion > 0 ||
@@ -1052,10 +1051,12 @@ export class MatchmakingOrchestrator {
 
   // New method to save MamaSan state to localStorage
   private saveMamaSanState(): void {
+    if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+      // Server environment: skip saving to localStorage
+      return
+    }
     try {
       console.log('[MamaSan] Attempting to save state to localStorage...')
-
-      // Get existing session or create a new one
       let session = this.getSession()
       if (!session) {
         console.log('[MamaSan] No existing session found, creating new one')
@@ -1068,14 +1069,10 @@ export class MatchmakingOrchestrator {
         }
       } else {
         console.log('[MamaSan] Found existing session, updating MamaSan state')
-        // Update session metadata for MamaSan mode
         session.sessionId = this.currentSessionId || session.sessionId
         session.step = this.mamaSanState.currentQuestion
       }
-
-      // Always update the mamasan state
       session.mamasan = this.mamaSanState
-
       console.log(
         '[MamaSan] Saving session with updated MamaSan state:',
         session
