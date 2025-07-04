@@ -489,7 +489,7 @@ const Widget = () => {
           )}
 
           {/* Matchmaking Progress Bar */}
-          <MatchmakingProgress />
+          <MatchmakingProgress forceHidden={true} />
           <PersonalityPanel />
 
           {/* Main content */}

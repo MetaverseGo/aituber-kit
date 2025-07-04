@@ -8,12 +8,16 @@ import {
 
 interface MatchmakingProgressProps {
   className?: string
+  defaultVisible?: boolean
+  forceHidden?: boolean
 }
 
 export const MatchmakingProgress: React.FC<MatchmakingProgressProps> = ({
   className = '',
+  defaultVisible = true,
+  forceHidden = false,
 }) => {
-  const [isVisible, setIsVisible] = useState(false)
+  const [isVisible, setIsVisible] = useState(defaultVisible)
   const [stepProgress, setStepProgress] = useState<{
     current: number
     total: number
@@ -119,6 +123,9 @@ export const MatchmakingProgress: React.FC<MatchmakingProgressProps> = ({
 
     return () => clearInterval(updateStaminaTimer)
   }, [chatStats, timeUntilRefill])
+
+  // Now check forceHidden after all hooks
+  if (forceHidden) return null
 
   if (!isVisible) {
     return null
