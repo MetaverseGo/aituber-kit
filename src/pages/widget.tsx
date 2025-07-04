@@ -87,9 +87,9 @@ const Widget = () => {
     allowFullscreen: false,
   })
 
-  const modelType = settingsStore(s => s.modelType)
-  const backgroundImageUrl = homeStore(s => s.backgroundImageUrl)
-  const chatLog = homeStore(s => s.chatLog)
+  const modelType = settingsStore((s) => s.modelType)
+  const backgroundImageUrl = homeStore((s) => s.backgroundImageUrl)
+  const chatLog = homeStore((s) => s.chatLog)
 
   // Auth state
   const [isAuthenticated, setIsAuthenticated] = useState(false)
@@ -98,7 +98,7 @@ const Widget = () => {
 
   // Listen for WIDGET_AUTH event
   useEffect(() => {
-    function handleAuthEvent (event: MessageEvent) {
+    function handleAuthEvent(event: MessageEvent) {
       if (event.data) {
         console.log('[Widget] Received postMessage event:', event.data)
       }
@@ -242,7 +242,7 @@ const Widget = () => {
     const urlConfig: Partial<WidgetConfig> = {}
 
     // Parse all URL parameters
-    Object.keys(config).forEach(key => {
+    Object.keys(config).forEach((key) => {
       const value = urlParams.get(key)
       if (value !== null) {
         if (typeof config[key as keyof WidgetConfig] === 'boolean') {
@@ -260,7 +260,7 @@ const Widget = () => {
       urlConfig.backgroundColor = urlParams.get('backgroundColor') || undefined
     }
 
-    setConfig(prev => ({ ...prev, ...urlConfig }))
+    setConfig((prev) => ({ ...prev, ...urlConfig }))
 
     // Apply settings from URL
     if (urlConfig.characterModel) {
@@ -315,7 +315,7 @@ const Widget = () => {
 
     const handleMessage = (event: MessageEvent) => {
       if (event.data.type === 'WIDGET_CONFIG') {
-        setConfig(prev => ({ ...prev, ...event.data.config }))
+        setConfig((prev) => ({ ...prev, ...event.data.config }))
       }
 
       if (event.data.type === 'SEND_MESSAGE') {
@@ -417,12 +417,12 @@ const Widget = () => {
   const backgroundStyle = config.backgroundColor
     ? { backgroundColor: config.backgroundColor }
     : config.showBackground && backgroundImageUrl
-    ? {
-        backgroundImage: `url(${buildUrl(backgroundImageUrl)})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-      }
-    : {}
+      ? {
+          backgroundImage: `url(${buildUrl(backgroundImageUrl)})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+        }
+      : {}
 
   // Debug logging
   console.log('🎨 Widget - isPersonalityCompleted:', isPersonalityCompleted)
@@ -434,12 +434,12 @@ const Widget = () => {
   return (
     <>
       {!authChecked ? (
-        <div className='flex items-center justify-center h-screen text-lg'>
+        <div className="flex items-center justify-center h-screen text-lg">
           Loading...
         </div>
       ) : !isAuthenticated ? (
         <div
-          className='fixed inset-0 flex items-center justify-center w-screen h-screen'
+          className="fixed inset-0 flex items-center justify-center w-screen h-screen"
           style={{
             backgroundImage: "url('/backgrounds/static-noise.gif')",
             backgroundSize: 'cover',
@@ -472,16 +472,16 @@ const Widget = () => {
           {!audioContextReady && (
             <div
               onClick={handleUserInteraction}
-              className='absolute top-0 left-0 right-0 bg-blue-500 text-white text-sm py-2 px-4 z-50 cursor-pointer hover:bg-blue-600 transition-colors'
+              className="absolute top-0 left-0 right-0 bg-blue-500 text-white text-sm py-2 px-4 z-50 cursor-pointer hover:bg-blue-600 transition-colors"
             >
-              <div className='flex items-center justify-center gap-2'>
+              <div className="flex items-center justify-center gap-2">
                 <svg
-                  className='w-4 h-4'
-                  fill='currentColor'
-                  viewBox='0 0 24 24'
+                  className="w-4 h-4"
+                  fill="currentColor"
+                  viewBox="0 0 24 24"
                 >
-                  <path d='M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z' />
-                  <path d='M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z' />
+                  <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z" />
+                  <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z" />
                 </svg>
                 <span>Click to enable microphone & audio features</span>
               </div>
@@ -493,11 +493,11 @@ const Widget = () => {
           <PersonalityPanel />
 
           {/* Main content */}
-          <div className='absolute inset-0'>
+          <div className="absolute inset-0">
             {/* Character Display */}
             {config.showCharacter && (
               <div
-                className='absolute top-0 left-0 bottom-0 right-0 pointer-events-none z-0'
+                className="absolute top-0 left-0 bottom-0 right-0 pointer-events-none z-0"
                 style={{ paddingBottom: config.showInput ? '80px' : '0' }}
                 key={`character-${isPersonalityCompleted}`}
               >
@@ -509,9 +509,9 @@ const Widget = () => {
             {config.showChatLog && chatLog.length > 0 && config.showInput && (
               <div
                 ref={chatScrollRef}
-                className='absolute bottom-20 left-2 right-2 max-h-32 overflow-y-auto scroll-hidden z-10'
+                className="absolute bottom-20 left-2 right-2 max-h-32 overflow-y-auto scroll-hidden z-10"
               >
-                <div className='space-y-2 p-2'>
+                <div className="space-y-2 p-2">
                   {chatLog.slice(-2).map((msg, i) => {
                     const isUser = msg.role === 'user'
                     const alignment = isUser ? 'ml-auto' : 'mr-auto'
@@ -525,11 +525,11 @@ const Widget = () => {
                         className={`text-sm p-3 rounded-2xl max-w-[80%] ${bubbleColor} ${alignment}`}
                       >
                         {!isUser && (
-                          <div className='font-semibold text-xs mb-1 opacity-70'>
+                          <div className="font-semibold text-xs mb-1 opacity-70">
                             {settingsStore.getState().characterName}
                           </div>
                         )}
-                        <div className='leading-relaxed'>
+                        <div className="leading-relaxed">
                           {typeof msg.content === 'string'
                             ? msg.content.replace(/\[.*?\]/g, '')
                             : 'Image message'}
@@ -545,9 +545,9 @@ const Widget = () => {
             {config.showChatLog && chatLog.length > 0 && !config.showInput && (
               <div
                 ref={chatScrollRefHidden}
-                className='absolute bottom-2 left-2 right-2 max-h-32 overflow-y-auto scroll-hidden z-10'
+                className="absolute bottom-2 left-2 right-2 max-h-32 overflow-y-auto scroll-hidden z-10"
               >
-                <div className='space-y-2 p-2'>
+                <div className="space-y-2 p-2">
                   {chatLog.slice(-2).map((msg, i) => {
                     const isUser = msg.role === 'user'
                     const alignment = isUser ? 'ml-auto' : 'mr-auto'
@@ -561,11 +561,11 @@ const Widget = () => {
                         className={`text-sm p-3 rounded-2xl max-w-[80%] ${bubbleColor} ${alignment}`}
                       >
                         {!isUser && (
-                          <div className='font-semibold text-xs mb-1 opacity-70'>
+                          <div className="font-semibold text-xs mb-1 opacity-70">
                             {settingsStore.getState().characterName}
                           </div>
                         )}
-                        <div className='leading-relaxed'>
+                        <div className="leading-relaxed">
                           {typeof msg.content === 'string'
                             ? msg.content.replace(/\[.*?\]/g, '')
                             : 'Image message'}
@@ -579,8 +579,8 @@ const Widget = () => {
 
             {/* Input Form */}
             {config.showInput && (
-              <div className='absolute bottom-0 left-0 right-0 p-2 z-20'>
-                <div className='bg-white/95 backdrop-blur-sm rounded-lg shadow-lg'>
+              <div className="absolute bottom-0 left-0 right-0 p-2 z-20">
+                <div className="bg-white/95 backdrop-blur-sm rounded-lg shadow-lg">
                   <WidgetForm
                     showVoiceButton={config.showVoiceButton}
                     showSettingsButton={config.showSettingsButton}
@@ -600,20 +600,20 @@ const Widget = () => {
                   window.parent.postMessage({ type: 'TOGGLE_FULLSCREEN' }, '*')
                 }
               }}
-              className='absolute top-2 right-2 p-2 bg-white/80 hover:bg-white rounded-full shadow-lg z-30'
-              title='Toggle Fullscreen'
+              className="absolute top-2 right-2 p-2 bg-white/80 hover:bg-white rounded-full shadow-lg z-30"
+              title="Toggle Fullscreen"
             >
               <svg
-                className='w-4 h-4'
-                fill='none'
-                stroke='currentColor'
-                viewBox='0 0 24 24'
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
               >
                 <path
-                  strokeLinecap='round'
-                  strokeLinejoin='round'
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
                   strokeWidth={2}
-                  d='M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4'
+                  d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"
                 />
               </svg>
             </button>
