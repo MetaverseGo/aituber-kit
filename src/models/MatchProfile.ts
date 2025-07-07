@@ -15,6 +15,73 @@ export interface MatchProfileWithStats extends IMatchProfile {
   mamasanState?: MamaSanState
   stamina?: number
   intimacyLevel?: number
+  validationErrors?: Array<{
+    source: 'mamasan' | 'kokology' | 'profiler'
+    originalText: string
+    validationError: string
+    timestamp: Date
+    status: 'pending' | 'resolved' | 'ignore'
+    retryCount: number
+    context?: {
+      question?: string
+      userResponse?: string
+      attemptNumber?: number
+    }
+  }>
+  datingProfile?: {
+    physicalPreferences?: {
+      height?: string
+      build?: string
+      ethnicity?: string
+      style?: string
+      attractionTags?: string[]
+      dealBreakers?: string[]
+    }
+    relationshipStyle?: string
+    intimacyComfort?: string
+    dominanceStyle?: string
+    demographics?: {
+      agePreference?: {
+        min?: number
+        max?: number
+        preference?: string
+      }
+      locationImportance?: string
+      experienceLevel?: string
+    }
+    servicePreferences?: {
+      primaryServices?: string[]
+      mood?: string
+      interactionStyle?: string
+      conversationTopics?: string[]
+      sessionLength?: string
+    }
+    platformMetrics?: {
+      attractivenessRating?: number
+      personalityRating?: number
+      communicationRating?: number
+      gamingSkill?: number
+      entertainmentValue?: number
+      reliability?: number
+      friendliness?: number
+      responseTime?: number
+      sessionSuccessRate?: number
+      repeatClientRate?: number
+    }
+    contentPreferences?: {
+      explicitnessLevel?: string
+      boundaries?: string[]
+      specialties?: string[]
+      fantasies?: string[]
+    }
+    verification?: {
+      isVerified?: boolean
+      verificationMethod?: string
+      trustScore?: number
+      reportCount?: number
+      positiveReviews?: number
+    }
+  }
 }
 
 declare module '@/types/matchmaking' {
@@ -22,6 +89,73 @@ declare module '@/types/matchmaking' {
     mamasanState?: MamaSanState
     stamina?: number
     intimacyLevel?: number
+    validationErrors?: Array<{
+      source: 'mamasan' | 'kokology' | 'profiler'
+      originalText: string
+      validationError: string
+      timestamp: Date
+      status: 'pending' | 'resolved' | 'ignore'
+      retryCount: number
+      context?: {
+        question?: string
+        userResponse?: string
+        attemptNumber?: number
+      }
+    }>
+    datingProfile?: {
+      physicalPreferences?: {
+        height?: string
+        build?: string
+        ethnicity?: string
+        style?: string
+        attractionTags?: string[]
+        dealBreakers?: string[]
+      }
+      relationshipStyle?: string
+      intimacyComfort?: string
+      dominanceStyle?: string
+      demographics?: {
+        agePreference?: {
+          min?: number
+          max?: number
+          preference?: string
+        }
+        locationImportance?: string
+        experienceLevel?: string
+      }
+      servicePreferences?: {
+        primaryServices?: string[]
+        mood?: string
+        interactionStyle?: string
+        conversationTopics?: string[]
+        sessionLength?: string
+      }
+      platformMetrics?: {
+        attractivenessRating?: number
+        personalityRating?: number
+        communicationRating?: number
+        gamingSkill?: number
+        entertainmentValue?: number
+        reliability?: number
+        friendliness?: number
+        responseTime?: number
+        sessionSuccessRate?: number
+        repeatClientRate?: number
+      }
+      contentPreferences?: {
+        explicitnessLevel?: string
+        boundaries?: string[]
+        specialties?: string[]
+        fantasies?: string[]
+      }
+      verification?: {
+        isVerified?: boolean
+        verificationMethod?: string
+        trustScore?: number
+        reportCount?: number
+        positiveReviews?: number
+      }
+    }
   }
 }
 
@@ -121,6 +255,120 @@ const MatchProfileSchema = new Schema<MatchProfileDocument>(
       max: 100,
     },
 
+    // Online Dating & Fan Service Platform Fields
+    datingProfile: {
+      // Physical Appearance & Preferences
+      physicalPreferences: {
+        height: String, // "tall", "short", "any", specific ranges
+        build: String, // "slim", "athletic", "curvy", "muscular", etc.
+        ethnicity: String, // "Asian", "Latina", "any", etc.
+        style: String, // "cute", "elegant", "edgy", "casual", etc.
+        attractionTags: [String], // ["sexy", "innocent", "goth", "sporty"]
+        dealBreakers: [String], // physical deal-breakers
+      },
+
+      // Dating & Relationship Style
+      relationshipStyle: {
+        type: String,
+        default: 'casual',
+      },
+
+      intimacyComfort: {
+        type: String,
+        enum: [
+          'very-conservative',
+          'conservative',
+          'moderate',
+          'open',
+          'very-open',
+        ],
+        default: 'moderate',
+      },
+
+      dominanceStyle: {
+        type: String,
+        enum: ['dominant', 'submissive', 'switch', 'vanilla'],
+        default: 'vanilla',
+      },
+
+      // Demographics & Preferences
+      demographics: {
+        agePreference: {
+          min: Number,
+          max: Number,
+          preference: String, // "younger", "older", "same age", "any"
+        },
+        locationImportance: {
+          type: String,
+          enum: ['very-important', 'somewhat-important', 'not-important'],
+          default: 'somewhat-important',
+        },
+        experienceLevel: {
+          type: String,
+          enum: ['beginner', 'intermediate', 'experienced', 'expert'],
+          default: 'intermediate',
+        },
+      },
+
+      // Fan Service & Entertainment Preferences
+      servicePreferences: {
+        primaryServices: [String], // ["gaming", "chatting", "teaching", "companionship"]
+        mood: {
+          type: String,
+          default: 'friendly',
+        },
+        interactionStyle: {
+          type: String,
+          default: 'casual',
+        },
+        conversationTopics: [String], // ["anime", "gaming", "music", "lifestyle"]
+        sessionLength: {
+          type: String,
+          enum: ['short', 'medium', 'long', 'marathon'],
+          default: 'medium',
+        },
+      },
+
+      // Platform-Specific Ratings & Metrics
+      platformMetrics: {
+        // Tinder-style metrics
+        attractivenessRating: { type: Number, min: 0, max: 10, default: 5 },
+        personalityRating: { type: Number, min: 0, max: 10, default: 5 },
+        communicationRating: { type: Number, min: 0, max: 10, default: 5 },
+
+        // Epal.gg-style metrics
+        gamingSkill: { type: Number, min: 0, max: 10, default: 5 },
+        entertainmentValue: { type: Number, min: 0, max: 10, default: 5 },
+        reliability: { type: Number, min: 0, max: 10, default: 5 },
+        friendliness: { type: Number, min: 0, max: 10, default: 5 },
+
+        // General service metrics
+        responseTime: { type: Number, default: 0 }, // average in minutes
+        sessionSuccessRate: { type: Number, min: 0, max: 1, default: 0 },
+        repeatClientRate: { type: Number, min: 0, max: 1, default: 0 },
+      },
+
+      // Social & Content Preferences
+      contentPreferences: {
+        explicitnessLevel: {
+          type: String,
+          default: 'mild',
+        },
+        boundaries: [String], // what they won't do
+        specialties: [String], // what they're known for
+        fantasies: [String], // roleplay scenarios they enjoy
+      },
+
+      // Verification & Trust
+      verification: {
+        isVerified: { type: Boolean, default: false },
+        verificationMethod: String, // "photo", "video", "id", etc.
+        trustScore: { type: Number, min: 0, max: 100, default: 50 },
+        reportCount: { type: Number, default: 0 },
+        positiveReviews: { type: Number, default: 0 },
+      },
+    },
+
     // Core Profile Data
     profileData: {
       personality: {
@@ -158,7 +406,6 @@ const MatchProfileSchema = new Schema<MatchProfileDocument>(
           hostPreferences: {
             energyLevel: {
               type: String,
-              enum: ['high', 'medium', 'low'],
             },
             teachingStyle: String,
             desiredServices: [
@@ -175,7 +422,6 @@ const MatchProfileSchema = new Schema<MatchProfileDocument>(
             },
             interactionStyle: {
               type: String,
-              enum: ['chatty', 'focused', 'mix'],
             },
             groupSize: {
               min: Number,
@@ -191,6 +437,8 @@ const MatchProfileSchema = new Schema<MatchProfileDocument>(
       personality: [Number],
       interests: [Number],
       capabilities: [Number],
+      physicalPreferences: [Number], // New: for physical attraction matching
+      servicePreferences: [Number], // New: for service-based matching
       lastUpdated: Date,
     },
 
@@ -227,6 +475,31 @@ const MatchProfileSchema = new Schema<MatchProfileDocument>(
       default: () => ({}),
     },
 
+    // AI Response Validation Errors
+    validationErrors: [
+      {
+        source: {
+          type: String,
+          enum: ['mamasan', 'kokology', 'profiler'],
+          required: true,
+        },
+        originalText: { type: String, required: true },
+        validationError: { type: String, required: true },
+        timestamp: { type: Date, default: Date.now },
+        status: {
+          type: String,
+          enum: ['pending', 'resolved', 'ignore'],
+          default: 'pending',
+        },
+        retryCount: { type: Number, default: 0 },
+        context: {
+          question: String,
+          userResponse: String,
+          attemptNumber: Number,
+        },
+      },
+    ],
+
     // Matching History & Feedback
     matchHistory: [
       {
@@ -241,11 +514,19 @@ const MatchProfileSchema = new Schema<MatchProfileDocument>(
           serviceQuality: Number,
           teachingQuality: Number,
           wouldBookAgain: Boolean,
+          // Enhanced feedback for dating/fan service
+          attractiveness: Number, // 1-10 rating
+          personality: Number, // 1-10 rating
+          communication: Number, // 1-10 rating
+          entertainment: Number, // 1-10 rating
+          value: Number, // 1-10 rating
         },
         interactionMetrics: {
           messageCount: Number,
           duration: Number,
           bookingMade: Boolean,
+          tipAmount: Number, // for fan service platforms
+          repeated: Boolean, // if they booked again
         },
       },
     ],
@@ -267,6 +548,14 @@ const MatchProfileSchema = new Schema<MatchProfileDocument>(
         teachingSuccess: Number,
         learningProgress: Number,
         personalityMatch: Number,
+        physicalAttraction: Number, // New: for dating apps
+        serviceCompatibility: Number, // New: for fan service
+      },
+      // Revenue metrics for platforms
+      revenue: {
+        totalEarned: { type: Number, default: 0 },
+        averageSessionValue: { type: Number, default: 0 },
+        topServiceRevenue: String, // which service makes most money
       },
     },
 
@@ -274,6 +563,7 @@ const MatchProfileSchema = new Schema<MatchProfileDocument>(
       personality: Number,
       interests: Number,
       overall: Number,
+      datingProfile: Number, // New: completion of dating fields
       lastUpdated: Date,
     },
 

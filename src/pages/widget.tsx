@@ -7,6 +7,8 @@ import { Toasts } from '@/components/toasts'
 import MatchmakingProgress from '@/components/MatchmakingProgress'
 import PersonalityPanel from '@/components/PersonalityPanel'
 import ChatMenu from '@/components/ChatMenu'
+import VrmExpressionTester from '@/components/ui/VrmExpressionTester'
+import ProfileOverlay from '@/components/ui/ProfileOverlay'
 
 import homeStore from '@/features/stores/home'
 import settingsStore from '@/features/stores/settings'
@@ -43,6 +45,11 @@ interface WidgetConfig {
   // Parent communication
   postMessages?: boolean
   allowFullscreen?: boolean
+
+  // New config options
+  showVrmExpressionTester?: boolean
+  disableTTS?: boolean
+  showProfileOverlay?: boolean
 }
 
 // Audio context management for iframe compatibility
@@ -85,11 +92,22 @@ const Widget = () => {
     autoFocus: true,
     postMessages: false,
     allowFullscreen: false,
+    showVrmExpressionTester: false,
+    disableTTS: false,
+    showProfileOverlay: false,
   })
 
   const modelType = settingsStore((s) => s.modelType)
   const backgroundImageUrl = homeStore((s) => s.backgroundImageUrl)
   const chatLog = homeStore((s) => s.chatLog)
+
+  // Debug logging for profile overlay
+  useEffect(() => {
+    console.log('🎭 Widget - Config updated:')
+    console.log('  showProfileOverlay:', config.showProfileOverlay)
+    console.log('  showVrmExpressionTester:', config.showVrmExpressionTester)
+    console.log('  Full config:', config)
+  }, [config])
 
   // Auth state
   const [isAuthenticated, setIsAuthenticated] = useState(false)
@@ -590,6 +608,30 @@ const Widget = () => {
                 </div>
               </div>
             )}
+
+            {/* VrmExpressionTester */}
+            {modelType === 'vrm' && config.showVrmExpressionTester && (
+              <VrmExpressionTester />
+            )}
+          </div>
+
+          {/* Profile Overlay - Always show for debugging */}
+          <ProfileOverlay />
+
+          {/* Debug button to test overlay */}
+          <div className="fixed top-4 left-4 z-50">
+            <button
+              onClick={() =>
+                setConfig((prev) => ({
+                  ...prev,
+                  showProfileOverlay: !prev.showProfileOverlay,
+                }))
+              }
+              className="px-3 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600"
+            >
+              Toggle Profile Overlay ({config.showProfileOverlay ? 'ON' : 'OFF'}
+              )
+            </button>
           </div>
 
           {/* Fullscreen Button */}

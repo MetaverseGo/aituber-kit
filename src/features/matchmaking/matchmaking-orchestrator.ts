@@ -2,6 +2,9 @@ import { KokologyAnalyst } from './kokology-analyst'
 import { PersonalityWriter } from './personality-writer'
 import { PersonalityProfiler } from './personality-profiler'
 import { MamaSanSpecialist } from './mama-san-specialist'
+import { createResponseProcessor } from '@/lib/ai-response-processor'
+import { ValidationError } from '@/lib/ai-validation'
+import { recordQuestionAsked } from './profile-questions'
 import {
   MatchmakingResult,
   MatchmakingConfig,
@@ -90,6 +93,7 @@ export class MatchmakingOrchestrator {
   private mamaSan: MamaSanSpecialist
   private config: MatchmakingConfig
   private sessionKey: string
+  private userId: string
 
   // Core state management
   private isActive: boolean = false
@@ -102,6 +106,7 @@ export class MatchmakingOrchestrator {
 
   constructor(userId: string, config: MatchmakingConfig = {}) {
     console.log('[Orchestrator] Constructor called for userId:', userId)
+    this.userId = userId
     this.config = {
       kokologyPersonality: 'emi',
       writerPersonality: 'emi',
@@ -127,7 +132,11 @@ export class MatchmakingOrchestrator {
       personality: this.config.profilerPersonality!,
     })
 
-    this.mamaSan = new MamaSanSpecialist()
+    this.mamaSan = new MamaSanSpecialist({
+      personality: 'emi',
+      questionCount: this.config.questionCount,
+      userId: userId,
+    })
 
     // Initialize MamaSan state
     this.mamaSanState = { currentQuestion: 0, answers: [], isComplete: false }
@@ -290,127 +299,316 @@ export class MatchmakingOrchestrator {
     message: string,
     sessionId: string
   ): Promise<MatchmakingResult> {
-    // Always restore the latest MamaSan state from localStorage to ensure correct progression
-    this.restoreMamaSanState()
-    console.log('[MamaSan] Processing message:', { message, sessionId })
-    console.log('[MamaSan] Current state before processing:', {
-      currentQuestion: this.mamaSanState.currentQuestion,
-      answersLength: this.mamaSanState.answers.length,
-      isComplete: this.mamaSanState.isComplete,
-      answers: this.mamaSanState.answers,
-    })
+    console.log('🎭 Orchestrator - processMamaSanMode START')
+    console.log('🎭 Orchestrator - Message:', message)
+    console.log('🎭 Orchestrator - SessionId:', sessionId)
 
-    // Only treat as a new session if the message is a start trigger
-    const isNewSession =
-      this.mamaSanState.currentQuestion === 0 &&
-      this.mamaSanState.answers.length === 0 &&
-      isMamaSanStartTrigger(message)
+    try {
+      // Always restore the latest MamaSan state from localStorage to ensure correct progression
+      console.log('🎭 Orchestrator - Restoring MamaSan state...')
+      this.restoreMamaSanState()
+      console.log('🎭 Orchestrator - MamaSan state restored')
 
-    // If session is just starting, greet and ask first question
-    if (isNewSession) {
-      console.log(
-        '[MamaSan] Detected new session - currentQuestion=0, answers.length=0, and start trigger message'
-      )
-      this.mamaSanState.currentQuestion = 0
-      this.mamaSanState.answers = []
-      this.mamaSanState.isComplete = false
+      console.log('[MamaSan] Processing message:', { message, sessionId })
+      console.log('[MamaSan] Current state before processing:', {
+        currentQuestion: this.mamaSanState.currentQuestion,
+        answersLength: this.mamaSanState.answers.length,
+        isComplete: this.mamaSanState.isComplete,
+        answers: this.mamaSanState.answers,
+      })
 
-      // Save initial state
-      this.saveMamaSanState()
+      // Only treat as a new session if the message is a start trigger
+      const isNewSession =
+        this.mamaSanState.currentQuestion === 0 &&
+        this.mamaSanState.answers.length === 0 &&
+        isMamaSanStartTrigger(message)
 
-      const intro = this.mamaSan.getIntro()
-      const firstQ = this.mamaSan.getCurrentQuestion(this.mamaSanState)
-      console.log('[MamaSan] New session started. Greeting:', intro)
-      console.log('[MamaSan] Asking first question:', firstQ)
-      return {
-        message: intro + '\n' + firstQ,
-        isComplete: false,
-        step: 'mamasan_0',
+      console.log('🎭 Orchestrator - Is new session:', isNewSession)
+
+      // If session is just starting, greet and ask first question
+      if (isNewSession) {
+        console.log(
+          '[MamaSan] Detected new session - currentQuestion=0, answers.length=0, and start trigger message'
+        )
+        this.mamaSanState.currentQuestion = 0
+        this.mamaSanState.answers = []
+        this.mamaSanState.isComplete = false
+
+        console.log('🎭 Orchestrator - Saving initial MamaSan state...')
+        // Save initial state
+        this.saveMamaSanState()
+        console.log('🎭 Orchestrator - Initial state saved')
+
+        console.log('🎭 Orchestrator - Getting intro and first question...')
+        const intro = this.mamaSan.getIntro()
+        const firstQ = this.mamaSan.getCurrentQuestion(this.mamaSanState)
+        console.log('[MamaSan] New session started. Greeting:', intro)
+        console.log('[MamaSan] Asking first question:', firstQ)
+
+        const result = {
+          message: intro + '\n' + firstQ,
+          isComplete: false,
+          step: 'mamasan_0',
+        }
+        console.log('🎭 Orchestrator - Returning new session result:', result)
+        return result
       }
-    }
 
-    console.log('[MamaSan] Continuing existing session')
-    // Analyze user response to current question
-    const question = this.mamaSan.getCurrentQuestion(this.mamaSanState)
-    console.log('[MamaSan] Analyzing user response:', {
-      question,
-      userMessage: message,
-      currentQuestionIndex: this.mamaSanState.currentQuestion,
-    })
-    const analysis = await this.mamaSan.analyzeResponse(question, message)
+      console.log('[MamaSan] Continuing existing session')
 
-    console.log('[MamaSan] Analysis result:', analysis)
-
-    if (!analysis.answered) {
-      // If not answered, repeat the question
-      console.log(
-        '[MamaSan] User response did not answer the question. Re-asking:',
-        question
+      // Check if we're in continuous profiling mode
+      const isInContinuousMode = this.mamaSan.isInContinuousMode(
+        this.mamaSanState
       )
-      return {
-        message: `hmm, i didn't quite get that! ${question}`,
-        isComplete: false,
-        step: `mamasan_${this.mamaSanState.currentQuestion}`,
-      }
-    }
+      console.log('[MamaSan] Is in continuous mode:', isInContinuousMode)
 
-    console.log('[MamaSan] User answered the question, moving to next...')
-    console.log('[MamaSan] State before updating:', {
-      currentQuestion: this.mamaSanState.currentQuestion,
-      answersLength: this.mamaSanState.answers.length,
-      answers: this.mamaSanState.answers,
-    })
+      if (isInContinuousMode) {
+        console.log('[MamaSan] Processing continuous profiling response')
 
-    // Save answer and move to next question
-    this.mamaSanState.answers[this.mamaSanState.currentQuestion] = message
-    this.mamaSanState.currentQuestion++
+        // Record the previous question and response if available
+        try {
+          const lastQuestion = localStorage.getItem('mamasan_last_question')
+          if (lastQuestion && lastQuestion !== 'undefined') {
+            console.log(
+              '🎭 Orchestrator - Recording previous question response:',
+              lastQuestion
+            )
+            await recordQuestionAsked(this.userId, lastQuestion, message, false)
+            console.log(
+              '🎭 Orchestrator - Question response recorded successfully'
+            )
+          }
+        } catch (error) {
+          console.error(
+            '🎭 Orchestrator - Error recording question response:',
+            error
+          )
+        }
 
-    console.log('[MamaSan] State after updating:', {
-      currentQuestion: this.mamaSanState.currentQuestion,
-      answersLength: this.mamaSanState.answers.length,
-      answers: this.mamaSanState.answers,
-    })
+        // Always analyze response for profile updates in continuous mode
+        console.log(
+          '🎭 Orchestrator - Analyzing continuous response for profile updates...'
+        )
+        const analysis = await this.mamaSan.analyzeResponse(
+          'continuous conversation',
+          message
+        )
+        console.log('🎭 Orchestrator - Continuous analysis result:', analysis)
 
-    // Save state after updating
-    this.saveMamaSanState()
+        // Get user profile for question generation (if available)
+        let userProfile = null
+        try {
+          const profileData = localStorage.getItem('user_profile')
+          if (profileData) {
+            userProfile = JSON.parse(profileData)
+          }
+        } catch (error) {
+          console.log(
+            '🎭 Orchestrator - No user profile available for continuous mode:',
+            error
+          )
+        }
 
-    // If more questions, ask next
-    if (!this.mamaSan.isSessionComplete(this.mamaSanState)) {
-      const nextQ = this.mamaSan.getCurrentQuestion(this.mamaSanState)
-      console.log('[MamaSan] Moving to next question:', nextQ)
-      return {
-        message: nextQ,
-        isComplete: false,
-        step: `mamasan_${this.mamaSanState.currentQuestion}`,
-      }
-    } else {
-      // All questions answered, recommend hosts
-      this.mamaSanState.isComplete = true
+        // Generate next continuous question
+        console.log('🎭 Orchestrator - Generating next continuous question...')
+        const continuousQuestion =
+          await this.mamaSan.generateContinuousQuestion(userProfile)
 
-      // Save final state
-      this.saveMamaSanState()
+        // Store the question for next response tracking
+        localStorage.setItem('mamasan_last_question', continuousQuestion)
 
-      const searchQuery = this.mamaSan.buildSearchQuery(this.mamaSanState)
-      console.log(
-        '[MamaSan] All questions answered. Recommending hosts. Search query:',
-        searchQuery
-      )
-
-      // Mark session as complete
-      this.isActive = false
-      this.currentSessionId = null
-
-      return {
-        message: this.mamaSan.getRecommendationPrompt(this.mamaSanState),
-        isComplete: true,
-        step: 'mamasan_recommend',
-        data: {
-          mamasan: {
-            searchQuery,
-            answers: this.mamaSanState.answers,
+        const result = {
+          message: continuousQuestion,
+          isComplete: false,
+          step: 'mamasan_continuous',
+          data: {
+            mamasan: {
+              searchQuery: this.mamaSan.buildSearchQuery(this.mamaSanState),
+              answers: this.mamaSanState.answers,
+            },
+            mode: 'continuous',
+            onboardingComplete: true,
           },
-        },
+        }
+        console.log(
+          '🎭 Orchestrator - Returning continuous conversation result:',
+          result
+        )
+        return result
       }
+
+      // Analyze user response to current question (onboarding mode)
+      const question = this.mamaSan.getCurrentQuestion(this.mamaSanState)
+      console.log('[MamaSan] Analyzing user response to onboarding question:', {
+        question,
+        userMessage: message,
+        currentQuestionIndex: this.mamaSanState.currentQuestion,
+      })
+
+      console.log('🎭 Orchestrator - Calling MamaSan analyzeResponse...')
+      const analysis = await this.mamaSan.analyzeResponse(question, message)
+      console.log('🎭 Orchestrator - Analysis received from MamaSan')
+
+      console.log('[MamaSan] Analysis result:', analysis)
+
+      if (!analysis.answered) {
+        // If not answered, repeat the question
+        console.log(
+          '[MamaSan] User response did not answer the question. Re-asking:',
+          question
+        )
+        const result = {
+          message: `hmm, i didn't quite get that! ${question}`,
+          isComplete: false,
+          step: `mamasan_${this.mamaSanState.currentQuestion}`,
+        }
+        console.log('🎭 Orchestrator - Returning re-ask result:', result)
+        return result
+      }
+
+      console.log('[MamaSan] User answered the question, moving to next...')
+      console.log('[MamaSan] State before updating:', {
+        currentQuestion: this.mamaSanState.currentQuestion,
+        answersLength: this.mamaSanState.answers.length,
+        answers: this.mamaSanState.answers,
+      })
+
+      // Save answer and move to next question
+      this.mamaSanState.answers[this.mamaSanState.currentQuestion] = message
+      this.mamaSanState.currentQuestion++
+
+      console.log('[MamaSan] State after updating:', {
+        currentQuestion: this.mamaSanState.currentQuestion,
+        answersLength: this.mamaSanState.answers.length,
+        answers: this.mamaSanState.answers,
+      })
+
+      console.log('🎭 Orchestrator - Saving updated MamaSan state...')
+      // Save state after updating
+      this.saveMamaSanState()
+      console.log('🎭 Orchestrator - Updated state saved')
+
+      // If more questions, ask next
+      if (!this.mamaSan.isSessionComplete(this.mamaSanState)) {
+        console.log(
+          '🎭 Orchestrator - More questions remain, generating transition...'
+        )
+        // Use the new transition method for smooth conversational flow
+        const prevState = {
+          ...this.mamaSanState,
+          currentQuestion: this.mamaSanState.currentQuestion - 1, // Get previous state for transition
+          answers: this.mamaSanState.answers.slice(0, -1), // Remove the last answer to get previous state
+        }
+
+        console.log('🎭 Orchestrator - Calling getResponseWithTransition...')
+        const transitionResponse = await this.mamaSan.getResponseWithTransition(
+          prevState,
+          message
+        )
+        console.log(
+          '[MamaSan] Generated transition response:',
+          transitionResponse
+        )
+
+        const result = {
+          message: transitionResponse,
+          isComplete: false,
+          step: `mamasan_${this.mamaSanState.currentQuestion}`,
+        }
+        console.log('🎭 Orchestrator - Returning transition result:', result)
+        return result
+      } else {
+        console.log(
+          '🎭 Orchestrator - Initial questions completed, entering continuous profiling mode...'
+        )
+
+        // Switch to continuous profiling mode
+        this.mamaSanState.isComplete = false // Keep session active for continuous profiling
+        this.saveMamaSanState()
+
+        // Mark onboarding completion in localStorage but keep session active
+        console.log(
+          '🎭 Orchestrator - Setting localStorage onboarding completion...'
+        )
+        localStorage.setItem('mamasan_onboarding_completed', 'true')
+
+        console.log('🎭 Orchestrator - Generating continuous question...')
+
+        // Get user profile for question generation (if available)
+        let userProfile = null
+        try {
+          const profileData = localStorage.getItem('user_profile')
+          if (profileData) {
+            userProfile = JSON.parse(profileData)
+          }
+        } catch (error) {
+          console.log('🎭 Orchestrator - No user profile available:', error)
+        }
+
+        // Generate next continuous question
+        const continuousQuestion =
+          await this.mamaSan.generateContinuousQuestion(userProfile)
+
+        // Store the question for next response tracking
+        localStorage.setItem('mamasan_last_question', continuousQuestion)
+
+        const result = {
+          message: continuousQuestion,
+          isComplete: false, // Keep session active
+          step: 'mamasan_continuous',
+          data: {
+            mamasan: {
+              searchQuery: this.mamaSan.buildSearchQuery(this.mamaSanState),
+              answers: this.mamaSanState.answers,
+            },
+            stepProgress: {
+              current: this.mamaSanState.currentQuestion,
+              total: this.mamaSan.getQuestionCount(),
+              label: 'Continuous Profiling',
+              phase: 'questions' as const,
+            },
+            mode: 'continuous',
+            onboardingComplete: true,
+          },
+        }
+        console.log(
+          '🎭 Orchestrator - Returning continuous profiling result:',
+          result
+        )
+        return result
+      }
+    } catch (error) {
+      console.error(
+        '🎭 Orchestrator - CRITICAL ERROR in processMamaSanMode:',
+        error
+      )
+      console.error('🎭 Orchestrator - Error type:', typeof error)
+      console.error(
+        '🎭 Orchestrator - Error constructor:',
+        error?.constructor?.name
+      )
+      console.error('🎭 Orchestrator - Error message:', (error as any)?.message)
+      console.error('🎭 Orchestrator - Error stack:', (error as any)?.stack)
+      console.error('🎭 Orchestrator - Current state when error occurred:', {
+        message,
+        sessionId,
+        mamaSanState: this.mamaSanState,
+        isActive: this.isActive,
+        currentSessionId: this.currentSessionId,
+        mode: this.mode,
+      })
+
+      // Return error result
+      const errorResult = {
+        message: "Sorry, I had a technical issue. Let's try that again!",
+        isComplete: false,
+        step: 'error_recovery',
+      }
+      console.log(
+        '🎭 Orchestrator - Returning error recovery result:',
+        errorResult
+      )
+      return errorResult
     }
   }
 
@@ -1096,6 +1294,7 @@ export class MatchmakingOrchestrator {
     isComplete: boolean
     step: string
     updatedState: MamaSanSessionState
+    profileUpdates: any
     data?: any
   }> {
     // Only treat as a new session if the message is a start trigger
@@ -1112,6 +1311,7 @@ export class MatchmakingOrchestrator {
         isComplete: false,
         step: 'mamasan_0',
         updatedState: { currentQuestion: 0, answers: [], isComplete: false },
+        profileUpdates: {},
       }
     }
 
@@ -1119,14 +1319,29 @@ export class MatchmakingOrchestrator {
     const question = this.mamaSan.getCurrentQuestion(mamasanState)
     const analysis = await this.mamaSan.analyzeResponse(question, message)
 
+    console.log('📋 Orchestrator - MamaSan Analysis Result:')
+    console.log('  Answered:', analysis.answered)
+    console.log('  Profile Updates:', analysis.profileUpdates)
+    console.log('  Validation Errors:', analysis.validationErrors?.length || 0)
+    console.log('  Used Fallback:', analysis.usedFallback || false)
+
     if (!analysis.answered) {
+      // User didn't really answer the question, ask again with guidance
+      const transitionResponse = await this.mamaSan.getResponseWithTransition(
+        mamasanState,
+        message
+      )
       return {
-        message: `hmm, i didn't quite get that! ${question}`,
+        message: transitionResponse,
         isComplete: false,
         step: `mamasan_${mamasanState.currentQuestion}`,
         updatedState: { ...mamasanState },
+        profileUpdates: {},
       }
     }
+
+    // Note: Validation errors and profile updates are now handled automatically
+    // by the MamaSan specialist's response processor
 
     // Save answer and move to next question
     const newAnswers = [...mamasanState.answers]
@@ -1138,24 +1353,110 @@ export class MatchmakingOrchestrator {
       currentQuestion: nextQuestion,
     }
 
+    // Prepare profile updates from AI analysis
+    const profileUpdates: any = {}
+    if (analysis.profileUpdates) {
+      console.log(
+        '🌸 MamaSan - Processing profile updates:',
+        analysis.profileUpdates
+      )
+
+      // Map the AI analysis to MongoDB structure
+      if (analysis.profileUpdates.physicalPreferences) {
+        profileUpdates['datingProfile.physicalPreferences'] =
+          analysis.profileUpdates.physicalPreferences
+      }
+
+      if (analysis.profileUpdates.personality) {
+        if (analysis.profileUpdates.personality.energyLevel) {
+          profileUpdates['datingProfile.servicePreferences.mood'] =
+            analysis.profileUpdates.personality.energyLevel
+        }
+        if (analysis.profileUpdates.personality.dominanceStyle) {
+          profileUpdates['datingProfile.dominanceStyle'] =
+            analysis.profileUpdates.personality.dominanceStyle
+        }
+        if (analysis.profileUpdates.personality.seekingTraits) {
+          profileUpdates[
+            'profileData.preferences.matchingPrefs.personalityTraits'
+          ] = analysis.profileUpdates.personality.seekingTraits
+        }
+      }
+
+      if (analysis.profileUpdates.interests) {
+        if (analysis.profileUpdates.interests.categories) {
+          profileUpdates['datingProfile.servicePreferences.primaryServices'] =
+            analysis.profileUpdates.interests.categories
+        }
+        if (analysis.profileUpdates.interests.specificItems) {
+          profileUpdates[
+            'datingProfile.servicePreferences.conversationTopics'
+          ] = analysis.profileUpdates.interests.specificItems
+        }
+      }
+
+      if (analysis.profileUpdates.preferences) {
+        if (analysis.profileUpdates.preferences.moodSeeking) {
+          profileUpdates['datingProfile.servicePreferences.mood'] =
+            analysis.profileUpdates.preferences.moodSeeking
+        }
+        if (analysis.profileUpdates.preferences.interactionStyle) {
+          profileUpdates['datingProfile.servicePreferences.interactionStyle'] =
+            analysis.profileUpdates.preferences.interactionStyle
+        }
+        if (analysis.profileUpdates.preferences.serviceTypes) {
+          profileUpdates['datingProfile.servicePreferences.primaryServices'] =
+            analysis.profileUpdates.preferences.serviceTypes
+        }
+        if (analysis.profileUpdates.preferences.conversationTopics) {
+          profileUpdates[
+            'datingProfile.servicePreferences.conversationTopics'
+          ] = analysis.profileUpdates.preferences.conversationTopics
+        }
+      }
+
+      if (analysis.profileUpdates.demographics) {
+        if (analysis.profileUpdates.demographics.agePreference) {
+          profileUpdates[
+            'datingProfile.demographics.agePreference.preference'
+          ] = analysis.profileUpdates.demographics.agePreference
+        }
+        if (analysis.profileUpdates.demographics.experienceLevel) {
+          profileUpdates['datingProfile.demographics.experienceLevel'] =
+            analysis.profileUpdates.demographics.experienceLevel
+        }
+      }
+    }
+
     // If more questions, ask next
     if (!this.mamaSan.isSessionComplete(updatedState)) {
-      const nextQ = this.mamaSan.getCurrentQuestion(updatedState)
+      // Use the new transition method for smooth conversational flow
+      const transitionResponse = await this.mamaSan.getResponseWithTransition(
+        mamasanState, // Use the previous state to get current question
+        message
+      )
       return {
-        message: nextQ,
+        message: transitionResponse,
         isComplete: false,
         step: `mamasan_${updatedState.currentQuestion}`,
         updatedState,
+        profileUpdates,
       }
     } else {
       // All questions answered, recommend hosts
       updatedState.isComplete = true
       const searchQuery = this.mamaSan.buildSearchQuery(updatedState)
+      // Use transition for final response too
+      const finalTransition = await this.mamaSan.getResponseWithTransition(
+        mamasanState,
+        message
+      )
       return {
-        message: this.mamaSan.getRecommendationPrompt(updatedState),
+        message: finalTransition,
         isComplete: true,
         step: 'mamasan_recommend',
         updatedState,
+        profileUpdates,
         data: {
           mamasan: {
             searchQuery,

@@ -17,6 +17,16 @@ import { SYSTEM_PROMPT_EN } from '@/features/constants/systemPromptConstants'
 // セッションIDを生成する関数
 const generateSessionId = () => generateMessageId()
 
+/**
+ * Check if TTS is disabled via URL parameter
+ * This is used to conditionally disable TTS in widget contexts
+ */
+const isTTSDisabled = (): boolean => {
+  if (typeof window === 'undefined') return false
+  const urlParams = new URLSearchParams(window.location.search)
+  return urlParams.get('disableTTS') === 'true'
+}
+
 // コードブロックのデリミネーター
 const CODE_DELIMITER = '```'
 
@@ -31,12 +41,19 @@ if (typeof window !== 'undefined') {
   window.addEventListener('message', (event) => {
     if (event.data && event.data.type === 'WIDGET_AUTH' && event.data.token) {
       widgetAuthToken = event.data.token
+      // Also store it globally for other components to access
+      ;(window as any).widgetAuthToken = event.data.token
     }
   })
 }
 
 // Utility to get the widget's current auth token
 async function getWidgetAuthToken(): Promise<string> {
+  return widgetAuthToken || ''
+}
+
+// Export a synchronous version for other components to use
+export function getCurrentWidgetAuthToken(): string {
   return widgetAuthToken || ''
 }
 
@@ -170,24 +187,27 @@ const handleSpeakAndStateUpdate = (
     return
   }
 
-  speakCharacter(
-    sessionId,
-    { message: sentence, emotion: emotion },
-    () => {
-      hs.incrementChatProcessingCount()
-      currentSlideMessagesRef.current.push(sentence)
-      homeStore.setState({
-        slideMessages: [...currentSlideMessagesRef.current],
-      })
-    },
-    () => {
-      hs.decrementChatProcessingCount()
-      currentSlideMessagesRef.current.shift()
-      homeStore.setState({
-        slideMessages: [...currentSlideMessagesRef.current],
-      })
-    }
-  )
+  // Only trigger TTS if not disabled
+  if (!isTTSDisabled()) {
+    speakCharacter(
+      sessionId,
+      { message: sentence, emotion: emotion },
+      () => {
+        hs.incrementChatProcessingCount()
+        currentSlideMessagesRef.current.push(sentence)
+        homeStore.setState({
+          slideMessages: [...currentSlideMessagesRef.current],
+        })
+      },
+      () => {
+        hs.decrementChatProcessingCount()
+        currentSlideMessagesRef.current.shift()
+        homeStore.setState({
+          slideMessages: [...currentSlideMessagesRef.current],
+        })
+      }
+    )
+  }
 }
 
 /**
@@ -904,27 +924,30 @@ export const handleReceiveTextFromWsFn =
       if (role === 'assistant' && text !== '') {
         try {
           // 文ごとに音声を生成 & 再生、返答を表示
-          speakCharacter(
-            sessionId,
-            {
-              message: text,
-              emotion: emotion,
-            },
-            () => {
-              const lastMessage = hs.chatLog[hs.chatLog.length - 1]
-              const content =
-                typeof lastMessage.content === 'string'
-                  ? lastMessage.content
-                  : ''
+          // Only trigger TTS if not disabled
+          if (!isTTSDisabled()) {
+            speakCharacter(
+              sessionId,
+              {
+                message: text,
+                emotion: emotion,
+              },
+              () => {
+                const lastMessage = hs.chatLog[hs.chatLog.length - 1]
+                const content =
+                  typeof lastMessage.content === 'string'
+                    ? lastMessage.content
+                    : ''
 
-              homeStore.setState({
-                assistantMessage: content,
-              })
-            },
-            () => {
-              // hs.decrementChatProcessingCount()
-            }
-          )
+                homeStore.setState({
+                  assistantMessage: content,
+                })
+              },
+              () => {
+                // hs.decrementChatProcessingCount()
+              }
+            )
+          }
         } catch (e) {
           console.error('Error in speakCharacter:', e)
         }
@@ -982,16 +1005,19 @@ export const handleReceiveTextFromRtFn = () => {
       if (type?.includes('response.audio') && buffer !== undefined) {
         console.log('response.audio:')
         try {
-          speakCharacter(
-            sessionId,
-            {
-              emotion: 'neutral',
-              message: '',
-              buffer: buffer,
-            },
-            () => {},
-            () => {}
-          )
+          // Only trigger TTS if not disabled
+          if (!isTTSDisabled()) {
+            speakCharacter(
+              sessionId,
+              {
+                emotion: 'neutral',
+                message: '',
+                buffer: buffer,
+              },
+              () => {},
+              () => {}
+            )
+          }
         } catch (e) {
           console.error('Error in speakCharacter:', e)
         }
@@ -1085,8 +1111,10 @@ export const startPersonalityProfiling = async (
         '🎯 Explicit Profiling - Speaking message:',
         matchmakingResult.message
       )
-      // Use speakMessageHandler for the response
-      await speakMessageHandler(matchmakingResult.message)
+      // Use speakMessageHandler for the response only if TTS is not disabled
+      if (!isTTSDisabled()) {
+        await speakMessageHandler(matchmakingResult.message)
+      }
 
       // Check if completed
       if (matchmakingResult.isComplete) {
@@ -1120,7 +1148,9 @@ Please:
 3. Enter your Anthropic API key
 4. Then try starting the analysis again! ✨`
 
-      await speakMessageHandler(errorMessage)
+      if (!isTTSDisabled()) {
+        await speakMessageHandler(errorMessage)
+      }
       return {
         message: errorMessage,
         isComplete: false,
@@ -1136,7 +1166,9 @@ Please make sure:
 • Your API key is properly configured in Settings
 • Then try again! ✨`
 
-    await speakMessageHandler(errorMessage)
+    if (!isTTSDisabled()) {
+      await speakMessageHandler(errorMessage)
+    }
     return {
       message: errorMessage,
       isComplete: false,
@@ -1200,8 +1232,20 @@ export const handleWidgetChatFn = () => async (text: string) => {
       timestamp: new Date().toISOString(),
     })
 
-    // Use speakMessageHandler for the response (it handles TTS, etc.)
-    await speakMessageHandler(data.message)
+    // MamaSan is now in continuous profiling mode - no completion event
+    // The conversation continues indefinitely to build user profile
+    console.log(
+      '🎪 Widget Chat - MamaSan response processed, mode:',
+      data.data?.mode || 'onboarding'
+    )
+
+    // Check if TTS is disabled via URL parameter
+    const disableTTS = isTTSDisabled()
+
+    // Use speakMessageHandler for the response (it handles TTS, etc.) only if TTS is not disabled
+    if (!disableTTS) {
+      await speakMessageHandler(data.message)
+    }
 
     homeStore.setState({ chatProcessing: false })
     window.parent.postMessage(

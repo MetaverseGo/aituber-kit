@@ -166,6 +166,39 @@
       </div>
 
       <div class="demo-section">
+        <h2>Widget with Profile Overlay</h2>
+        <p>
+          Widget with profile overlay to show what MamaSan has learned about the
+          user:
+        </p>
+        <div class="widget-container">
+          <iframe
+            id="profile-widget"
+            src="http://localhost:3000/widget?theme=light&width=800px&height=600px&showProfileOverlay=true"
+            width="800"
+            height="600"
+            frameborder="0"
+            allow="microphone; autoplay; speaker-selection"
+            allowfullscreen
+          >
+          </iframe>
+        </div>
+        <pre><code>&lt;iframe 
+    src="http://localhost:3000/widget?theme=light&width=800px&height=600px&showProfileOverlay=true"
+    width="800" 
+    height="600"
+    frameborder="0"
+    allow="microphone; autoplay; speaker-selection"
+    allowfullscreen&gt;
+&lt;/iframe&gt;</code></pre>
+        <p>
+          <strong>Note:</strong> The profile overlay shows user preferences and
+          interests that MamaSan has learned through conversations. Click the
+          pink profile button (👤) in the top-left corner to view the overlay.
+        </p>
+      </div>
+
+      <div class="demo-section">
         <h2>Interactive Widget with PostMessage</h2>
         <p>Widget with parent-child communication:</p>
         <div class="widget-container">
@@ -238,7 +271,45 @@ window.addEventListener('message', function(event) {
     if (event.data.type === 'CHAT_UPDATE') {
         console.log('Chat updated:', event.data.chatLog);
     }
+    if (event.data.type === 'TOGGLE_FULLSCREEN') {
+        // Handle fullscreen toggle in parent
+        console.log('Fullscreen toggle requested');
+    }
+    if (event.data.type === 'MAMASAN_SEARCH_READY') {
+        // MamaSan personality analysis completed, search query ready
+        console.log('MamaSan analysis completed!');
+        console.log('Search query:', event.data.payload.searchQuery);
+        console.log('User answers:', event.data.payload.answers);
+        console.log('User preferences:', event.data.payload.userPreferences);
+        
+        // Example: Perform host search with the generated query
+        performHostSearch(event.data.payload);
+    }
 });
+
+// Example function to handle host search
+function performHostSearch(searchData) {
+    console.log('Performing host search with data:', searchData);
+    
+    // Example API call to your host search endpoint
+    // fetch('/api/hosts/search', {
+    //   method: 'POST',
+    //   headers: { 'Content-Type': 'application/json' },
+    //   body: JSON.stringify({
+    //     query: searchData.searchQuery,
+    //     preferences: searchData.userPreferences,
+    //     answers: searchData.answers
+    //   })
+    // })
+    // .then(response => response.json())
+    // .then(hosts => {
+    //   // Display search results in your UI
+    //   displayHostResults(hosts);
+    // });
+    
+    // For demo purposes, just show an alert
+    alert(`Host search triggered!\nQuery: ${searchData.searchQuery}\nAnswers: ${searchData.answers.length} responses collected`);
+}
 &lt;/script&gt;</code></pre>
       </div>
 
@@ -357,6 +428,197 @@ window.addEventListener('message', function(event) {
                 Enable parent communication
               </td>
             </tr>
+            <tr style="background: #e8f5e8">
+              <td style="border: 1px solid #ddd; padding: 8px">
+                showProfileOverlay
+              </td>
+              <td style="border: 1px solid #ddd; padding: 8px">boolean</td>
+              <td style="border: 1px solid #ddd; padding: 8px">false</td>
+              <td style="border: 1px solid #ddd; padding: 8px">
+                <strong>NEW:</strong> Show profile overlay button to view user
+                preferences learned by MamaSan
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="demo-section">
+        <h2>PostMessage Events</h2>
+        <p>Events sent from widget to parent (when postMessages=true):</p>
+        <table
+          style="width: 100%; border-collapse: collapse; margin-bottom: 20px"
+        >
+          <thead>
+            <tr style="background: #f8f9fa">
+              <th
+                style="border: 1px solid #ddd; padding: 8px; text-align: left"
+              >
+                Event Type
+              </th>
+              <th
+                style="border: 1px solid #ddd; padding: 8px; text-align: left"
+              >
+                Description
+              </th>
+              <th
+                style="border: 1px solid #ddd; padding: 8px; text-align: left"
+              >
+                Payload
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="border: 1px solid #ddd; padding: 8px">
+                <code>WIDGET_READY</code>
+              </td>
+              <td style="border: 1px solid #ddd; padding: 8px">
+                Widget has loaded and is ready for interaction
+              </td>
+              <td style="border: 1px solid #ddd; padding: 8px">None</td>
+            </tr>
+            <tr>
+              <td style="border: 1px solid #ddd; padding: 8px">
+                <code>CHAT_UPDATE</code>
+              </td>
+              <td style="border: 1px solid #ddd; padding: 8px">
+                Chat log has been updated with new messages
+              </td>
+              <td style="border: 1px solid #ddd; padding: 8px">
+                <code>{ chatLog: Message[] }</code>
+              </td>
+            </tr>
+            <tr>
+              <td style="border: 1px solid #ddd; padding: 8px">
+                <code>WIDGET_CHAT_PROCESSING</code>
+              </td>
+              <td style="border: 1px solid #ddd; padding: 8px">
+                Widget is processing a chat message
+              </td>
+              <td style="border: 1px solid #ddd; padding: 8px">None</td>
+            </tr>
+            <tr>
+              <td style="border: 1px solid #ddd; padding: 8px">
+                <code>WIDGET_CHAT_DONE</code>
+              </td>
+              <td style="border: 1px solid #ddd; padding: 8px">
+                Widget finished processing chat message
+              </td>
+              <td style="border: 1px solid #ddd; padding: 8px">
+                <code>{ message: string }</code>
+              </td>
+            </tr>
+            <tr style="background: #e8f5e8">
+              <td style="border: 1px solid #ddd; padding: 8px">
+                <code>MAMASAN_SEARCH_READY</code>
+              </td>
+              <td style="border: 1px solid #ddd; padding: 8px">
+                <strong>NEW:</strong> MamaSan personality analysis completed,
+                search query ready
+              </td>
+              <td style="border: 1px solid #ddd; padding: 8px">
+                <code
+                  >{<br />
+                  &nbsp;&nbsp;searchQuery: string,<br />
+                  &nbsp;&nbsp;answers: string[],<br />
+                  &nbsp;&nbsp;userPreferences: {...}<br />
+                  }</code
+                >
+              </td>
+            </tr>
+            <tr>
+              <td style="border: 1px solid #ddd; padding: 8px">
+                <code>WIDGET_ERROR</code>
+              </td>
+              <td style="border: 1px solid #ddd; padding: 8px">
+                Error occurred in widget
+              </td>
+              <td style="border: 1px solid #ddd; padding: 8px">
+                <code>{ reason: string, error?: string }</code>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>MAMASAN_SEARCH_READY Event Details</h3>
+        <p>
+          This event is triggered when the user completes the MamaSan
+          personality analysis flow. The payload contains:
+        </p>
+        <pre><code>{
+  type: 'MAMASAN_SEARCH_READY',
+  payload: {
+    searchQuery: "What kind of mood are you in today? I'm in a happy mood | Do you have a preferred type? Yes, a girl who likes playing video games | What kind of conversation do you enjoy? mainly talking about video games or anime | Do you enjoy any particular service? (e.g., karaoke, games, deep talk, etc.)? hello | Would you like to relax, or are you in the mood for something lively? relax",
+    answers: [
+      "I'm in a happy mood",
+      "Yes, a girl who likes playing video games", 
+      "mainly talking about video games or anime",
+      "hello",
+      "relax"
+    ],
+    userPreferences: {
+      rawAnswers: [...],
+      searchTerms: "...",
+      completedAt: "2023-12-07T10:30:00.000Z",
+      step: "mamasan_recommend"
+    }
+  }
+}</code></pre>
+
+        <p>Commands sent from parent to widget:</p>
+        <table style="width: 100%; border-collapse: collapse">
+          <thead>
+            <tr style="background: #f8f9fa">
+              <th
+                style="border: 1px solid #ddd; padding: 8px; text-align: left"
+              >
+                Command Type
+              </th>
+              <th
+                style="border: 1px solid #ddd; padding: 8px; text-align: left"
+              >
+                Description
+              </th>
+              <th
+                style="border: 1px solid #ddd; padding: 8px; text-align: left"
+              >
+                Payload
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="border: 1px solid #ddd; padding: 8px">
+                <code>SEND_MESSAGE</code>
+              </td>
+              <td style="border: 1px solid #ddd; padding: 8px">
+                Send a message to the widget
+              </td>
+              <td style="border: 1px solid #ddd; padding: 8px">
+                <code>{ message: string }</code>
+              </td>
+            </tr>
+            <tr>
+              <td style="border: 1px solid #ddd; padding: 8px">
+                <code>CLEAR_CHAT</code>
+              </td>
+              <td style="border: 1px solid #ddd; padding: 8px">
+                Clear the chat history
+              </td>
+              <td style="border: 1px solid #ddd; padding: 8px">None</td>
+            </tr>
+            <tr>
+              <td style="border: 1px solid #ddd; padding: 8px">
+                <code>WIDGET_CONFIG</code>
+              </td>
+              <td style="border: 1px solid #ddd; padding: 8px">
+                Update widget configuration
+              </td>
+              <td style="border: 1px solid #ddd; padding: 8px">
+                <code>{ config: {...} }</code>
+              </td>
+            </tr>
           </tbody>
         </table>
       </div>
@@ -435,7 +697,43 @@ window.addEventListener('message', function(event) {
           // Handle fullscreen toggle in parent
           console.log('Fullscreen toggle requested')
         }
+        if (event.data.type === 'MAMASAN_SEARCH_READY') {
+          // MamaSan personality analysis completed, search query ready
+          console.log('MamaSan analysis completed!')
+          console.log('Search query:', event.data.payload.searchQuery)
+          console.log('User answers:', event.data.payload.answers)
+          console.log('User preferences:', event.data.payload.userPreferences)
+
+          // Example: Perform host search with the generated query
+          performHostSearch(event.data.payload)
+        }
       })
+
+      // Example function to handle host search
+      function performHostSearch(searchData) {
+        console.log('Performing host search with data:', searchData)
+
+        // Example API call to your host search endpoint
+        // fetch('/api/hosts/search', {
+        //   method: 'POST',
+        //   headers: { 'Content-Type': 'application/json' },
+        //   body: JSON.stringify({
+        //     query: searchData.searchQuery,
+        //     preferences: searchData.userPreferences,
+        //     answers: searchData.answers
+        //   })
+        // })
+        // .then(response => response.json())
+        // .then(hosts => {
+        //   // Display search results in your UI
+        //   displayHostResults(hosts)
+        // })
+
+        // For demo purposes, just show an alert
+        alert(
+          `Host search triggered!\nQuery: ${searchData.searchQuery}\nAnswers: ${searchData.answers.length} responses collected`
+        )
+      }
 
       // Allow Enter key to send message
       document

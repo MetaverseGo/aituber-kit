@@ -135,6 +135,26 @@ export default async function handler(
 
     // Save updated state
     profile.mamasanState = result.updatedState
+
+    // Save profile updates if any
+    if (
+      result.profileUpdates &&
+      Object.keys(result.profileUpdates).length > 0
+    ) {
+      console.log(
+        '[Matchmaking API] Applying profile updates:',
+        result.profileUpdates
+      )
+
+      // Apply the profile updates to the profile document
+      Object.keys(result.profileUpdates).forEach((key) => {
+        // Use dot notation to set nested properties
+        profile.set(key, result.profileUpdates[key])
+      })
+
+      console.log('[Matchmaking API] Profile updates applied')
+    }
+
     await profile.save()
     console.log('[Matchmaking API] Profile updated and saved for UID:', uid)
 
