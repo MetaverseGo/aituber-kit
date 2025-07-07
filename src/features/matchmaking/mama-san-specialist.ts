@@ -275,50 +275,60 @@ Remember: Your goal is understanding their preferences to make perfect host reco
    * Always tries to get unanswered questions first, then generates conversation topics from profile
    */
   async generateContinuousQuestion(userProfile?: any): Promise<string> {
-    console.log('🌸 MamaSan - Generating continuous question')
-    console.log('🌸 MamaSan - User profile available:', !!userProfile)
-    console.log('🌸 MamaSan - User ID available:', !!this.config.userId)
+    console.log('🔄 CONTINUOUS QUESTION GENERATION START:')
+    console.log('  User profile available:', !!userProfile)
+    console.log('  User ID available:', !!this.config.userId)
+    console.log(
+      '  Profile data keys:',
+      userProfile ? Object.keys(userProfile) : 'none'
+    )
 
     if (!this.config.userId) {
-      console.log(
-        '🌸 MamaSan - No userId, generating topic from available profile data'
-      )
+      console.log('❌ No userId available - generating topic from profile data')
       return await this.generateProfileBasedTopic(userProfile)
     }
 
     // Always try to get any available unanswered questions first
-    console.log(
-      '🌸 MamaSan - Getting any available unanswered questions from MongoDB'
-    )
+    console.log('📋 CHECKING MONGODB FOR UNANSWERED QUESTIONS...')
     const availableQuestions = await getAvailableQuestions(this.config.userId)
+    console.log('  Available questions found:', availableQuestions.length)
 
     if (availableQuestions.length > 0) {
       const selectedQuestion =
         availableQuestions[
           Math.floor(Math.random() * availableQuestions.length)
         ]
-      console.log(
-        '🌸 MamaSan - Selected unanswered question:',
-        selectedQuestion.text
-      )
+
+      console.log('📝 QUESTION SELECTION:')
+      console.log('  Selected question ID:', selectedQuestion.questionId)
+      console.log('  Selected question text:', selectedQuestion.text)
+      console.log('  Question category:', selectedQuestion.category)
+      console.log('  Question priority:', selectedQuestion.priority)
 
       // 50% chance to ask the database question, 50% chance to generate conversation topic
       const shouldAskDatabaseQuestion = Math.random() < 0.5
+      console.log('🎲 QUESTION TYPE DECISION:')
+      console.log('  Should ask database question:', shouldAskDatabaseQuestion)
       console.log(
-        '🌸 MamaSan - Should ask database question:',
+        '  Decision: ',
         shouldAskDatabaseQuestion
+          ? 'STRUCTURED PROFILE QUESTION'
+          : 'CONVERSATION TOPIC'
       )
 
       if (shouldAskDatabaseQuestion) {
+        console.log('✅ USING STRUCTURED QUESTION FROM DATABASE')
         return await this.formatContinuousQuestion(
           selectedQuestion.text,
           'profile'
         )
       }
+    } else {
+      console.log('📭 NO UNANSWERED QUESTIONS AVAILABLE')
     }
 
     // Generate conversation topic from existing profile data
-    console.log('🌸 MamaSan - Generating conversation topic from profile data')
+    console.log('💭 GENERATING CONVERSATION TOPIC FROM PROFILE DATA')
     return await this.generateProfileBasedTopic(userProfile)
   }
 
@@ -326,8 +336,8 @@ Remember: Your goal is understanding their preferences to make perfect host reco
    * Generate a conversation topic based on existing user profile data
    */
   private async generateProfileBasedTopic(userProfile?: any): Promise<string> {
-    console.log('🌸 MamaSan - generateProfileBasedTopic START')
-    console.log('🌸 MamaSan - Profile data available:', !!userProfile)
+    console.log('🎨 PROFILE-BASED TOPIC GENERATION START:')
+    console.log('  Profile data available:', !!userProfile)
 
     // Extract existing profile information
     const profileTags: string[] = []
@@ -364,9 +374,22 @@ Remember: Your goal is understanding their preferences to make perfect host reco
       }
     }
 
-    console.log('🌸 MamaSan - Collected profile tags:', profileTags.length)
-    console.log('🌸 MamaSan - Collected interests:', interests.length)
-    console.log('🌸 MamaSan - Collected preferences:', preferences.length)
+    console.log('📊 PROFILE DATA EXTRACTION:')
+    console.log(
+      '  Physical preference tags:',
+      profileTags.length,
+      profileTags.length > 0 ? profileTags.slice(0, 3) : 'none'
+    )
+    console.log(
+      '  Service interests:',
+      interests.length,
+      interests.length > 0 ? interests.slice(0, 3) : 'none'
+    )
+    console.log(
+      '  General preferences:',
+      preferences.length,
+      preferences.length > 0 ? preferences.slice(0, 3) : 'none'
+    )
 
     // If we have profile data, generate topic from it
     if (
@@ -380,7 +403,11 @@ Remember: Your goal is understanding their preferences to make perfect host reco
       const randomTopic =
         allTopics[Math.floor(Math.random() * allTopics.length)]
 
-      console.log('🌸 MamaSan - Selected topic from profile:', randomTopic)
+      console.log('🎯 TOPIC SELECTION FROM PROFILE:')
+      console.log('  Total available topics:', allTopics.length)
+      console.log('  All topics:', allTopics)
+      console.log('  Selected topic:', randomTopic)
+      console.log('  Topic type: PERSONALIZED CONVERSATION STARTER')
 
       const systemPrompt = `You are Emi, the chaotic-cute mama-san who loves getting to know her clients better.
 
@@ -419,9 +446,9 @@ Make it conversational and engaging!`
     }
 
     // Fallback to general conversation starters if no profile data
-    console.log(
-      '🌸 MamaSan - No profile data, using general conversation starters'
-    )
+    console.log('🆕 NO PROFILE DATA AVAILABLE:')
+    console.log('  Using general conversation starters')
+    console.log('  Topic type: GENERAL CONVERSATION STARTER')
     const generalTopics = [
       'what kind of energy are you feeling today?',
       'what makes you feel most comfortable in new situations?',
@@ -442,9 +469,10 @@ Make it conversational and engaging!`
     question: string,
     type: 'profile' | 'interest'
   ): Promise<string> {
-    console.log('🌸 MamaSan - Formatting continuous question')
-    console.log('🌸 MamaSan - Question type:', type)
-    console.log('🌸 MamaSan - Raw question:', question)
+    console.log('✨ QUESTION FORMATTING:')
+    console.log('  Question type:', type)
+    console.log('  Raw question:', question)
+    console.log("  Formatting for: Emi's conversational style")
 
     const systemPrompt = `You are Emi, the chaotic-cute mama-san who's now getting to know this client better through ongoing conversation.
 
@@ -481,7 +509,7 @@ Make it sound like something Emi would naturally ask in conversation, not a form
         { role: 'user', content: userPrompt },
       ]
       const result = await callAI(messages)
-      console.log('🌸 MamaSan - Formatted question result:', result)
+      console.log('✅ FORMATTED QUESTION RESULT:', result)
       return result
     } catch (error) {
       console.error('🌸 MamaSan - Error formatting question:', error)

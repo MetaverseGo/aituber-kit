@@ -3,8 +3,6 @@
  * Fetches questions from database and tracks which ones have been asked
  */
 
-import { ProfileData } from '@/types/matchmaking'
-
 export interface ProfilingQuestion {
   questionId: string
   text: string
@@ -93,7 +91,7 @@ export async function getRandomProfileQuestions(
  */
 export async function getInterestBasedQuestions(
   userId: string,
-  userProfile: ProfileData | null
+  userProfile: any | null
 ): Promise<string[]> {
   try {
     // Get questions from interests and lifestyle categories
@@ -124,7 +122,7 @@ export async function getInterestBasedQuestions(
  */
 export async function getProfileGapQuestions(
   userId: string,
-  userProfile: ProfileData | null
+  userProfile: any | null
 ): Promise<string[]> {
   if (!userProfile) {
     // If no profile, get basic questions from key categories
@@ -175,44 +173,46 @@ async function getBasicProfileQuestions(userId: string): Promise<string[]> {
 /**
  * Analyze profile gaps to determine what categories need more information
  */
-function analyzeProfileGaps(userProfile: ProfileData): string[] {
+function analyzeProfileGaps(userProfile: any): string[] {
   const gaps: string[] = []
 
-  // Check physical preferences
+  // Check physical preferences in datingProfile
   if (
-    !userProfile.physicalPreferences ||
-    Object.keys(userProfile.physicalPreferences).length < 3
+    !userProfile.datingProfile?.physicalPreferences ||
+    Object.keys(userProfile.datingProfile.physicalPreferences).length < 3
   ) {
-    gaps.push('physicalPreferences')
+    gaps.push('Physical Preferences')
   }
 
-  // Check relationship style
-  if (
-    !userProfile.relationshipStyle ||
-    Object.keys(userProfile.relationshipStyle).length < 2
-  ) {
-    gaps.push('relationshipStyle')
+  // Check relationship style in datingProfile
+  if (!userProfile.datingProfile?.relationshipStyle) {
+    gaps.push('Relationship Style')
   }
 
-  // Check intimacy comfort
-  if (!userProfile.intimacyComfort || userProfile.intimacyComfort.length < 3) {
-    gaps.push('intimacyComfort')
+  // Check intimacy comfort in datingProfile
+  if (!userProfile.datingProfile?.intimacyComfort) {
+    gaps.push('Intimacy Comfort')
   }
 
-  // Check demographics
+  // Check demographics in datingProfile
   if (
-    !userProfile.demographics ||
-    Object.keys(userProfile.demographics).length < 2
+    !userProfile.datingProfile?.demographics ||
+    Object.keys(userProfile.datingProfile.demographics).length < 2
   ) {
-    gaps.push('demographics')
+    gaps.push('Demographics')
   }
 
-  // Check service preferences
+  // Check service preferences in datingProfile
   if (
-    !userProfile.servicePreferences ||
-    Object.keys(userProfile.servicePreferences).length < 3
+    !userProfile.datingProfile?.servicePreferences ||
+    Object.keys(userProfile.datingProfile.servicePreferences).length < 3
   ) {
-    gaps.push('servicePreferences')
+    gaps.push('Service Preferences')
+  }
+
+  // Check if personality analysis is complete
+  if (!userProfile.currentSession?.personalityCategory) {
+    gaps.push('Personality')
   }
 
   return gaps

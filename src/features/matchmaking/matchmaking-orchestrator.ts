@@ -360,7 +360,24 @@ export class MatchmakingOrchestrator {
       const isInContinuousMode = this.mamaSan.isInContinuousMode(
         this.mamaSanState
       )
-      console.log('[MamaSan] Is in continuous mode:', isInContinuousMode)
+      const isOnboardingComplete = this.mamaSan.isOnboardingComplete(
+        this.mamaSanState
+      )
+
+      console.log('🎯 MATCHMAKING MODE DETECTION:')
+      console.log(
+        '  Current question index:',
+        this.mamaSanState.currentQuestion
+      )
+      console.log('  Total answers given:', this.mamaSanState.answers.length)
+      console.log('  Is onboarding complete:', isOnboardingComplete)
+      console.log('  Is in continuous mode:', isInContinuousMode)
+      console.log('  Session marked complete:', this.mamaSanState.isComplete)
+      console.log(
+        '  Configured question count:',
+        this.mamaSan.getQuestionCount()
+      )
+      console.log('  User message:', message.substring(0, 50) + '...')
 
       if (isInContinuousMode) {
         console.log('[MamaSan] Processing continuous profiling response')
@@ -413,6 +430,11 @@ export class MatchmakingOrchestrator {
         console.log('🎭 Orchestrator - Generating next continuous question...')
         const continuousQuestion =
           await this.mamaSan.generateContinuousQuestion(userProfile)
+
+        console.log('🎯 FINAL CONTINUOUS QUESTION GENERATED:')
+        console.log('  Question:', continuousQuestion)
+        console.log('  Mode: CONTINUOUS PROFILING')
+        console.log('  Will track this question for next response')
 
         // Store the question for next response tracking
         localStorage.setItem('mamasan_last_question', continuousQuestion)
