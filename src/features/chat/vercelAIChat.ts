@@ -40,6 +40,18 @@ const getAIConfig = () => {
 function handleApiError(errorCode: string): string {
   const languageCode = settingsStore.getState().selectLanguage
   i18next.changeLanguage(languageCode)
+
+  // Special handling for API key related errors
+  if (errorCode === 'EmptyAPIKey' || errorCode === 'InvalidAPIKey') {
+    const aiService = settingsStore.getState().selectAIService
+    if (aiService === 'anthropic') {
+      return i18next.t(
+        'Errors.AnthropicAPIKeyRequired',
+        'Please configure your Anthropic API key in Settings → Model Provider. Get your free API key at https://console.anthropic.com/'
+      )
+    }
+  }
+
   return i18next.t(`Errors.${errorCode || 'AIAPIError'}`)
 }
 
@@ -139,9 +151,35 @@ export async function getVercelAIChatResponse(messages: Message[]) {
     return { text: data.text }
   } catch (error: any) {
     console.error(`Error fetching ${selectAIService} API response:`, error)
-    const errorCode = error.cause
-      ? error.cause.errorCode || 'AIAPIError'
-      : 'AIAPIError'
+
+    // Handle specific error codes from API responses
+    let errorCode = 'AIAPIError'
+
+    if (error.cause && error.cause.errorCode) {
+      errorCode = error.cause.errorCode
+    } else if (error.message) {
+      // Check for specific error patterns
+      if (error.message.includes('Empty API Key')) {
+        errorCode = 'EmptyAPIKey'
+      } else if (
+        error.message.includes('Invalid') &&
+        error.message.includes('API Key')
+      ) {
+        errorCode = 'InvalidAPIKey'
+      } else if (
+        error.message.includes('401') ||
+        error.message.includes('unauthorized')
+      ) {
+        errorCode = 'InvalidAPIKey'
+      } else if (error.message.includes('RequestContentLengthMismatchError')) {
+        // This specific error often indicates API key issues
+        errorCode = 'InvalidAPIKey'
+        console.error(
+          'RequestContentLengthMismatchError detected - likely API key issue'
+        )
+      }
+    }
+
     return { text: handleApiError(errorCode) }
   }
 }

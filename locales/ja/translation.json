@@ -200,12 +200,12 @@
   "WhisperTranscriptionModelInfo": "音声認識に使用するモデルを選択できます。より高性能なモデルほど高精度で認識可能ですが、APIコストが高くなる場合があります。",
   "SpeechRecognitionModeDisabledInfo": "オーディオモードが有効な場合、ブラウザ音声認識のみが使用可能です。\nまた、リアルタイムAPIモードではブラウザ音声認識のみが使用可能な上、音声認識タイムアウト機能が無効になります。",
   "Errors": {
-    "EmptyAPIKey": "APIキーが設定されていません",
+    "EmptyAPIKey": "APIキーが設定されていません。設定をご確認ください。",
     "EmptyLocalLLMURL": "ローカルLLMのURLが設定されていません",
-    "AIInvalidProperty": "AIサービスの設定値が正しくありません",
-    "AIAPIError": "AI API実行時にエラーが発生しました",
-    "InvalidAIService": "選択しているAIサービスが正しくありません",
-    "MethodNotAllowed": "リクエストが適切でありません",
+    "AIInvalidProperty": "AI サービスの設定値が不正です",
+    "AIAPIError": "AIサービスが現在利用できません。しばらく後にお試しください。",
+    "InvalidAIService": "選択されたAIサービスが不正です",
+    "MethodNotAllowed": "リクエストが不適切です",
     "TTSServiceError": "{{serviceName}} TTSサービスでエラーが発生しました: {{message}}",
     "UnexpectedError": "不明なエラーが発生しました",
     "LocalLLMError": "ローカルLLMでエラーが発生しました",
@@ -214,7 +214,9 @@
     "LocalLLMNotFound": "ローカルLLMのエンドポイントが見つかりません",
     "LocalLLMAPIError": "ローカルLLM APIでエラーが発生しました",
     "CustomAPIError": "カスタムAPIでエラーが発生しました",
-    "InvalidJSON": "JSON形式が正しくありません"
+    "InvalidJSON": "JSON形式が不正です",
+    "InvalidAPIKey": "無効なAPIキーです。APIキーの設定をご確認ください。",
+    "AnthropicAPIKeyRequired": "設定 → モデルプロバイダーでAnthropic APIキーを設定してください。無料のAPIキーは https://console.anthropic.com/ で取得できます。"
   },
   "MessageReceiver": "外部からの指示を受け付ける",
   "MessageReceiverDescription": "APIを利用してAIキャラの発言を外部から指示することができます。",

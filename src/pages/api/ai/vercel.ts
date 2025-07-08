@@ -89,6 +89,29 @@ export default async function handler(
         errorCode: 'EmptyAPIKey',
       })
     }
+
+    // Additional validation for API key format to prevent malformed requests
+    if (aiApiKey.trim().length === 0) {
+      console.log('🚀 API/AI/Vercel - ERROR: API key is empty string!')
+      return res.status(400).json({
+        error: 'Invalid API Key: API key cannot be empty',
+        errorCode: 'InvalidAPIKey',
+      })
+    }
+
+    // Service-specific API key validation
+    if (aiService === 'anthropic') {
+      // Anthropic API keys should start with 'sk-'
+      if (!aiApiKey.startsWith('sk-')) {
+        console.log(
+          '🚀 API/AI/Vercel - ERROR: Invalid Anthropic API key format!'
+        )
+        return res.status(400).json({
+          error: 'Invalid Anthropic API Key: Must start with sk-',
+          errorCode: 'InvalidAPIKey',
+        })
+      }
+    }
   }
 
   // ローカルLLMのURL検証
