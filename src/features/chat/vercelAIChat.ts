@@ -12,13 +12,32 @@ const getAIConfig = () => {
   // AIServiceとして扱う（より広い型）
   const aiService = ss.selectAIService as AIService
 
+  // Check if we're running on the server (no window object)
+  const isServer = typeof window === 'undefined'
+
   // APIキー名は条件分岐で取得
-  const apiKey =
+  let apiKey = ''
+  if (
     typeof aiService === 'string' &&
     aiService !== 'dify' &&
     aiService !== 'custom-api'
-      ? (ss[`${aiService}Key` as keyof typeof ss] as string)
-      : ''
+  ) {
+    // First try to get from settings store (client-side)
+    apiKey = (ss[`${aiService}Key` as keyof typeof ss] as string) || ''
+
+    // If empty and we're on server, try environment variables
+    if (!apiKey && isServer) {
+      const servicePrefix = aiService.toUpperCase()
+      apiKey =
+        process.env[`${servicePrefix}_KEY`] ||
+        process.env[`${servicePrefix}_API_KEY`] ||
+        process.env[`NEXT_PUBLIC_${servicePrefix}_KEY`] ||
+        process.env[`NEXT_PUBLIC_${servicePrefix}_API_KEY`] ||
+        ''
+
+      console.log(`🔑 Server-side API key lookup for ${aiService}:`, !!apiKey)
+    }
+  }
 
   return {
     aiApiKey: apiKey,
