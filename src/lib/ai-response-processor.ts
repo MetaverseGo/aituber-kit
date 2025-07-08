@@ -194,8 +194,14 @@ export class AIResponseProcessor {
       context: { ...error.context, ...context },
     }))
 
+    // Construct API endpoint URL (absolute for server, relative for client)
+    const isServer = typeof window === 'undefined'
+    const apiEndpoint = isServer
+      ? `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/match-profile`
+      : '/api/match-profile'
+
     // Save to database via API
-    const response = await fetch('/api/match-profile', {
+    const response = await fetch(apiEndpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -345,17 +351,13 @@ export class AIResponseProcessor {
    * Save profile updates to database
    */
   private async saveProfileUpdates(profileUpdates: any): Promise<void> {
-    // Skip saving in server-side environment for now
-    // This will be handled differently in the orchestrator
-    if (typeof window === 'undefined') {
-      this.log(
-        'info',
-        'Skipping profile save in server environment - will be handled by orchestrator'
-      )
-      return
-    }
+    // Construct API endpoint URL (absolute for server, relative for client)
+    const isServer = typeof window === 'undefined'
+    const apiEndpoint = isServer
+      ? `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/match-profile`
+      : '/api/match-profile'
 
-    const response = await fetch('/api/match-profile', {
+    const response = await fetch(apiEndpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
