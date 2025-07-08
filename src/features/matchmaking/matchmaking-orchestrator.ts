@@ -1357,6 +1357,110 @@ export class MatchmakingOrchestrator {
     if (this.mamaSan.isOnboardingComplete(mamasanState)) {
       console.log('🎭 Orchestrator Server - Already in continuous mode...')
 
+      // STILL ANALYZE THE RESPONSE for profile updates in continuous mode!
+      let profileUpdates: any = {}
+
+      // Get the previous question from topic conversation state or generate a generic analysis prompt
+      const previousQuestion =
+        mamasanState.topicConversation?.lastQuestion ||
+        'What are your interests, preferences, or thoughts?'
+
+      console.log(
+        '🔍 Continuous Mode - Analyzing response to:',
+        previousQuestion
+      )
+
+      try {
+        const analysis = await this.mamaSan.analyzeResponse(
+          previousQuestion,
+          message
+        )
+
+        console.log('📋 Continuous Mode - Analysis Result:')
+        console.log('  Answered:', analysis.answered)
+        console.log('  Profile Updates:', analysis.profileUpdates)
+
+        // Extract profile updates (same mapping logic as onboarding mode)
+        if (analysis.profileUpdates) {
+          console.log(
+            '🌸 Continuous Mode - Processing profile updates:',
+            analysis.profileUpdates
+          )
+
+          // Map the AI analysis to MongoDB structure
+          if (analysis.profileUpdates.physicalPreferences) {
+            profileUpdates['datingProfile.physicalPreferences'] =
+              analysis.profileUpdates.physicalPreferences
+          }
+
+          if (analysis.profileUpdates.personality) {
+            if (analysis.profileUpdates.personality.energyLevel) {
+              profileUpdates['datingProfile.servicePreferences.mood'] =
+                analysis.profileUpdates.personality.energyLevel
+            }
+            if (analysis.profileUpdates.personality.dominanceStyle) {
+              profileUpdates['datingProfile.dominanceStyle'] =
+                analysis.profileUpdates.personality.dominanceStyle
+            }
+            if (analysis.profileUpdates.personality.seekingTraits) {
+              profileUpdates[
+                'profileData.preferences.matchingPrefs.personalityTraits'
+              ] = analysis.profileUpdates.personality.seekingTraits
+            }
+          }
+
+          if (analysis.profileUpdates.interests) {
+            if (analysis.profileUpdates.interests.categories) {
+              profileUpdates[
+                'datingProfile.servicePreferences.primaryServices'
+              ] = analysis.profileUpdates.interests.categories
+            }
+            if (analysis.profileUpdates.interests.specificItems) {
+              profileUpdates[
+                'datingProfile.servicePreferences.conversationTopics'
+              ] = analysis.profileUpdates.interests.specificItems
+            }
+          }
+
+          if (analysis.profileUpdates.preferences) {
+            if (analysis.profileUpdates.preferences.moodSeeking) {
+              profileUpdates['datingProfile.servicePreferences.mood'] =
+                analysis.profileUpdates.preferences.moodSeeking
+            }
+            if (analysis.profileUpdates.preferences.interactionStyle) {
+              profileUpdates[
+                'datingProfile.servicePreferences.interactionStyle'
+              ] = analysis.profileUpdates.preferences.interactionStyle
+            }
+            if (analysis.profileUpdates.preferences.serviceTypes) {
+              profileUpdates[
+                'datingProfile.servicePreferences.primaryServices'
+              ] = analysis.profileUpdates.preferences.serviceTypes
+            }
+            if (analysis.profileUpdates.preferences.conversationTopics) {
+              profileUpdates[
+                'datingProfile.servicePreferences.conversationTopics'
+              ] = analysis.profileUpdates.preferences.conversationTopics
+            }
+          }
+
+          if (analysis.profileUpdates.demographics) {
+            if (analysis.profileUpdates.demographics.agePreference) {
+              profileUpdates[
+                'datingProfile.demographics.agePreference.preference'
+              ] = analysis.profileUpdates.demographics.agePreference
+            }
+            if (analysis.profileUpdates.demographics.experienceLevel) {
+              profileUpdates['datingProfile.demographics.experienceLevel'] =
+                analysis.profileUpdates.demographics.experienceLevel
+            }
+          }
+        }
+      } catch (error) {
+        console.error('🚨 Continuous Mode - Error analyzing response:', error)
+        // Continue with empty profile updates if analysis fails
+      }
+
       // Generate continuous question for existing continuous session
       const continuousQuestion = await this.mamaSan.generateContinuousQuestion(
         undefined, // No userProfile available in server context
@@ -1369,7 +1473,7 @@ export class MatchmakingOrchestrator {
         isComplete: false, // Keep session active for continuous mode
         step: 'mamasan_continuous',
         updatedState: mamasanState, // Don't increment question count in continuous mode
-        profileUpdates: {},
+        profileUpdates, // Now includes actual profile updates from analysis!
         data: {
           mamasan: {
             searchQuery: this.mamaSan.buildSearchQuery(mamasanState),
