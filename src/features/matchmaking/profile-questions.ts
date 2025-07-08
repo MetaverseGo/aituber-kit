@@ -43,7 +43,16 @@ export async function getAvailableQuestions(
       queryParams.append('difficulty', filters.difficulty)
     }
 
-    const response = await fetch(`/api/profiling-questions?${queryParams}`)
+    // Construct URL for both client and server contexts
+    const isServerSide = typeof window === 'undefined'
+    const baseUrl = isServerSide
+      ? process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'
+      : ''
+    const apiUrl = `${baseUrl}/api/profiling-questions?${queryParams}`
+
+    console.log('🔍 getAvailableQuestions: Making request to:', apiUrl)
+
+    const response = await fetch(apiUrl)
 
     if (!response.ok) {
       throw new Error(`Failed to fetch questions: ${response.statusText}`)
@@ -229,9 +238,13 @@ export async function recordQuestionAsked(
 ): Promise<boolean> {
   try {
     // First, try to find the question by text to get its ID
-    const questionsResponse = await fetch(
-      `/api/profiling-questions?userId=${userId}&excludeAsked=false&limit=100`
-    )
+    const isServerSide = typeof window === 'undefined'
+    const baseUrl = isServerSide
+      ? process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'
+      : ''
+    const questionsUrl = `${baseUrl}/api/profiling-questions?userId=${userId}&excludeAsked=false&limit=100`
+
+    const questionsResponse = await fetch(questionsUrl)
 
     if (!questionsResponse.ok) {
       throw new Error('Failed to fetch questions for lookup')
@@ -248,7 +261,8 @@ export async function recordQuestionAsked(
     }
 
     // Record the question response
-    const response = await fetch('/api/question-response', {
+    const responseUrl = `${baseUrl}/api/question-response`
+    const response = await fetch(responseUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

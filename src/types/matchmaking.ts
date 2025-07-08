@@ -9,6 +9,19 @@ export interface MamaSanSessionState {
   currentQuestion: number
   answers: string[]
   isComplete: boolean
+  topicConversation?: TopicConversationState
+}
+
+export interface TopicConversationState {
+  currentTopic: string | null
+  turnCount: number // Number of turns on current topic
+  topicHistory: Array<{
+    topic: string
+    turns: number
+    startTime: Date
+    endTime?: Date
+  }>
+  lastQuestion: string | null
 }
 
 export interface PersonalityTrait {

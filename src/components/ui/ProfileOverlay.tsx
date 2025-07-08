@@ -24,8 +24,8 @@ export default function ProfileOverlay() {
   const [profileData, setProfileData] = useState<ProfileData | null>(null)
   const [isMinimized, setIsMinimized] = useState(false)
 
-  console.log('🎭 ProfileOverlay - Component rendered')
-  console.log('🎭 ProfileOverlay - Profile data state:', profileData)
+  // console.log('🎭 ProfileOverlay - Component rendered')
+  // console.log('🎭 ProfileOverlay - Profile data state:', profileData)
 
   // Use the exported function to get the auth token
   const getWidgetAuthToken = (): string => {
@@ -34,16 +34,16 @@ export default function ProfileOverlay() {
 
   // Fetch profile data on mount and periodically
   useEffect(() => {
-    console.log('🎭 ProfileOverlay - useEffect triggered')
+    // console.log('🎭 ProfileOverlay - useEffect triggered')
 
     const fetchProfile = async () => {
       try {
         // Get authentication token like the widget chat does
         const token = getWidgetAuthToken()
-        console.log('🎭 ProfileOverlay - Got auth token:', !!token)
+        // console.log('🎭 ProfileOverlay - Got auth token:', !!token)
 
         if (!token) {
-          console.log('🎭 ProfileOverlay - No authentication token available')
+          // console.log('🎭 ProfileOverlay - No authentication token available')
           return
         }
 
@@ -55,44 +55,44 @@ export default function ProfileOverlay() {
             token,
           }),
         })
-        console.log(
-          '🎭 ProfileOverlay - Fetch response status:',
-          response.status
-        )
+        // console.log(
+        //   '🎭 ProfileOverlay - Fetch response status:',
+        //   response.status
+        // )
 
         if (response.ok) {
           const result = await response.json()
-          console.log('🎭 ProfileOverlay - Fetch result:', result)
+          // console.log('🎭 ProfileOverlay - Fetch result:', result)
 
           if (result.success && result.profile) {
-            console.log(
-              '🎭 ProfileOverlay - Setting profile data:',
-              result.profile
-            )
-            console.log(
-              '🎭 ProfileOverlay - Dating profile:',
-              result.profile.datingProfile
-            )
-            console.log(
-              '🎭 ProfileOverlay - Service preferences:',
-              result.profile.datingProfile?.servicePreferences
-            )
-            console.log(
-              '🎭 ProfileOverlay - Conversation topics:',
-              result.profile.datingProfile?.servicePreferences
-                ?.conversationTopics
-            )
+            // console.log(
+            //   '🎭 ProfileOverlay - Setting profile data:',
+            //   result.profile
+            // )
+            // console.log(
+            //   '🎭 ProfileOverlay - Dating profile:',
+            //   result.profile.datingProfile
+            // )
+            // console.log(
+            //   '🎭 ProfileOverlay - Service preferences:',
+            //   result.profile.datingProfile?.servicePreferences
+            // )
+            // console.log(
+            //   '🎭 ProfileOverlay - Conversation topics:',
+            //   result.profile.datingProfile?.servicePreferences
+            //     ?.conversationTopics
+            // )
             setProfileData(result.profile)
           } else {
-            console.log(
-              '🎭 ProfileOverlay - No profile data found or fetch unsuccessful'
-            )
+            // console.log(
+            //   '🎭 ProfileOverlay - No profile data found or fetch unsuccessful'
+            // )
           }
         } else {
-          console.log(
-            '🎭 ProfileOverlay - Fetch failed with status:',
-            response.status
-          )
+          // console.log(
+          //   '🎭 ProfileOverlay - Fetch failed with status:',
+          //   response.status
+          // )
         }
       } catch (error) {
         console.error('🎭 ProfileOverlay - Error fetching profile data:', error)
@@ -108,10 +108,10 @@ export default function ProfileOverlay() {
   }, [])
 
   // Always render the component for debugging
-  console.log(
-    '🎭 ProfileOverlay - About to render, profileData exists:',
-    !!profileData
-  )
+  // console.log(
+  //   '🎭 ProfileOverlay - About to render, profileData exists:',
+  //   !!profileData
+  // )
 
   const renderSection = (
     title: string,

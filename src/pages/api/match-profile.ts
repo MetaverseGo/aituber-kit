@@ -23,21 +23,109 @@ export default async function handler(
     if (action === 'getProfile' && uid) {
       try {
         console.log('[MatchProfile API] GET - Fetching profile for UID:', uid)
-        const profile = await MatchProfile.findOne({ uid })
+        let profile = await MatchProfile.findOne({ uid })
 
-        if (profile) {
-          console.log('[MatchProfile API] GET - Profile found')
-          return res.status(200).json({
-            success: true,
-            profile: profile.toObject(),
+        if (!profile) {
+          console.log(
+            '[MatchProfile API] GET - Profile not found, creating new profile'
+          )
+
+          // Create a new profile with default structure
+          profile = await MatchProfile.create({
+            uid,
+            role: 'guest', // default role
+            status: 'OFFLINE',
+            lastActive: new Date(),
+            mamasanState: {
+              currentQuestion: 0,
+              answers: [],
+              isComplete: false,
+            },
+            profileData: {
+              personality: { traits: [], values: [] },
+              interests: [],
+              interactionStyle: '',
+              confidenceScores: {
+                personality: {},
+                interests: {},
+                interactionStyle: 0,
+              },
+              sourceTracking: {
+                personality: {},
+                interests: {},
+                interactionStyle: '',
+              },
+              capabilities: {
+                languages: [],
+                services: [],
+                activities: [],
+                games: [],
+                teachingStyle: '',
+              },
+              preferences: {
+                matchingPrefs: {
+                  languageImportance: 0,
+                  skillLevelPreference: 'any',
+                  personalityTraits: [],
+                  dealBreakers: [],
+                  hostPreferences: {
+                    energyLevel: 'medium',
+                    teachingStyle: '',
+                    desiredServices: [],
+                  },
+                  guestPreferences: {
+                    skillLevel: 'beginner',
+                    interactionStyle: 'mix',
+                    groupSize: { min: 1, max: 5 },
+                  },
+                },
+              },
+            },
+            embeddings: {
+              personality: [],
+              interests: [],
+              capabilities: [],
+              lastUpdated: new Date(),
+            },
+            currentSession: {
+              status: 'idle',
+              step: 0,
+              missingFields: [],
+              kokologyQuestions: [],
+            },
+            matchHistory: [],
+            matchingMetrics: {
+              averageRating: 0,
+              serviceTypeRatings: [],
+              successfulMatches: 0,
+              bookingConversion: 0,
+              lastUpdated: new Date(),
+              complementaryScores: {
+                teachingSuccess: 0,
+                learningProgress: 0,
+                personalityMatch: 0,
+              },
+            },
+            completionStatus: {
+              personality: 0,
+              interests: 0,
+              overall: 0,
+              lastUpdated: new Date(),
+            },
+            profileHistory: [],
+            stamina: 10,
+            intimacyLevel: 0,
           })
+
+          console.log('[MatchProfile API] GET - New profile created')
         } else {
-          console.log('[MatchProfile API] GET - Profile not found')
-          return res.status(200).json({
-            success: false,
-            message: 'Profile not found',
-          })
+          console.log('[MatchProfile API] GET - Profile found')
         }
+
+        return res.status(200).json({
+          success: true,
+          profile: profile.toObject(),
+        })
       } catch (error) {
         console.error('[MatchProfile API] GET - Error:', error)
         return res.status(500).json({
@@ -78,26 +166,114 @@ export default async function handler(
       )
 
       if (action === 'getProfile') {
-        // Get profile for authenticated user
-        const profile = await MatchProfile.findOne({ uid: authenticatedUid })
+        // Get or create profile for authenticated user
+        let profile = await MatchProfile.findOne({ uid: authenticatedUid })
 
-        if (profile) {
+        if (!profile) {
+          console.log(
+            '[MatchProfile API] POST - Profile not found for authenticated user, creating new profile'
+          )
+
+          // Create a new profile with default structure
+          profile = await MatchProfile.create({
+            uid: authenticatedUid,
+            role: 'guest', // default role
+            status: 'OFFLINE',
+            lastActive: new Date(),
+            mamasanState: {
+              currentQuestion: 0,
+              answers: [],
+              isComplete: false,
+            },
+            profileData: {
+              personality: { traits: [], values: [] },
+              interests: [],
+              interactionStyle: '',
+              confidenceScores: {
+                personality: {},
+                interests: {},
+                interactionStyle: 0,
+              },
+              sourceTracking: {
+                personality: {},
+                interests: {},
+                interactionStyle: '',
+              },
+              capabilities: {
+                languages: [],
+                services: [],
+                activities: [],
+                games: [],
+                teachingStyle: '',
+              },
+              preferences: {
+                matchingPrefs: {
+                  languageImportance: 0,
+                  skillLevelPreference: 'any',
+                  personalityTraits: [],
+                  dealBreakers: [],
+                  hostPreferences: {
+                    energyLevel: 'medium',
+                    teachingStyle: '',
+                    desiredServices: [],
+                  },
+                  guestPreferences: {
+                    skillLevel: 'beginner',
+                    interactionStyle: 'mix',
+                    groupSize: { min: 1, max: 5 },
+                  },
+                },
+              },
+            },
+            embeddings: {
+              personality: [],
+              interests: [],
+              capabilities: [],
+              lastUpdated: new Date(),
+            },
+            currentSession: {
+              status: 'idle',
+              step: 0,
+              missingFields: [],
+              kokologyQuestions: [],
+            },
+            matchHistory: [],
+            matchingMetrics: {
+              averageRating: 0,
+              serviceTypeRatings: [],
+              successfulMatches: 0,
+              bookingConversion: 0,
+              lastUpdated: new Date(),
+              complementaryScores: {
+                teachingSuccess: 0,
+                learningProgress: 0,
+                personalityMatch: 0,
+              },
+            },
+            completionStatus: {
+              personality: 0,
+              interests: 0,
+              overall: 0,
+              lastUpdated: new Date(),
+            },
+            profileHistory: [],
+            stamina: 10,
+            intimacyLevel: 0,
+          })
+
+          console.log(
+            '[MatchProfile API] POST - New profile created for authenticated user'
+          )
+        } else {
           console.log(
             '[MatchProfile API] POST - Profile found for authenticated user'
           )
-          return res.status(200).json({
-            success: true,
-            profile: profile.toObject(),
-          })
-        } else {
-          console.log(
-            '[MatchProfile API] POST - Profile not found for authenticated user'
-          )
-          return res.status(200).json({
-            success: false,
-            message: 'Profile not found',
-          })
         }
+
+        return res.status(200).json({
+          success: true,
+          profile: profile.toObject(),
+        })
       }
 
       if (action === 'updateProfile') {

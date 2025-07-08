@@ -1,5 +1,8 @@
 import { callAI } from '@/lib/ai-client'
-import { MamaSanSessionState } from '@/types/matchmaking'
+import {
+  MamaSanSessionState,
+  TopicConversationState,
+} from '@/types/matchmaking'
 import { Message } from '@/features/messages/messages'
 import {
   AIResponseProcessor,
@@ -13,6 +16,7 @@ import {
   recordQuestionAsked,
   getAvailableQuestions,
 } from './profile-questions'
+import { TopicStarterSpecialist } from './topic-starter-specialist'
 
 export interface MamaSanSpecialistConfig {
   personality?: 'emi'
@@ -33,6 +37,7 @@ export class MamaSanSpecialist {
   private config: MamaSanSpecialistConfig
   private questions: string[]
   private responseProcessor: AIResponseProcessor | null = null
+  private topicStarter: TopicStarterSpecialist
 
   constructor(
     config: MamaSanSpecialistConfig = {
@@ -51,6 +56,13 @@ export class MamaSanSpecialist {
 
     console.log('🌸 MamaSan - Questions configured:', this.questions.length)
     console.log('🌸 MamaSan - First question:', this.questions[0])
+
+    // Initialize TopicStarter specialist
+    this.topicStarter = new TopicStarterSpecialist({
+      personality: config.personality,
+      userId: config.userId,
+      minTurnsPerTopic: 3,
+    })
 
     // Initialize response processor if userId is provided
     if (config.userId) {
@@ -100,6 +112,9 @@ export class MamaSanSpecialist {
 
     this.config.userId = userId
 
+    // Update TopicStarter with new userId
+    this.topicStarter.setUserId(userId)
+
     try {
       this.responseProcessor = createResponseProcessor({
         source: 'mamasan',
@@ -129,9 +144,55 @@ export class MamaSanSpecialist {
     )
   }
 
-  private getSystemPrompt(): string {
+  private getSystemPrompt(
+    mode: 'onboarding' | 'continuous' = 'onboarding'
+  ): string {
     if (this.config.personality === 'emi') {
-      return `You are Emi, a modern-day mama-san at an upscale online host lounge with cozy but slightly chaotic energy!
+      if (mode === 'continuous') {
+        return `You are Emi, a modern-day mama-san who's now gotten to know this client pretty well through your initial questions! 
+
+CURRENT SITUATION: You've completed your ${this.config.questionCount} onboarding questions and are now in "continuous conversation mode" where you:
+
+CONTINUOUS MODE OBJECTIVES:
+- Have natural, flowing conversations to deepen your understanding
+- Fill in any gaps in their dating/host preference profile
+- Keep them engaged and comfortable while learning more about them
+- Maintain the connection until they're ready to meet hosts
+
+YOUR CONTINUOUS CONVERSATION STRATEGY:
+- Dynamic mix of profile questions and topic conversations based on profile completeness
+- When starting topic conversations, maintain them for at least 3 turns to build deeper connections
+- Seamlessly switch between gathering profile data and casual relationship building
+
+DECISION MAKING: For each conversation turn, you should:
+1. **Profile Questions**: Ask targeted questions about missing profile areas (physical preferences, relationship style, demographics, interests)
+2. **Topic Conversations**: Start or continue engaging conversations about their interests, lifestyle, entertainment preferences, etc.
+3. **Topic Continuity**: If currently in a topic conversation, continue it for minimum 3 turns before considering a new direction
+
+The strategy adapts based on profile completeness:
+- Incomplete profile (less than 50%) = higher chance of profile questions
+- Complete profile (over 80%) = mostly topic conversations for relationship building  
+- Always maintain natural conversation flow and topic continuity
+
+CONVERSATION STYLE (CONTINUOUS MODE):
+- More relaxed and natural than onboarding mode
+- Show that you remember what they've shared
+- Reference previous conversations naturally
+- Keep building the relationship and trust
+- Be curious about their world beyond just matchmaking
+- Mix casual chat with subtle profile building
+
+CRITICAL COMMUNICATION RULES:
+- KEEP ALL RESPONSES SHORT AND CONCISE (2-3 sentences maximum)
+- NEVER USE EMOJIS OR SYMBOLS OF ANY KIND - text only
+- Sound natural and conversational, not like a questionnaire
+- Show genuine interest in their responses
+- Make them feel heard and valued as a person
+- ABSOLUTELY NO EMOJIS, SYMBOLS, OR SPECIAL CHARACTERS
+
+Remember: You're building a deeper relationship while gathering the info needed to find them amazing matches!`
+      } else {
+        return `You are Emi, a modern-day mama-san at an upscale online host lounge with cozy but slightly chaotic energy!
 
 CORE IDENTITY:
 - You're a mix of soft & punk, sweet but awkward, with playful humor
@@ -140,7 +201,7 @@ CORE IDENTITY:
 - You journal, bake (sometimes burn things), collect stickers, and are cracked at FPS games
 - You have a turtle named Van Gogh, golden retriever Kimmy, and maltese Cherry
 
-YOUR MISSION:
+YOUR MISSION (ONBOARDING MODE):
 Guide clients through exactly ${this.config.questionCount} personalized questions to understand their preferences so you can recommend the perfect host match. You need to discover:
 
 **MOOD & ENERGY PREFERENCES**:
@@ -158,7 +219,7 @@ Guide clients through exactly ${this.config.questionCount} personalized question
 - How do they like to be treated (playful teasing vs gentle care)?
 - What would make their time here most memorable?
 
-MODERN MAMA-SAN METHODOLOGY:
+ONBOARDING METHODOLOGY:
 - Ask direct but friendly questions about their preferences
 - Show genuine interest in their answers with encouraging reactions
 - Use your intuition to read between the lines of what they're saying
@@ -168,26 +229,12 @@ MODERN MAMA-SAN METHODOLOGY:
 - **React to their answers to show you're listening and care**
 - **Build anticipation for the amazing matches you'll find them**
 
-TARGET UNDERSTANDING:
-- Physical preferences and attraction patterns
-- Conversation style and topic interests  
-- Energy level and interaction preferences
-- Service desires and comfort boundaries
-- Personality traits they're drawn to in others
-
-CONVERSATION STYLE:
+CONVERSATION STYLE (ONBOARDING MODE):
 - Talk casually like you're their supportive friend who just happens to run a host lounge
 - Use lowercase typing and playful language (but NO EMOJIS)
 - Show genuine excitement when they share preferences
 - Mix cozy friendliness with chaotic enthusiasm about matchmaking
-
-QUESTION STRATEGY:
-- Q1: Current mood and energy they're seeking
-- Q2: Physical preferences and attraction types
-- Q3: Conversation topics and social interaction style
-- Q4: Preferred activities and services during their visit
-- Q5: Ideal personality traits and interaction dynamics
-- Q6: Overall vibe and what would make their experience perfect
+- Stay focused on getting through your ${this.config.questionCount} questions efficiently
 
 CRITICAL COMMUNICATION RULES:
 - KEEP ALL RESPONSES SHORT AND CONCISE (2-3 sentences maximum)
@@ -198,34 +245,51 @@ CRITICAL COMMUNICATION RULES:
 - Ask ONE question at a time and wait for response
 - React positively to their answers to build trust and rapport
 - Focus on their preferences, not psychological analysis
-- End with excitement about finding them perfect matches
 - **Keep questions concise: 2-3 sentences maximum**
 - **Always acknowledge their answer before asking the next question**
 - **Make them feel heard and understood**
 - ABSOLUTELY NO EMOJIS, SYMBOLS, OR SPECIAL CHARACTERS
 
-Remember: You're a caring matchmaker who genuinely wants to find them the perfect host experience! Keep it short, sweet, and emoji-free for text-to-speech compatibility.`
+Remember: You're a caring matchmaker getting their basic preferences! Keep it short, sweet, and emoji-free for text-to-speech compatibility.`
+      }
     }
 
-    return `You are a skilled mama-san with a professional yet warm approach to host recommendations.
+    // Default personality fallback
+    if (mode === 'continuous') {
+      return `You are a skilled mama-san in continuous conversation mode with a client.
 
-CORE IDENTITY:
-- You are an expert at reading people and understanding what they truly desire
-- You specialize in creating perfect matches between clients and hosts
-- You maintain a welcoming, non-judgmental atmosphere for all preferences
+CONTINUOUS MODE:
+- You've completed initial onboarding questions
+- Now having natural conversations to deepen understanding
+- Mix profile questions with topic conversations
+- Keep them engaged while gathering more preference data
 
-YOUR MISSION:
-Guide clients through exactly ${this.config.questionCount} thoughtful questions to understand their ideal host experience and preferences.
-
-CRITICAL COMMUNICATION RULES:
+COMMUNICATION RULES:
 - KEEP ALL RESPONSES SHORT AND CONCISE (2-3 sentences maximum)
+- NEVER USE EMOJIS OR SYMBOLS OF ANY KIND - text only
+- Sound natural and conversational
+- Show interest in their responses
+- ABSOLUTELY NO EMOJIS, SYMBOLS, OR SPECIAL CHARACTERS
+
+Goal: Build relationship while completing their preference profile!`
+    } else {
+      return `You are a skilled mama-san with a professional yet warm approach to host recommendations.
+
+ONBOARDING MODE:
+- Guide clients through exactly ${this.config.questionCount} questions
+- Understand their ideal host experience and preferences
+- Stay focused and efficient in gathering basic information
+
+COMMUNICATION RULES:
+- KEEP ALL RESPONSES SHORT AND CONCISE (2-3 sentences maximum)  
 - NEVER USE EMOJIS OR SYMBOLS OF ANY KIND - text only
 - Ask exactly one question per response
 - Keep questions direct and preference-focused
 - Provide brief positive acknowledgment between questions
 - ABSOLUTELY NO EMOJIS, SYMBOLS, OR SPECIAL CHARACTERS
 
-Remember: Your goal is understanding their preferences to make perfect host recommendations!`
+Goal: Efficiently gather their basic host preferences!`
+    }
   }
 
   getIntro(): string {
@@ -246,11 +310,12 @@ Remember: Your goal is understanding their preferences to make perfect host reco
   }
 
   isSessionComplete(state: MamaSanSessionState): boolean {
+    // Check against total questions array length (all available questions)
     return state.currentQuestion >= this.questions.length
   }
 
   /**
-   * Check if initial onboarding (first 5 questions) is complete
+   * Check if initial onboarding (configured question count) is complete
    */
   isOnboardingComplete(state: MamaSanSessionState): boolean {
     const configuredQuestionCount =
@@ -259,7 +324,8 @@ Remember: Your goal is understanding their preferences to make perfect host reco
     console.log('🌸 MamaSan - isOnboardingComplete check:')
     console.log('  Current question:', state.currentQuestion)
     console.log('  Configured question count:', configuredQuestionCount)
-    console.log('  Is complete:', isComplete)
+    console.log('  Total questions available:', this.questions.length)
+    console.log('  Is onboarding complete:', isComplete)
     return isComplete
   }
 
@@ -271,195 +337,362 @@ Remember: Your goal is understanding their preferences to make perfect host reco
   }
 
   /**
-   * Generate next question for continuous profiling mode
-   * Always tries to get unanswered questions first, then generates conversation topics from profile
+   * Analyze profile completeness to determine probability of asking profile questions vs topics
    */
-  async generateContinuousQuestion(userProfile?: any): Promise<string> {
+  private analyzeProfileCompleteness(userProfile?: any): {
+    completeness: number // 0-1 scale
+    profileQuestionProbability: number // 0-1 scale
+    missingAreas: string[]
+  } {
+    if (!userProfile) {
+      console.log('📊 Profile Completeness - No profile data available')
+      return {
+        completeness: 0,
+        profileQuestionProbability: 0.7, // Higher chance to ask profile questions when no data
+        missingAreas: ['all'],
+      }
+    }
+
+    console.log('📊 Profile Completeness Analysis:')
+    let totalFields = 0
+    let completedFields = 0
+    const missingAreas: string[] = []
+
+    // Analyze datingProfile completeness
+    const datingProfile = userProfile.datingProfile || {}
+
+    // Physical preferences (weight: 15%)
+    if (datingProfile.physicalPreferences) {
+      const physicalFields = [
+        'height',
+        'build',
+        'ethnicity',
+        'style',
+        'attractionTags',
+      ]
+      const physicalCompleted = physicalFields.filter(
+        (field) =>
+          datingProfile.physicalPreferences[field] &&
+          (Array.isArray(datingProfile.physicalPreferences[field])
+            ? datingProfile.physicalPreferences[field].length > 0
+            : true)
+      ).length
+      totalFields += physicalFields.length
+      completedFields += physicalCompleted
+      if (physicalCompleted < physicalFields.length * 0.5) {
+        missingAreas.push('physical preferences')
+      }
+    } else {
+      totalFields += 5
+      missingAreas.push('physical preferences')
+    }
+
+    // Service preferences (weight: 25%)
+    if (datingProfile.servicePreferences) {
+      const serviceFields = [
+        'primaryServices',
+        'mood',
+        'interactionStyle',
+        'conversationTopics',
+      ]
+      const serviceCompleted = serviceFields.filter(
+        (field) =>
+          datingProfile.servicePreferences[field] &&
+          (Array.isArray(datingProfile.servicePreferences[field])
+            ? datingProfile.servicePreferences[field].length > 0
+            : true)
+      ).length
+      totalFields += serviceFields.length
+      completedFields += serviceCompleted
+      if (serviceCompleted < serviceFields.length * 0.5) {
+        missingAreas.push('service preferences')
+      }
+    } else {
+      totalFields += 4
+      missingAreas.push('service preferences')
+    }
+
+    // Demographics (weight: 15%)
+    if (datingProfile.demographics) {
+      const demoFields = ['agePreference', 'experienceLevel']
+      const demoCompleted = demoFields.filter(
+        (field) => datingProfile.demographics[field]
+      ).length
+      totalFields += demoFields.length
+      completedFields += demoCompleted
+      if (demoCompleted < demoFields.length * 0.5) {
+        missingAreas.push('demographics')
+      }
+    } else {
+      totalFields += 2
+      missingAreas.push('demographics')
+    }
+
+    // General preferences (weight: 20%)
+    const generalFields = [
+      'relationshipStyle',
+      'intimacyComfort',
+      'dominanceStyle',
+    ]
+    const generalCompleted = generalFields.filter(
+      (field) => datingProfile[field]
+    ).length
+    totalFields += generalFields.length
+    completedFields += generalCompleted
+    if (generalCompleted < generalFields.length * 0.5) {
+      missingAreas.push('relationship style')
+    }
+
+    // ProfileData completeness (weight: 25%)
+    const profileData = userProfile.profileData || {}
+    let profileDataScore = 0
+
+    if (profileData.personality?.traits?.length > 0) profileDataScore += 0.3
+    if (profileData.interests?.length > 0) profileDataScore += 0.3
+    if (profileData.capabilities?.languages?.length > 0) profileDataScore += 0.2
+    if (profileData.preferences?.matchingPrefs) profileDataScore += 0.2
+
+    totalFields += 4
+    completedFields += Math.round(profileDataScore * 4)
+    if (profileDataScore < 0.5) {
+      missingAreas.push('personality traits')
+    }
+
+    const completeness = totalFields > 0 ? completedFields / totalFields : 0
+
+    // Calculate probability: less complete = higher chance of profile questions
+    // Range from 0.3 (very complete) to 0.8 (very incomplete), default 0.5
+    let profileQuestionProbability = 0.5
+    if (completeness < 0.3) {
+      profileQuestionProbability = 0.8
+    } else if (completeness < 0.6) {
+      profileQuestionProbability = 0.65
+    } else if (completeness < 0.8) {
+      profileQuestionProbability = 0.4
+    } else {
+      profileQuestionProbability = 0.3
+    }
+
+    console.log('  Total fields analyzed:', totalFields)
+    console.log('  Completed fields:', completedFields)
+    console.log('  Completeness score:', (completeness * 100).toFixed(1) + '%')
+    console.log(
+      '  Profile question probability:',
+      (profileQuestionProbability * 100).toFixed(1) + '%'
+    )
+    console.log('  Missing areas:', missingAreas)
+
+    return {
+      completeness,
+      profileQuestionProbability,
+      missingAreas,
+    }
+  }
+
+  /**
+   * Generate next question for continuous profiling mode
+   * Uses profile completeness analysis and topic conversation state to decide between profile questions and topic conversations
+   */
+  async generateContinuousQuestion(
+    userProfile?: any,
+    currentState?: MamaSanSessionState,
+    lastUserResponse?: string
+  ): Promise<string> {
     console.log('🔄 CONTINUOUS QUESTION GENERATION START:')
     console.log('  User profile available:', !!userProfile)
     console.log('  User ID available:', !!this.config.userId)
+    console.log('  Current state available:', !!currentState)
+    console.log('  Last user response available:', !!lastUserResponse)
     console.log(
       '  Profile data keys:',
       userProfile ? Object.keys(userProfile) : 'none'
     )
 
-    if (!this.config.userId) {
-      console.log('❌ No userId available - generating topic from profile data')
-      return await this.generateProfileBasedTopic(userProfile)
+    // Get or initialize topic conversation state
+    let topicState = currentState?.topicConversation
+    if (!topicState) {
+      topicState = this.topicStarter.createInitialState()
+      console.log('🎨 Created initial topic conversation state')
     }
 
-    // Always try to get any available unanswered questions first
-    console.log('📋 CHECKING MONGODB FOR UNANSWERED QUESTIONS...')
-    const availableQuestions = await getAvailableQuestions(this.config.userId)
-    console.log('  Available questions found:', availableQuestions.length)
+    console.log('🎨 TOPIC CONVERSATION STATE:')
+    console.log('  Current topic:', topicState.currentTopic)
+    console.log('  Turn count:', topicState.turnCount)
+    console.log('  Topic history length:', topicState.topicHistory.length)
 
-    if (availableQuestions.length > 0) {
-      const selectedQuestion =
-        availableQuestions[
-          Math.floor(Math.random() * availableQuestions.length)
-        ]
+    // If we have an active topic conversation and user response, check if we should continue
+    if (topicState.currentTopic && lastUserResponse) {
+      const shouldContinueTopic =
+        !this.topicStarter.shouldStartNewTopic(topicState)
 
-      console.log('📝 QUESTION SELECTION:')
-      console.log('  Selected question ID:', selectedQuestion.questionId)
-      console.log('  Selected question text:', selectedQuestion.text)
-      console.log('  Question category:', selectedQuestion.category)
-      console.log('  Question priority:', selectedQuestion.priority)
+      if (shouldContinueTopic) {
+        console.log('💬 CONTINUING CURRENT TOPIC:', topicState.currentTopic)
+        const continuationQuestion =
+          await this.topicStarter.continueCurrentTopic(
+            topicState,
+            lastUserResponse,
+            userProfile
+          )
 
-      // 50% chance to ask the database question, 50% chance to generate conversation topic
-      const shouldAskDatabaseQuestion = Math.random() < 0.5
-      console.log('🎲 QUESTION TYPE DECISION:')
-      console.log('  Should ask database question:', shouldAskDatabaseQuestion)
+        // Update topic state
+        const updatedTopicState = this.topicStarter.updateConversationState(
+          topicState,
+          undefined, // No new topic
+          continuationQuestion
+        )
+
+        // Update state if provided
+        if (currentState) {
+          currentState.topicConversation = updatedTopicState
+        }
+
+        console.log('✅ TOPIC CONTINUATION GENERATED:', continuationQuestion)
+        return continuationQuestion
+      }
+    }
+
+    // Analyze profile completeness to determine strategy for new conversation turn
+    const profileAnalysis = this.analyzeProfileCompleteness(userProfile)
+
+    // Make decision based on profile completeness
+    const shouldAskProfileQuestion =
+      Math.random() < profileAnalysis.profileQuestionProbability
+
+    console.log('🎲 CONTINUOUS MODE DECISION:')
+    console.log(
+      '  Profile completeness:',
+      (profileAnalysis.completeness * 100).toFixed(1) + '%'
+    )
+    console.log(
+      '  Profile question probability:',
+      (profileAnalysis.profileQuestionProbability * 100).toFixed(1) + '%'
+    )
+    console.log(
+      '  Decision:',
+      shouldAskProfileQuestion ? 'PROFILE QUESTION' : 'NEW TOPIC CONVERSATION'
+    )
+    console.log('  Missing areas:', profileAnalysis.missingAreas)
+
+    if (shouldAskProfileQuestion && this.config.userId) {
+      // Try to get profile questions from database
+      console.log('📋 GETTING PROFILE QUESTIONS FROM DATABASE...')
+      const availableQuestions = await getAvailableQuestions(this.config.userId)
       console.log(
-        '  Decision: ',
-        shouldAskDatabaseQuestion
-          ? 'STRUCTURED PROFILE QUESTION'
-          : 'CONVERSATION TOPIC'
+        '  Available profile questions found:',
+        availableQuestions.length
       )
 
-      if (shouldAskDatabaseQuestion) {
-        console.log('✅ USING STRUCTURED QUESTION FROM DATABASE')
+      if (availableQuestions.length > 0) {
+        // Prioritize questions for missing areas
+        let prioritizedQuestions = availableQuestions
+        if (profileAnalysis.missingAreas.length > 0) {
+          const relevantQuestions = availableQuestions.filter((q) =>
+            profileAnalysis.missingAreas.some(
+              (area) =>
+                q.category.toLowerCase().includes(area.toLowerCase()) ||
+                q.text.toLowerCase().includes(area.toLowerCase())
+            )
+          )
+          if (relevantQuestions.length > 0) {
+            prioritizedQuestions = relevantQuestions
+            console.log(
+              '  Found',
+              relevantQuestions.length,
+              'questions for missing areas'
+            )
+          }
+        }
+
+        const selectedQuestion =
+          prioritizedQuestions[
+            Math.floor(Math.random() * prioritizedQuestions.length)
+          ]
+
+        console.log('📝 PROFILE QUESTION SELECTED:')
+        console.log('  Question ID:', selectedQuestion.questionId)
+        console.log('  Question text:', selectedQuestion.text)
+        console.log('  Question category:', selectedQuestion.category)
+        console.log('  Question priority:', selectedQuestion.priority)
+
         return await this.formatContinuousQuestion(
           selectedQuestion.text,
           'profile'
         )
+      } else {
+        console.log(
+          '📭 NO PROFILE QUESTIONS AVAILABLE - switching to topic conversation'
+        )
       }
-    } else {
-      console.log('📭 NO UNANSWERED QUESTIONS AVAILABLE')
     }
 
-    // Generate conversation topic from existing profile data
-    console.log('💭 GENERATING CONVERSATION TOPIC FROM PROFILE DATA')
-    return await this.generateProfileBasedTopic(userProfile)
+    // Generate new topic conversation
+    console.log('💭 GENERATING NEW TOPIC CONVERSATION')
+    const { topic, question } =
+      await this.generateProfileBasedTopic(userProfile)
+
+    // Update topic conversation state with new topic
+    if (currentState) {
+      const updatedTopicState = this.topicStarter.updateConversationState(
+        topicState,
+        topic,
+        question
+      )
+      currentState.topicConversation = updatedTopicState
+      console.log('🎨 Updated topic conversation state with new topic:', topic)
+    }
+
+    return question
   }
 
   /**
-   * Generate a conversation topic based on existing user profile data
+   * Generate a conversation topic using the TopicStarter specialist
    */
-  private async generateProfileBasedTopic(userProfile?: any): Promise<string> {
-    console.log('🎨 PROFILE-BASED TOPIC GENERATION START:')
+  private async generateProfileBasedTopic(userProfile?: any): Promise<{
+    topic: string
+    question: string
+  }> {
+    console.log('🎨 TOPIC CONVERSATION MODE:')
+    console.log('  Using TopicStarter specialist for topic generation')
     console.log('  Profile data available:', !!userProfile)
 
-    // Extract existing profile information
-    const profileTags: string[] = []
-    const interests: string[] = []
-    const preferences: string[] = []
+    try {
+      const { topic, question } =
+        await this.topicStarter.generateNewTopic(userProfile)
 
-    if (userProfile) {
-      // Collect tags from various profile sections
-      if (userProfile.datingProfile?.physicalPreferences) {
-        Object.values(userProfile.datingProfile.physicalPreferences).forEach(
-          (value: any) => {
-            if (typeof value === 'string') profileTags.push(value)
-            if (Array.isArray(value)) profileTags.push(...value)
-          }
-        )
-      }
+      console.log('🎨 Generated topic conversation:')
+      console.log('  Topic:', topic)
+      console.log('  Question:', question)
 
-      if (userProfile.datingProfile?.servicePreferences) {
-        Object.values(userProfile.datingProfile.servicePreferences).forEach(
-          (value: any) => {
-            if (typeof value === 'string') interests.push(value)
-            if (Array.isArray(value)) interests.push(...value)
-          }
-        )
-      }
+      return { topic, question }
+    } catch (error) {
+      console.error('🎨 MamaSan - Error generating topic conversation:', error)
 
-      if (userProfile.profileData?.preferences) {
-        Object.values(userProfile.profileData.preferences).forEach(
-          (value: any) => {
-            if (typeof value === 'string') preferences.push(value)
-            if (Array.isArray(value)) preferences.push(...value)
-          }
-        )
-      }
+      // Fallback to simple conversation starters
+      const fallbacks = [
+        {
+          topic: 'mood and energy',
+          question: 'what kind of energy are you feeling today?',
+        },
+        {
+          topic: 'comfort preferences',
+          question: 'what makes you feel most comfortable in new situations?',
+        },
+        {
+          topic: 'conversation style',
+          question: 'what sort of conversation makes time fly by for you?',
+        },
+        {
+          topic: 'lifestyle preferences',
+          question: 'what would make today feel perfect for you?',
+        },
+        {
+          topic: 'social dynamics',
+          question: 'what kind of vibe do you bring out in other people?',
+        },
+      ]
+
+      return fallbacks[Math.floor(Math.random() * fallbacks.length)]
     }
-
-    console.log('📊 PROFILE DATA EXTRACTION:')
-    console.log(
-      '  Physical preference tags:',
-      profileTags.length,
-      profileTags.length > 0 ? profileTags.slice(0, 3) : 'none'
-    )
-    console.log(
-      '  Service interests:',
-      interests.length,
-      interests.length > 0 ? interests.slice(0, 3) : 'none'
-    )
-    console.log(
-      '  General preferences:',
-      preferences.length,
-      preferences.length > 0 ? preferences.slice(0, 3) : 'none'
-    )
-
-    // If we have profile data, generate topic from it
-    if (
-      profileTags.length > 0 ||
-      interests.length > 0 ||
-      preferences.length > 0
-    ) {
-      const allTopics = [...profileTags, ...interests, ...preferences].filter(
-        Boolean
-      )
-      const randomTopic =
-        allTopics[Math.floor(Math.random() * allTopics.length)]
-
-      console.log('🎯 TOPIC SELECTION FROM PROFILE:')
-      console.log('  Total available topics:', allTopics.length)
-      console.log('  All topics:', allTopics)
-      console.log('  Selected topic:', randomTopic)
-      console.log('  Topic type: PERSONALIZED CONVERSATION STARTER')
-
-      const systemPrompt = `You are Emi, the chaotic-cute mama-san who loves getting to know her clients better.
-
-CONTEXT: You're in continuous conversation mode and want to dive deeper into something the client has already shared about themselves.
-
-TASK: Generate a natural follow-up question or conversation starter about "${randomTopic}" that feels like you're genuinely curious to know more about them.
-
-STYLE:
-- Keep it short and casual (2-3 sentences max)
-- No emojis or special characters
-- Sound genuinely interested, not like you're conducting an interview
-- Make it feel like natural curiosity between friends
-- You can reference that they mentioned this before
-
-Examples of good topics:
-- "you mentioned you like tall guys - what is it about height that attracts you?"
-- "i remember you said you're into gaming - what kind of games get you really excited?"
-- "you seem to prefer calm vibes - tell me about your ideal relaxing evening"
-
-Make it conversational and engaging!`
-
-      const userPrompt = `Generate a casual follow-up question about: "${randomTopic}"`
-
-      try {
-        const messages = [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ]
-        const result = await callAI(messages)
-        console.log('🌸 MamaSan - Generated profile-based topic:', result)
-        return result
-      } catch (error) {
-        console.error('🌸 MamaSan - Error generating profile topic:', error)
-        return `tell me more about ${randomTopic.toLowerCase()} - i'm curious what draws you to that`
-      }
-    }
-
-    // Fallback to general conversation starters if no profile data
-    console.log('🆕 NO PROFILE DATA AVAILABLE:')
-    console.log('  Using general conversation starters')
-    console.log('  Topic type: GENERAL CONVERSATION STARTER')
-    const generalTopics = [
-      'what kind of energy are you feeling today?',
-      'what makes you feel most comfortable in new situations?',
-      'what sort of conversation makes time fly by for you?',
-      'what would make today feel perfect for you?',
-      'what kind of vibe do you bring out in other people?',
-    ]
-
-    const selectedTopic =
-      generalTopics[Math.floor(Math.random() * generalTopics.length)]
-    return await this.formatContinuousQuestion(selectedTopic, 'interest')
   }
 
   /**
@@ -563,7 +796,8 @@ Make it sound like something Emi would naturally ask in conversation, not a form
 
   async analyzeResponse(
     question: string,
-    userResponse: string
+    userResponse: string,
+    mode: 'onboarding' | 'continuous' = 'onboarding'
   ): Promise<{
     answered: boolean
     reason?: string
@@ -589,14 +823,14 @@ Make it sound like something Emi would naturally ask in conversation, not a form
       // If we have a response processor, use the new validation system
       if (this.responseProcessor) {
         console.log('🌸 MamaSan - Using new validation system')
-        return await this.analyzeWithNewSystem(question, userResponse)
+        return await this.analyzeWithNewSystem(question, userResponse, mode)
       }
 
       // Fallback to old system if no response processor
       console.log(
         '🌸 MamaSan - Using fallback analysis (no response processor)'
       )
-      return await this.analyzeWithFallback(question, userResponse)
+      return await this.analyzeWithFallback(question, userResponse, mode)
     } catch (error) {
       console.error('🌸 MamaSan - CRITICAL ERROR in analyzeResponse:', error)
       console.error('🌸 MamaSan - Error type:', typeof error)
@@ -624,7 +858,8 @@ Make it sound like something Emi would naturally ask in conversation, not a form
    */
   private async analyzeWithNewSystem(
     question: string,
-    userResponse: string
+    userResponse: string,
+    mode: 'onboarding' | 'continuous' = 'onboarding'
   ): Promise<{
     answered: boolean
     reason?: string
@@ -639,7 +874,7 @@ Make it sound like something Emi would naturally ask in conversation, not a form
     )
 
     try {
-      const systemPrompt = this.getAnalysisSystemPrompt()
+      const systemPrompt = this.getAnalysisSystemPrompt(mode)
       const userPrompt = this.buildAnalysisPrompt(question, userResponse)
 
       console.log('🌸 MamaSan - System prompt length:', systemPrompt.length)
@@ -743,50 +978,92 @@ Make it sound like something Emi would naturally ask in conversation, not a form
       console.log(
         '🌸 MamaSan - Falling back to old analysis system due to error'
       )
-      return await this.analyzeWithFallback(question, userResponse)
+      return await this.analyzeWithFallback(question, userResponse, mode)
     }
   }
 
   /**
    * Get the system prompt for analysis
    */
-  private getAnalysisSystemPrompt(): string {
+  private getAnalysisSystemPrompt(
+    mode: 'onboarding' | 'continuous' = 'onboarding'
+  ): string {
     if (this.config.personality === 'emi') {
-      return `You are Emi, a modern-day mama-san helping match clients with hosts. 
+      if (mode === 'continuous') {
+        return `You are Emi, a modern-day mama-san in continuous conversation mode with a client you already know pretty well!
 
-Your job is to:
-1. Determine if a user's response meaningfully answers a matchmaking question
-2. Extract structured profile data that can be used to update their MatchProfile
+CONTINUOUS MODE ANALYSIS:
+You're analyzing responses during ongoing conversations (not initial onboarding). This means:
 
-Be GENEROUS in accepting answers - people express preferences in many different ways.
+1. **Response Acceptance**: Be VERY GENEROUS - almost any response that isn't completely nonsensical should be accepted as "answered" because you're having natural conversations, not conducting interviews.
 
-ACCEPT answers that:
-- Express any preference, opinion, or personal detail
-- Mention specific traits, activities, or characteristics they like/dislike
-- Give examples or comparisons
-- Share feelings, moods, or desires
-- Provide ANY useful information for matchmaking
+2. **Profile Data Extraction**: Look for subtle preferences and insights that emerge naturally in conversation:
+   - Casual mentions of interests, preferences, or dislikes
+   - Emotional reactions that reveal personality traits
+   - Lifestyle details that inform matching preferences
+   - Social behaviors and interaction styles
+   - Entertainment preferences and cultural interests
 
-REJECT only if the response:
-- Is completely off-topic or nonsensical
-- Is just "I don't know" with no additional info
-- Is obviously trying to avoid the question
-- Contains no useful matchmaking information whatsoever
+3. **Context Awareness**: Remember this is continuous conversation, so:
+   - Responses might be more casual and conversational
+   - They might reference previous topics or answers
+   - Some responses are just natural conversation flow (still valid!)
+   - Extract ANY useful details for their dating/host preference profile
 
-When extracting profile data, look for:
-- Physical preferences (height, build, ethnicity, style, etc.)
-- Personality traits they seek (confident, shy, funny, caring, etc.)
-- Activity interests (gaming, anime, karaoke, sports, etc.)
-- Mood preferences (energetic, calm, flirty, romantic, etc.)
-- Conversation topics they enjoy
-- Service preferences (teaching, companionship, entertainment, etc.)
-- Age preferences or demographic info
-- Relationship style preferences (casual, intimate, playful, etc.)
+WHAT TO EXTRACT in continuous mode:
+- Any preferences mentioned (even casually)
+- Interests, hobbies, entertainment choices
+- Social and interaction preferences
+- Lifestyle and personality insights
+- Relationship or service style preferences
+- Physical attraction patterns (if mentioned)
+- Mood and energy preferences
+
+ACCEPTANCE CRITERIA (very lenient):
+- ACCEPT: Any response that engages with the conversation
+- ACCEPT: Sharing any personal information or preferences
+- ACCEPT: Natural conversational responses that build rapport
+- REJECT ONLY: Complete non-sequiturs or obvious avoidance
+
+Remember: In continuous mode, you're building relationships and gathering insights naturally - be generous with acceptance!`
+      } else {
+        return `You are Emi, a modern-day mama-san helping match clients with hosts during initial onboarding.
+
+ONBOARDING MODE ANALYSIS:
+You're analyzing responses to your structured onboarding questions. This means:
+
+1. **Response Evaluation**: Be GENEROUS but focused - determine if they meaningfully answered your specific onboarding question.
+
+2. **Profile Data Extraction**: Extract structured data that directly answers matchmaking questions:
+   - Physical preferences (height, build, ethnicity, style, etc.)
+   - Personality traits they seek (confident, shy, funny, caring, etc.)
+   - Activity interests (gaming, anime, karaoke, sports, etc.)
+   - Mood preferences (energetic, calm, flirty, romantic, etc.)
+   - Conversation topics they enjoy
+   - Service preferences (teaching, companionship, entertainment, etc.)
+   - Age preferences or demographic info
+   - Relationship style preferences (casual, intimate, playful, etc.)
+
+ACCEPTANCE CRITERIA for onboarding:
+- ACCEPT: Express any preference, opinion, or personal detail related to the question
+- ACCEPT: Mention specific traits, activities, or characteristics they like/dislike
+- ACCEPT: Give examples or comparisons that answer the question
+- ACCEPT: Share feelings, moods, or desires relevant to matchmaking
+- REJECT: Completely off-topic responses
+- REJECT: Just "I don't know" with no additional info
+- REJECT: Obviously trying to avoid the question
+- REJECT: Contains no useful matchmaking information whatsoever
 
 Remember: Even vague preferences are still preferences! A response like "someone fun" or "I like games" IS a valid answer for matchmaking.`
+      }
     }
 
-    return `You are a skilled mama-san analyzing user responses for matchmaking purposes. Determine if responses contain useful preference information and extract structured data accordingly.`
+    // Default personality fallback
+    if (mode === 'continuous') {
+      return `You are a skilled mama-san analyzing responses during continuous conversation mode. Be very generous in accepting responses as natural conversation flow is expected. Extract any useful preference information that emerges naturally.`
+    } else {
+      return `You are a skilled mama-san analyzing user responses for matchmaking purposes during initial onboarding. Determine if responses contain useful preference information and extract structured data accordingly.`
+    }
   }
 
   /**
@@ -839,7 +1116,8 @@ Analyze this response and extract any useful matchmaking information.`
    */
   private async analyzeWithFallback(
     question: string,
-    userResponse: string
+    userResponse: string,
+    mode: 'onboarding' | 'continuous' = 'onboarding'
   ): Promise<{
     answered: boolean
     reason?: string

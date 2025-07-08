@@ -429,7 +429,11 @@ export class MatchmakingOrchestrator {
         // Generate next continuous question
         console.log('🎭 Orchestrator - Generating next continuous question...')
         const continuousQuestion =
-          await this.mamaSan.generateContinuousQuestion(userProfile)
+          await this.mamaSan.generateContinuousQuestion(
+            userProfile,
+            this.mamaSanState,
+            message
+          )
 
         console.log('🎯 FINAL CONTINUOUS QUESTION GENERATED:')
         console.log('  Question:', continuousQuestion)
@@ -438,6 +442,9 @@ export class MatchmakingOrchestrator {
 
         // Store the question for next response tracking
         localStorage.setItem('mamasan_last_question', continuousQuestion)
+
+        // Save updated state with topic conversation
+        this.saveMamaSanState()
 
         const result = {
           message: continuousQuestion,
@@ -450,6 +457,7 @@ export class MatchmakingOrchestrator {
             },
             mode: 'continuous',
             onboardingComplete: true,
+            topicConversation: this.mamaSanState.topicConversation,
           },
         }
         console.log(
@@ -510,10 +518,10 @@ export class MatchmakingOrchestrator {
       this.saveMamaSanState()
       console.log('🎭 Orchestrator - Updated state saved')
 
-      // If more questions, ask next
-      if (!this.mamaSan.isSessionComplete(this.mamaSanState)) {
+      // Check if onboarding is complete (use configured question count)
+      if (!this.mamaSan.isOnboardingComplete(this.mamaSanState)) {
         console.log(
-          '🎭 Orchestrator - More questions remain, generating transition...'
+          '🎭 Orchestrator - More onboarding questions remain, generating transition...'
         )
         // Use the new transition method for smooth conversational flow
         const prevState = {
@@ -569,10 +577,17 @@ export class MatchmakingOrchestrator {
 
         // Generate next continuous question
         const continuousQuestion =
-          await this.mamaSan.generateContinuousQuestion(userProfile)
+          await this.mamaSan.generateContinuousQuestion(
+            userProfile,
+            this.mamaSanState,
+            undefined // No previous message for initial transition to continuous mode
+          )
 
         // Store the question for next response tracking
         localStorage.setItem('mamasan_last_question', continuousQuestion)
+
+        // Save updated state with topic conversation
+        this.saveMamaSanState()
 
         const result = {
           message: continuousQuestion,
@@ -591,6 +606,7 @@ export class MatchmakingOrchestrator {
             },
             mode: 'continuous',
             onboardingComplete: true,
+            topicConversation: this.mamaSanState.topicConversation,
           },
         }
         console.log(
@@ -1337,7 +1353,36 @@ export class MatchmakingOrchestrator {
       }
     }
 
-    // Analyze user response to current question
+    // Check if onboarding is already complete BEFORE analyzing response
+    if (this.mamaSan.isOnboardingComplete(mamasanState)) {
+      console.log('🎭 Orchestrator Server - Already in continuous mode...')
+
+      // Generate continuous question for existing continuous session
+      const continuousQuestion = await this.mamaSan.generateContinuousQuestion(
+        undefined, // No userProfile available in server context
+        mamasanState,
+        message
+      )
+
+      return {
+        message: continuousQuestion,
+        isComplete: false, // Keep session active for continuous mode
+        step: 'mamasan_continuous',
+        updatedState: mamasanState, // Don't increment question count in continuous mode
+        profileUpdates: {},
+        data: {
+          mamasan: {
+            searchQuery: this.mamaSan.buildSearchQuery(mamasanState),
+            answers: mamasanState.answers,
+          },
+          mode: 'continuous',
+          onboardingComplete: true,
+          topicConversation: mamasanState.topicConversation,
+        },
+      }
+    }
+
+    // Analyze user response to current question (onboarding mode only)
     const question = this.mamaSan.getCurrentQuestion(mamasanState)
     const analysis = await this.mamaSan.analyzeResponse(question, message)
 
@@ -1450,9 +1495,9 @@ export class MatchmakingOrchestrator {
       }
     }
 
-    // If more questions, ask next
-    if (!this.mamaSan.isSessionComplete(updatedState)) {
-      // Use the new transition method for smooth conversational flow
+    // Check if onboarding is complete (use configured question count)
+    if (!this.mamaSan.isOnboardingComplete(updatedState)) {
+      // Still in onboarding mode
       const transitionResponse = await this.mamaSan.getResponseWithTransition(
         mamasanState, // Use the previous state to get current question
         message
@@ -1465,25 +1510,35 @@ export class MatchmakingOrchestrator {
         profileUpdates,
       }
     } else {
-      // All questions answered, recommend hosts
-      updatedState.isComplete = true
-      const searchQuery = this.mamaSan.buildSearchQuery(updatedState)
-      // Use transition for final response too
-      const finalTransition = await this.mamaSan.getResponseWithTransition(
-        mamasanState,
+      // Onboarding complete, enter continuous mode
+      console.log('🎭 Orchestrator Server - Entering continuous mode...')
+
+      // Generate continuous question instead of completing
+      const continuousQuestion = await this.mamaSan.generateContinuousQuestion(
+        undefined, // No userProfile available in server context
+        updatedState,
         message
       )
+
+      const finalUpdatedState = {
+        ...updatedState,
+        isComplete: false, // Ensure session stays active
+      }
+
       return {
-        message: finalTransition,
-        isComplete: true,
-        step: 'mamasan_recommend',
-        updatedState,
+        message: continuousQuestion,
+        isComplete: false, // Keep session active for continuous mode
+        step: 'mamasan_continuous',
+        updatedState: finalUpdatedState,
         profileUpdates,
         data: {
           mamasan: {
-            searchQuery,
-            answers: updatedState.answers,
+            searchQuery: this.mamaSan.buildSearchQuery(finalUpdatedState),
+            answers: finalUpdatedState.answers,
           },
+          mode: 'continuous',
+          onboardingComplete: true,
+          topicConversation: finalUpdatedState.topicConversation,
         },
       }
     }

@@ -15,6 +15,10 @@ import settingsStore from '@/features/stores/settings'
 import '@/lib/i18n'
 import { buildUrl } from '@/utils/buildUrl'
 import { MamaSanSpecialist } from '@/features/matchmaking/mama-san-specialist'
+import {
+  handleWidgetChatFn,
+  getCurrentWidgetAuthToken,
+} from '@/features/chat/handlers'
 
 interface WidgetConfig {
   // Display options
@@ -75,6 +79,27 @@ const initializeAudioContext = async () => {
 }
 
 const Widget = () => {
+  console.log('🔧 Widget component mounting...')
+
+  // Global message listener that's always active - for debugging
+  if (typeof window !== 'undefined') {
+    const globalListener = (event: MessageEvent) => {
+      console.log('🌍 GLOBAL LISTENER: Message received!', {
+        type: event.data?.type,
+        origin: event.origin,
+        hasData: !!event.data,
+        timestamp: Date.now(),
+      })
+    }
+
+    // Only add if not already added
+    if (!(window as any).globalListenerAdded) {
+      window.addEventListener('message', globalListener)
+      ;(window as any).globalListenerAdded = true
+      console.log('🌍 Global message listener added')
+    }
+  }
+
   const router = useRouter()
   const chatScrollRef = useRef<HTMLDivElement>(null)
   const chatScrollRefHidden = useRef<HTMLDivElement>(null)
@@ -90,57 +115,430 @@ const Widget = () => {
     showVoiceButton: true,
     showSettingsButton: false,
     autoFocus: true,
-    postMessages: false,
+    postMessages: true,
     allowFullscreen: false,
     showVrmExpressionTester: false,
     disableTTS: false,
     showProfileOverlay: false,
   })
 
+  console.log('🔧 Widget initial config:', config)
+
   const modelType = settingsStore((s) => s.modelType)
   const backgroundImageUrl = homeStore((s) => s.backgroundImageUrl)
   const chatLog = homeStore((s) => s.chatLog)
 
   // Debug logging for profile overlay
-  useEffect(() => {
-    console.log('🎭 Widget - Config updated:')
-    console.log('  showProfileOverlay:', config.showProfileOverlay)
-    console.log('  showVrmExpressionTester:', config.showVrmExpressionTester)
-    console.log('  Full config:', config)
-  }, [config])
+  // useEffect(() => {
+  //   console.log('🎭 Widget - Config updated:')
+  //   console.log('  showProfileOverlay:', config.showProfileOverlay)
+  //   console.log('  showVrmExpressionTester:', config.showVrmExpressionTester)
+  //   console.log('  Full config:', config)
+  // }, [config])
 
   // Auth state
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [authChecked, setAuthChecked] = useState(false)
   const [authError, setAuthError] = useState<string | null>(null)
 
-  // Listen for WIDGET_AUTH event
+  console.log('🔧 Widget auth state:', {
+    isAuthenticated,
+    authChecked,
+    authError,
+  })
+
+  // Listen for all widget events (auth, chat, config, etc.)
   useEffect(() => {
-    function handleAuthEvent(event: MessageEvent) {
-      if (event.data) {
-        console.log('[Widget] Received postMessage event:', event.data)
+    const effectId = Math.random().toString(36).substr(2, 9)
+    console.log(`🔧 Widget message listener useEffect #${effectId} running...`)
+    console.log('🔧 Widget useEffect dependencies:')
+    console.log('🔧   config.postMessages:', config.postMessages)
+    console.log('🔧   isAuthenticated:', isAuthenticated)
+    console.log('🔧   authChecked:', authChecked)
+    console.log('🔧   authError:', authError)
+    console.log('🔧 Widget ready to receive messages!')
+
+    function handleAllMessages(event: MessageEvent) {
+      // LOG EVERY SINGLE MESSAGE - even if malformed
+      console.log('🔥 [Widget] === INCOMING MESSAGE ===')
+      console.log('🔥 [Widget] Event object:', event)
+      console.log('🔥 [Widget] Raw event data:', event.data)
+      console.log('🔥 [Widget] Event origin:', event.origin)
+      console.log('🔥 [Widget] Event source:', event.source)
+      console.log('🔥 [Widget] Window location:', window.location.href)
+      console.log('🔥 [Widget] Message type:', event.data?.type)
+      console.log('🔥 [Widget] Origin comparison:', {
+        eventOrigin: event.origin,
+        expectedOrigin: 'http://localhost:3000',
+        matches: event.origin === 'http://localhost:3000',
+      })
+      console.log('🔥 [Widget] Has data:', !!event.data)
+      console.log(
+        '🔥 [Widget] Data keys:',
+        event.data ? Object.keys(event.data) : []
+      )
+      console.log(
+        '🔥 [Widget] Current config.postMessages:',
+        config.postMessages
+      )
+      console.log('🔥 [Widget] Current isAuthenticated:', isAuthenticated)
+      console.log('🔥 [Widget] Current authChecked:', authChecked)
+      console.log('🔥 [Widget] === END MESSAGE HEADER ===')
+
+      if (!event.data) {
+        console.log('🔥 [Widget] EARLY RETURN: No event data')
+        return
       }
-      if (event.data && event.data.type === 'WIDGET_AUTH' && event.data.token) {
+
+      // Handle WIDGET_AUTH
+      if (event.data.type === 'WIDGET_AUTH' && event.data.token) {
+        console.log('🔥 [Widget] Processing WIDGET_AUTH event')
         setIsAuthenticated(true)
         setAuthChecked(true)
         setAuthError(null)
+        return
+      }
+
+      // Only handle other message types if postMessages is enabled
+      if (!config.postMessages) {
+        console.log(
+          '🔥 [Widget] EARLY RETURN: PostMessage disabled, ignoring non-auth message:',
+          event.data.type
+        )
+        return
+      }
+
+      // Handle WIDGET_CONFIG
+      if (event.data.type === 'WIDGET_CONFIG') {
+        console.log('[Widget] Processing WIDGET_CONFIG event')
+        setConfig((prev) => ({ ...prev, ...event.data.config }))
+        return
+      }
+
+      // Handle SEND_MESSAGE (legacy)
+      if (event.data.type === 'SEND_MESSAGE') {
+        console.log('[Widget] Processing SEND_MESSAGE event (legacy)')
+        const form = document.querySelector('form')
+        const input = form?.querySelector(
+          'input[type="text"]'
+        ) as HTMLInputElement
+        if (input) {
+          input.value = event.data.message
+          form?.dispatchEvent(new Event('submit'))
+        }
+        return
+      }
+
+      // Handle CHAT_MESSAGE_SEND
+      if (event.data.type === 'CHAT_MESSAGE_SEND') {
+        console.log('🔥 [Widget] === PROCESSING CHAT_MESSAGE_SEND ===')
+        console.log('🔥 [Widget] 🎯 SUCCESS: Found CHAT_MESSAGE_SEND!')
+        console.log('🔥 [Widget] Raw event.data:', event.data)
+        console.log('🔥 [Widget] Raw event.data.data:', event.data.data)
+
+        const { content, media, timestamp, userId } = event.data.data || {}
+        console.log('🔥 [Widget] Extracted values:')
+        console.log('🔥 [Widget]   content:', content)
+        console.log('🔥 [Widget]   content type:', typeof content)
+        console.log(
+          '🔥 [Widget]   content length:',
+          content ? content.length : 'N/A'
+        )
+        console.log('🔥 [Widget]   media:', media)
+        console.log('🔥 [Widget]   timestamp:', timestamp)
+        console.log('🔥 [Widget]   userId:', userId)
+
+        if (content && typeof content === 'string') {
+          console.log('🔥 [Widget] ✅ Content validation passed!')
+          console.log('🔥 [Widget] Valid CHAT_MESSAGE_SEND data:', {
+            content: content.substring(0, 50) + '...',
+            media,
+            timestamp,
+            userId,
+          })
+
+          // Check if we have an auth token before processing
+          const currentToken = getCurrentWidgetAuthToken()
+          console.log('🔥 [Widget] Auth token check:')
+          console.log('🔥 [Widget]   hasToken:', !!currentToken)
+          console.log(
+            '🔥 [Widget]   tokenLength:',
+            currentToken ? currentToken.length : 0
+          )
+          console.log(
+            '🔥 [Widget]   tokenStart:',
+            currentToken ? currentToken.substring(0, 20) + '...' : 'none'
+          )
+
+          if (!currentToken) {
+            console.error(
+              '🔥 [Widget] ❌ No auth token - cannot process message'
+            )
+            window.parent.postMessage(
+              { type: 'WIDGET_ERROR', reason: 'no_auth_token' },
+              '*'
+            )
+            return
+          }
+
+          // Process through the widget chat handler
+          console.log(
+            '🔥 [Widget] ✅ Auth check passed - calling widget chat handler...'
+          )
+          console.log(
+            '🔥 [Widget] About to call handleWidgetChatFn() with content:',
+            content.substring(0, 100) + '...'
+          )
+
+          const widgetChatHandler = handleWidgetChatFn()
+          console.log(
+            '🔥 [Widget] handleWidgetChatFn() returned:',
+            typeof widgetChatHandler
+          )
+
+          console.log('🔥 [Widget] Calling widgetChatHandler with content...')
+          widgetChatHandler(content).catch((error) => {
+            console.error('🔥 [Widget] ❌ Chat handler error:', error)
+            console.error('🔥 [Widget] ❌ Error stack:', error.stack)
+            window.parent.postMessage(
+              {
+                type: 'WIDGET_ERROR',
+                reason: 'chat_handler_error',
+                error: String(error),
+              },
+              '*'
+            )
+          })
+          console.log('🔥 [Widget] widgetChatHandler call completed (async)')
+        } else {
+          console.error('🔥 [Widget] ❌ Content validation failed!')
+          console.error('🔥 [Widget] Invalid CHAT_MESSAGE_SEND data:', {
+            content: typeof content,
+            contentValue: content,
+            hasData: !!event.data.data,
+            dataKeys: event.data.data ? Object.keys(event.data.data) : [],
+          })
+        }
+        console.log('🔥 [Widget] === END CHAT_MESSAGE_SEND PROCESSING ===')
+        return
+      }
+
+      // Handle CLEAR_CHAT
+      if (event.data.type === 'CLEAR_CHAT') {
+        console.log('[Widget] Processing CLEAR_CHAT event')
+        homeStore.setState({ chatLog: [] })
+        return
+      }
+
+      // Handle parent's actual message format: {message: {...}}
+      if (event.data.message && !event.data.type) {
+        console.log(
+          '🔥 [Widget] === PROCESSING ACTUAL PARENT MESSAGE FORMAT ==='
+        )
+        console.log('🔥 [Widget] Raw event.data:', event.data)
+        console.log('🔥 [Widget] Raw event.data.message:', event.data.message)
+
+        // Try to extract content from the message object
+        const messageObj = event.data.message
+
+        // Filter out system messages
+        if (messageObj && typeof messageObj === 'object' && messageObj.type) {
+          const systemMessages = [
+            'initialize-post-message-connection',
+            'post-message-connection-established',
+            'connection-ack',
+            'heartbeat',
+            'ping',
+            'pong',
+          ]
+
+          if (systemMessages.includes(messageObj.type)) {
+            console.log(
+              '🔥 [Widget] 📡 Ignoring system message:',
+              messageObj.type
+            )
+            return
+          }
+        }
+
+        let content = null
+
+        // Try different possible content fields
+        if (typeof messageObj === 'string') {
+          content = messageObj
+        } else if (messageObj && typeof messageObj === 'object') {
+          content =
+            messageObj.content ||
+            messageObj.text ||
+            messageObj.message ||
+            messageObj.data
+        }
+
+        console.log('🔥 [Widget] Extracted content:', content)
+        console.log('🔥 [Widget] Content type:', typeof content)
+
+        if (content && typeof content === 'string') {
+          console.log('🔥 [Widget] ✅ Content validation passed!')
+
+          // Check if we have an auth token before processing
+          const currentToken = getCurrentWidgetAuthToken()
+          console.log('🔥 [Widget] Auth token check:')
+          console.log('🔥 [Widget]   hasToken:', !!currentToken)
+          console.log(
+            '🔥 [Widget]   tokenLength:',
+            currentToken ? currentToken.length : 0
+          )
+          console.log(
+            '🔥 [Widget]   tokenStart:',
+            currentToken ? currentToken.substring(0, 20) + '...' : 'none'
+          )
+
+          if (!currentToken) {
+            console.error(
+              '🔥 [Widget] ❌ No auth token - cannot process message'
+            )
+            window.parent.postMessage(
+              { type: 'WIDGET_ERROR', reason: 'no_auth_token' },
+              '*'
+            )
+            return
+          }
+
+          // Process through the widget chat handler
+          console.log(
+            '🔥 [Widget] ✅ Auth check passed - calling widget chat handler...'
+          )
+          console.log(
+            '🔥 [Widget] About to call handleWidgetChatFn() with content:',
+            content.substring(0, 100) + '...'
+          )
+
+          const widgetChatHandler = handleWidgetChatFn()
+          console.log(
+            '🔥 [Widget] handleWidgetChatFn() returned:',
+            typeof widgetChatHandler
+          )
+
+          console.log('🔥 [Widget] Calling widgetChatHandler with content...')
+          widgetChatHandler(content).catch((error) => {
+            console.error('🔥 [Widget] ❌ Chat handler error:', error)
+            console.error('🔥 [Widget] ❌ Error stack:', error.stack)
+            window.parent.postMessage(
+              {
+                type: 'WIDGET_ERROR',
+                reason: 'chat_handler_error',
+                error: String(error),
+              },
+              '*'
+            )
+          })
+          console.log('🔥 [Widget] widgetChatHandler call completed (async)')
+        } else {
+          console.error('🔥 [Widget] ❌ Content validation failed!')
+          console.error(
+            '🔥 [Widget] Could not extract valid content from message:',
+            {
+              messageType: typeof messageObj,
+              messageKeys:
+                messageObj && typeof messageObj === 'object'
+                  ? Object.keys(messageObj)
+                  : [],
+              messageValue: messageObj,
+              extractedContent: content,
+              contentType: typeof content,
+            }
+          )
+        }
+        console.log('🔥 [Widget] === END ACTUAL PARENT MESSAGE PROCESSING ===')
+        return
+      }
+
+      // Handle unknown message types
+      console.log('[Widget] Unhandled message type:', event.data.type)
+      console.log('[Widget] Full unhandled event:', event.data)
+
+      // Track all message types we're receiving
+      const messageTypes = (window as any).receivedMessageTypes || []
+      const messageType = event.data?.type || 'no-type'
+      if (!messageTypes.includes(messageType)) {
+        messageTypes.push(messageType)
+        ;(window as any).receivedMessageTypes = messageTypes
+        console.log(
+          '[Widget] 📊 All message types received so far:',
+          messageTypes
+        )
       }
     }
-    window.addEventListener('message', handleAuthEvent)
-    // If no auth after a short delay, show error
+
+    console.log('🔧 Widget adding message listener...')
+    console.log('🔧 Widget listener context:')
+    console.log('🔧   config.postMessages:', config.postMessages)
+    console.log('🔧   isAuthenticated:', isAuthenticated)
+    console.log('🔧   authChecked:', authChecked)
+    console.log('🔧   authError:', authError)
+    console.log('🔧   window object:', !!window)
+    console.log(
+      '🔧   addEventListener available:',
+      typeof window.addEventListener
+    )
+
+    // Test the message listener immediately
+    const testListener = (event: MessageEvent) => {
+      console.log('🔧 TEST LISTENER: Message received!', event.data)
+    }
+
+    window.addEventListener('message', testListener)
+    window.addEventListener('message', handleAllMessages)
+    console.log('🔧 Widget message listener added successfully')
+
+    // Send a test message to ourselves
+    setTimeout(() => {
+      console.log('🔧 Widget sending test message to self...')
+      window.postMessage({ type: 'WIDGET_SELF_TEST', test: true }, '*')
+    }, 1000)
+
+    // Notify parent that widget is ready
+    console.log('🔧 Widget sending WIDGET_READY to parent...')
+    window.parent.postMessage({ type: 'WIDGET_READY' }, '*')
+    console.log('🔧 Widget WIDGET_READY sent successfully')
+
+    // Auth timeout
     const timeout = setTimeout(() => {
       if (!isAuthenticated) {
+        console.log('[Widget] Auth timeout - marking as unauthenticated')
         setAuthChecked(true)
         setAuthError(
           'You are not authenticated. Please sign in to use the widget.'
         )
       }
     }, 1500)
+
     return () => {
-      window.removeEventListener('message', handleAuthEvent)
+      console.log('🔧 Widget removing message listener...')
+      console.log('🔧 Cleanup reason - dependencies changed:', {
+        postMessages: config.postMessages,
+        isAuthenticated: isAuthenticated,
+      })
+      window.removeEventListener('message', testListener)
+      window.removeEventListener('message', handleAllMessages)
       clearTimeout(timeout)
+      console.log('🔧 Widget message listener removed')
     }
-  }, [isAuthenticated])
+  }, [config.postMessages, isAuthenticated, authChecked, authError])
+
+  // Debug: Status logger to show current widget state
+  useEffect(() => {
+    const statusLogger = setInterval(() => {
+      console.log('🔧 Widget Status Check:')
+      console.log('🔧   postMessages enabled:', config.postMessages)
+      console.log('🔧   authenticated:', isAuthenticated)
+      console.log('🔧   authChecked:', authChecked)
+      console.log('🔧   authError:', authError)
+      console.log('🔧   current token:', !!getCurrentWidgetAuthToken())
+    }, 10000) // Every 10 seconds
+
+    return () => clearInterval(statusLogger)
+  }, [config.postMessages, isAuthenticated, authChecked, authError])
 
   // Clear all persisted state if not authenticated
   useEffect(() => {
@@ -199,17 +597,17 @@ const Widget = () => {
       // Personality is completed if analysis is done and has result, regardless of dismissal
       const isCompleted = completed && hasResult
       const shouldShow = isCompleted && !hasDismissed
-      console.log('🎨 Widget - Personality completion check:', {
-        completed,
-        hasResult,
-        hasDismissed,
-        isCompleted,
-        shouldShow,
-      })
+      // console.log('🎨 Widget - Personality completion check:', {
+      //   completed,
+      //   hasResult,
+      //   hasDismissed,
+      //   isCompleted,
+      //   shouldShow,
+      // })
       // Only adjust layout when panel should actually be visible
       setIsPersonalityCompleted(shouldShow)
     } catch (error) {
-      console.log('🎨 Widget - Error checking personality completion:', error)
+      // console.log('🎨 Widget - Error checking personality completion:', error)
       setIsPersonalityCompleted(false)
     }
   }, [])
@@ -225,7 +623,7 @@ const Widget = () => {
         e.key === 'last_matchmaking_result' ||
         e.key === 'personality_panel_dismissed'
       ) {
-        console.log('🎨 Widget - Storage changed:', e.key)
+        // console.log('🎨 Widget - Storage changed:', e.key)
         checkCompletionStatus()
       }
     }
@@ -241,9 +639,9 @@ const Widget = () => {
   useEffect(() => {
     const unsubscribe = homeStore.subscribe((state, prevState) => {
       if (state.chatLog !== prevState.chatLog) {
-        console.log(
-          '🎨 Widget - Chat log changed, checking completion status...'
-        )
+        // console.log(
+        //   '🎨 Widget - Chat log changed, checking completion status...'
+        // )
         // Small delay to allow localStorage to be updated
         setTimeout(checkCompletionStatus, 100)
       }
@@ -327,42 +725,6 @@ const Widget = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // PostMessage communication with parent
-  useEffect(() => {
-    if (!config.postMessages) return
-
-    const handleMessage = (event: MessageEvent) => {
-      if (event.data.type === 'WIDGET_CONFIG') {
-        setConfig((prev) => ({ ...prev, ...event.data.config }))
-      }
-
-      if (event.data.type === 'SEND_MESSAGE') {
-        // Trigger sending a message from parent
-        const form = document.querySelector('form')
-        const input = form?.querySelector(
-          'input[type="text"]'
-        ) as HTMLInputElement
-        if (input) {
-          input.value = event.data.message
-          form?.dispatchEvent(new Event('submit'))
-        }
-      }
-
-      if (event.data.type === 'CLEAR_CHAT') {
-        homeStore.setState({ chatLog: [] })
-      }
-    }
-
-    window.addEventListener('message', handleMessage)
-
-    // Notify parent that widget is ready
-    window.parent.postMessage({ type: 'WIDGET_READY' }, '*')
-
-    return () => {
-      window.removeEventListener('message', handleMessage)
-    }
-  }, [config])
-
   // Send chat updates to parent
   useEffect(() => {
     if (!config.postMessages) return
@@ -443,11 +805,11 @@ const Widget = () => {
       : {}
 
   // Debug logging
-  console.log('🎨 Widget - isPersonalityCompleted:', isPersonalityCompleted)
-  console.log(
-    '🎨 Widget - Rendering main content with right constraint:',
-    isPersonalityCompleted ? '320px' : '0'
-  )
+  // console.log('🎨 Widget - isPersonalityCompleted:', isPersonalityCompleted)
+  // console.log(
+  //   '🎨 Widget - Rendering main content with right constraint:',
+  //   isPersonalityCompleted ? '320px' : '0'
+  // )
 
   return (
     <>
@@ -523,92 +885,6 @@ const Widget = () => {
               </div>
             )}
 
-            {/* Chat Log - positioned just above input */}
-            {config.showChatLog && chatLog.length > 0 && config.showInput && (
-              <div
-                ref={chatScrollRef}
-                className="absolute bottom-20 left-2 right-2 max-h-32 overflow-y-auto scroll-hidden z-10"
-              >
-                <div className="space-y-2 p-2">
-                  {chatLog.slice(-2).map((msg, i) => {
-                    const isUser = msg.role === 'user'
-                    const alignment = isUser ? 'ml-auto' : 'mr-auto'
-                    const bubbleColor = isUser
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-white/90 backdrop-blur-sm text-gray-800 border border-white/50 shadow-lg'
-
-                    return (
-                      <div
-                        key={i}
-                        className={`text-sm p-3 rounded-2xl max-w-[80%] ${bubbleColor} ${alignment}`}
-                      >
-                        {!isUser && (
-                          <div className="font-semibold text-xs mb-1 opacity-70">
-                            {settingsStore.getState().characterName}
-                          </div>
-                        )}
-                        <div className="leading-relaxed">
-                          {typeof msg.content === 'string'
-                            ? msg.content.replace(/\[.*?\]/g, '')
-                            : 'Image message'}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Chat Log - for when input is hidden, show at bottom */}
-            {config.showChatLog && chatLog.length > 0 && !config.showInput && (
-              <div
-                ref={chatScrollRefHidden}
-                className="absolute bottom-2 left-2 right-2 max-h-32 overflow-y-auto scroll-hidden z-10"
-              >
-                <div className="space-y-2 p-2">
-                  {chatLog.slice(-2).map((msg, i) => {
-                    const isUser = msg.role === 'user'
-                    const alignment = isUser ? 'ml-auto' : 'mr-auto'
-                    const bubbleColor = isUser
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-white/90 backdrop-blur-sm text-gray-800 border border-white/50 shadow-lg'
-
-                    return (
-                      <div
-                        key={i}
-                        className={`text-sm p-3 rounded-2xl max-w-[80%] ${bubbleColor} ${alignment}`}
-                      >
-                        {!isUser && (
-                          <div className="font-semibold text-xs mb-1 opacity-70">
-                            {settingsStore.getState().characterName}
-                          </div>
-                        )}
-                        <div className="leading-relaxed">
-                          {typeof msg.content === 'string'
-                            ? msg.content.replace(/\[.*?\]/g, '')
-                            : 'Image message'}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Input Form */}
-            {config.showInput && (
-              <div className="absolute bottom-0 left-0 right-0 p-2 z-20">
-                <div className="bg-white/95 backdrop-blur-sm rounded-lg shadow-lg">
-                  <WidgetForm
-                    showVoiceButton={config.showVoiceButton}
-                    showSettingsButton={config.showSettingsButton}
-                    autoFocus={config.autoFocus}
-                    allowFullscreen={config.allowFullscreen}
-                  />
-                </div>
-              </div>
-            )}
-
             {/* VrmExpressionTester */}
             {modelType === 'vrm' && config.showVrmExpressionTester && (
               <VrmExpressionTester />
@@ -618,8 +894,8 @@ const Widget = () => {
           {/* Profile Overlay - Always show for debugging */}
           <ProfileOverlay />
 
-          {/* Debug button to test overlay */}
-          <div className="fixed top-4 left-4 z-50">
+          {/* Debug buttons */}
+          <div className="fixed top-4 left-4 z-[60] flex flex-col gap-2 pointer-events-auto">
             <button
               onClick={() =>
                 setConfig((prev) => ({
@@ -631,6 +907,28 @@ const Widget = () => {
             >
               Toggle Profile Overlay ({config.showProfileOverlay ? 'ON' : 'OFF'}
               )
+            </button>
+            <button
+              onClick={() => {
+                console.log(
+                  '🔥 [Widget] TEST: Simulating CHAT_MESSAGE_SEND event'
+                )
+                window.dispatchEvent(
+                  new MessageEvent('message', {
+                    data: {
+                      type: 'CHAT_MESSAGE_SEND',
+                      data: {
+                        content: 'Test message from debug button',
+                        timestamp: Date.now(),
+                        userId: 'test-user',
+                      },
+                    },
+                  })
+                )
+              }}
+              className="px-3 py-1 bg-red-500 text-white text-xs rounded hover:bg-red-600"
+            >
+              Test Chat Message
             </button>
           </div>
 

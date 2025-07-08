@@ -1185,6 +1185,11 @@ export const handleWidgetChatFn = () => async (text: string) => {
   const newMessage = text
   const timestamp = new Date().toISOString()
 
+  console.log(
+    '🎪 Widget Chat - handleWidgetChatFn called with message:',
+    newMessage.substring(0, 50) + '...'
+  )
+
   if (newMessage === null) return
 
   try {
@@ -1199,8 +1204,16 @@ export const handleWidgetChatFn = () => async (text: string) => {
     })
 
     // Get the token from the parent
+    console.log('🎪 Widget Chat - Getting auth token...')
     const token = await getWidgetAuthToken()
+    console.log('🎪 Widget Chat - Auth token status:', {
+      hasToken: !!token,
+      tokenLength: token ? token.length : 0,
+      tokenStart: token ? token.substring(0, 20) + '...' : 'none',
+    })
+
     if (!token) {
+      console.error('🎪 Widget Chat - No auth token available')
       window.parent.postMessage(
         { type: 'WIDGET_ERROR', reason: 'unauthenticated' },
         '*'
@@ -1210,20 +1223,55 @@ export const handleWidgetChatFn = () => async (text: string) => {
     }
 
     // Call the server-side matchmaking API
+    console.log('🎪 Widget Chat - Making API call to /api/matchmaking...')
+    const requestBody = { message: newMessage, token }
+    console.log('🎪 Widget Chat - Request body:', {
+      message: newMessage.substring(0, 50) + '...',
+      token: token.substring(0, 20) + '...',
+    })
+
     const response = await fetch('/api/matchmaking', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: newMessage, token }),
+      body: JSON.stringify(requestBody),
     })
+
+    console.log(
+      '🎪 Widget Chat - API response status:',
+      response.status,
+      response.statusText
+    )
+    console.log(
+      '🎪 Widget Chat - API response headers:',
+      Object.fromEntries(response.headers.entries())
+    )
+
     if (!response.ok) {
+      const errorText = await response.text()
+      console.error('🎪 Widget Chat - API call failed:', {
+        status: response.status,
+        statusText: response.statusText,
+        body: errorText,
+      })
       window.parent.postMessage(
-        { type: 'WIDGET_ERROR', reason: 'api_error' },
+        {
+          type: 'WIDGET_ERROR',
+          reason: 'api_error',
+          details: { status: response.status, body: errorText },
+        },
         '*'
       )
       homeStore.setState({ chatProcessing: false })
       return
     }
+
     const data = await response.json()
+    console.log('🎪 Widget Chat - API response data:', {
+      message: data.message ? data.message.substring(0, 100) + '...' : 'none',
+      isComplete: data.isComplete,
+      step: data.step,
+      hasData: !!data.data,
+    })
 
     // Add assistant message to chat log
     homeStore.getState().upsertMessage({
@@ -1241,9 +1289,11 @@ export const handleWidgetChatFn = () => async (text: string) => {
 
     // Check if TTS is disabled via URL parameter
     const disableTTS = isTTSDisabled()
+    console.log('🎪 Widget Chat - TTS disabled:', disableTTS)
 
     // Use speakMessageHandler for the response (it handles TTS, etc.) only if TTS is not disabled
     if (!disableTTS) {
+      console.log('🎪 Widget Chat - Processing TTS for response...')
       await speakMessageHandler(data.message)
     }
 
@@ -1252,8 +1302,10 @@ export const handleWidgetChatFn = () => async (text: string) => {
       { type: 'WIDGET_CHAT_DONE', message: data.message },
       '*'
     )
+    console.log('🎪 Widget Chat - Successfully completed processing')
   } catch (error) {
-    console.error('🎪 Widget Chat - Error:', error)
+    console.error('🎪 Widget Chat - Exception caught:', error)
+    console.error('🎪 Widget Chat - Error stack:', (error as any)?.stack)
     homeStore.setState({ chatProcessing: false })
     window.parent.postMessage(
       { type: 'WIDGET_ERROR', reason: 'exception', error: String(error) },
