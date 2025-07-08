@@ -18,6 +18,11 @@ export const config = {
 }
 
 export default async function handler(req: NextRequest) {
+  console.log('🚀 API/AI/Vercel - Request received:', {
+    method: req.method,
+    url: req.url,
+  })
+
   if (req.method !== 'POST') {
     return new Response(
       JSON.stringify({
@@ -45,18 +50,47 @@ export default async function handler(req: NextRequest) {
     maxTokens = 4096,
   } = await req.json()
 
+  console.log('🚀 API/AI/Vercel - Request params:', {
+    aiService,
+    model,
+    messagesCount: messages?.length,
+    hasApiKey: !!apiKey,
+    stream,
+    temperature,
+    maxTokens,
+  })
+
   // APIキーの取得と検証
   let aiApiKey = apiKey
+  console.log('🚀 API/AI/Vercel - Initial API key present:', !!apiKey)
+  console.log(
+    '🚀 API/AI/Vercel - Is cloud service:',
+    isVercelCloudAIService(aiService)
+  )
+
   if (isVercelCloudAIService(aiService)) {
     if (!aiApiKey) {
       // 環境変数から[サービス名]_KEY または [サービス名]_API_KEY の形式でAPIキーを取得
       const servicePrefix = aiService.toUpperCase()
-      aiApiKey =
-        process.env[`${servicePrefix}_KEY`] ||
-        process.env[`${servicePrefix}_API_KEY`] ||
-        ''
+      console.log(
+        '🚀 API/AI/Vercel - Looking for env vars:',
+        `${servicePrefix}_KEY`,
+        `${servicePrefix}_API_KEY`
+      )
+
+      const envKey1 = process.env[`${servicePrefix}_KEY`]
+      const envKey2 = process.env[`${servicePrefix}_API_KEY`]
+
+      console.log('🚀 API/AI/Vercel - Env key 1 present:', !!envKey1)
+      console.log('🚀 API/AI/Vercel - Env key 2 present:', !!envKey2)
+
+      aiApiKey = envKey1 || envKey2 || ''
     }
+
+    console.log('🚀 API/AI/Vercel - Final API key present:', !!aiApiKey)
+
     if (!aiApiKey) {
+      console.log('🚀 API/AI/Vercel - ERROR: No API key found!')
       return new Response(
         JSON.stringify({ error: 'Empty API Key', errorCode: 'EmptyAPIKey' }),
         {
@@ -183,7 +217,10 @@ export default async function handler(req: NextRequest) {
       })
     }
   } catch (error) {
-    console.error('Error in AI API call:', error)
+    console.error('🚀 API/AI/Vercel - CRITICAL ERROR:', error)
+    console.error('🚀 API/AI/Vercel - Error type:', typeof error)
+    console.error('🚀 API/AI/Vercel - Error message:', (error as any)?.message)
+    console.error('🚀 API/AI/Vercel - Error stack:', (error as any)?.stack)
 
     return new Response(
       JSON.stringify({

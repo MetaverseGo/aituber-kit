@@ -110,6 +110,11 @@ export async function getVercelAIChatResponse(messages: Message[]) {
       })
     }
 
+    console.log(
+      '🔥 VercelAI - Request data:',
+      JSON.stringify(requestData, null, 2)
+    )
+
     const response = await fetch(apiEndpoint, {
       method: 'POST',
       headers: {
@@ -118,8 +123,12 @@ export async function getVercelAIChatResponse(messages: Message[]) {
       body: JSON.stringify(requestData),
     })
 
+    console.log('🔥 VercelAI - Response status:', response.status)
+    console.log('🔥 VercelAI - Response ok:', response.ok)
+
     if (!response.ok) {
       const responseBody = await response.json()
+      console.log('🔥 VercelAI - Error response body:', responseBody)
       throw new Error(
         `API request to ${selectAIService} failed with status ${response.status} and body ${responseBody.error}`,
         { cause: { errorCode: responseBody.errorCode } }

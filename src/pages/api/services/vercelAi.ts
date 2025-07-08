@@ -110,23 +110,44 @@ export async function generateAiText({
   temperature: number
   maxTokens: number
 }) {
+  console.log('🤖 Vercel AI - generateAiText starting:', {
+    model,
+    messagesCount: messages.length,
+    temperature,
+    maxTokens,
+  })
+
   try {
+    console.log('🤖 Vercel AI - Creating model instance...')
+    const modelInstanceResult = modelInstance(model)
+    console.log('🤖 Vercel AI - Model instance created successfully')
+
+    console.log('🤖 Vercel AI - Calling generateText...')
     const result = await generateText({
-      model: modelInstance(model),
+      model: modelInstanceResult,
       messages: messages as CoreMessage[],
       temperature,
       maxTokens,
     })
+
+    console.log('🤖 Vercel AI - generateText completed successfully')
+    console.log(
+      '🤖 Vercel AI - Response text length:',
+      result.text?.length || 0
+    )
 
     return new Response(JSON.stringify({ text: result.text }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     })
   } catch (error: any) {
-    console.error(
-      `Vercel AI Generate Error: ${error.message || 'Unknown error'}`
-    )
-    console.error(`Model: ${model}, Temperature: ${temperature}`)
+    console.error('🤖 Vercel AI Generate Error - DETAILS:')
+    console.error('🤖 Error type:', typeof error)
+    console.error('🤖 Error constructor:', error?.constructor?.name)
+    console.error('🤖 Error message:', error.message || 'Unknown error')
+    console.error('🤖 Error stack:', error.stack)
+    console.error('🤖 Full error object:', error)
+    console.error(`🤖 Model: ${model}, Temperature: ${temperature}`)
 
     return new Response(
       JSON.stringify({
