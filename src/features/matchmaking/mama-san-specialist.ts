@@ -293,7 +293,7 @@ Goal: Efficiently gather their basic host preferences!`
   }
 
   getIntro(): string {
-    return "hi! welcome to the lounge. i'm emi, your matchmaker for today. let's find you the perfect host!"
+    return "hi! welcome to the lounge. i'm emi, your matchmaker for today. tell me what you're in the mood for and I'll work my magic!"
   }
 
   getCurrentQuestion(state: MamaSanSessionState): string {

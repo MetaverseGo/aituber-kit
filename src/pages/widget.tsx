@@ -147,6 +147,56 @@ const Widget = () => {
     authError,
   })
 
+  // Function to send chat history to parent
+  const sendChatHistoryToParent = useCallback(() => {
+    if (!config.postMessages) return
+
+    const currentChatLog = homeStore.getState().chatLog
+    console.log(
+      '🎪 Widget - Sending chat history to parent. Total messages:',
+      currentChatLog.length
+    )
+
+    if (currentChatLog.length === 0) {
+      console.log('🎪 Widget - No chat history to send')
+      return
+    }
+
+    // Get last 2 messages for context
+    const recentMessages = currentChatLog.slice(-2).map((msg) => ({
+      role: msg.role,
+      content: msg.content,
+      timestamp: msg.timestamp,
+    }))
+
+    console.log(
+      '🎪 Widget - Sending recent messages to parent:',
+      recentMessages
+    )
+
+    window.parent.postMessage(
+      {
+        type: 'WIDGET_CHAT_HISTORY',
+        messages: recentMessages,
+        totalMessages: currentChatLog.length,
+      },
+      '*'
+    )
+  }, [config.postMessages])
+
+  // Send chat history when user becomes authenticated
+  useEffect(() => {
+    if (isAuthenticated && authChecked && config.postMessages) {
+      console.log('🎪 Widget - User authenticated, sending chat history...')
+      sendChatHistoryToParent()
+    }
+  }, [
+    isAuthenticated,
+    authChecked,
+    config.postMessages,
+    sendChatHistoryToParent,
+  ])
+
   // Listen for all widget events (auth, chat, config, etc.)
   useEffect(() => {
     const effectId = Math.random().toString(36).substr(2, 9)
@@ -761,13 +811,39 @@ const Widget = () => {
   useEffect(() => {
     // On initial load, if chat log is empty, insert Emi's greeting
     if (homeStore.getState().chatLog.length === 0) {
+      const welcomeMessage = new MamaSanSpecialist().getIntro()
+      const timestamp = new Date().toISOString()
+
       homeStore.getState().upsertMessage({
         role: 'assistant',
-        content: new MamaSanSpecialist().getIntro(),
-        timestamp: new Date().toISOString(),
+        content: welcomeMessage,
+        timestamp: timestamp,
       })
+
+      // Send welcome message to parent
+      console.log(
+        '🎪 Widget - Sending welcome message to parent:',
+        welcomeMessage
+      )
+      if (config.postMessages) {
+        window.parent.postMessage(
+          {
+            type: 'WIDGET_CHAT_DONE',
+            message: welcomeMessage,
+            timestamp: timestamp,
+            isWelcomeMessage: true,
+          },
+          '*'
+        )
+      }
+    } else {
+      // If there's existing chat history, send it to parent
+      console.log(
+        '🎪 Widget - Found existing chat history, sending to parent...'
+      )
+      sendChatHistoryToParent()
     }
-  }, [])
+  }, [config.postMessages, sendChatHistoryToParent])
 
   const getThemeClasses = () => {
     if (config.backgroundColor) return ''
