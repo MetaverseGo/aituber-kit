@@ -216,7 +216,8 @@
     "CustomAPIError": "カスタムAPIでエラーが発生しました",
     "InvalidJSON": "JSON形式が不正です",
     "InvalidAPIKey": "無効なAPIキーです。APIキーの設定をご確認ください。",
-    "AnthropicAPIKeyRequired": "設定 → モデルプロバイダーでAnthropic APIキーを設定してください。無料のAPIキーは https://console.anthropic.com/ で取得できます。"
+    "AnthropicAPIKeyRequired": "設定 → モデルプロバイダーでAnthropic APIキーを設定してください。無料のAPIキーは https://console.anthropic.com/ で取得できます。",
+    "RequestEncodingError": "処理できない文字が含まれています。より簡単なテキストで言い換えてお試しください。"
   },
   "MessageReceiver": "外部からの指示を受け付ける",
   "MessageReceiverDescription": "APIを利用してAIキャラの発言を外部から指示することができます。",

@@ -71,6 +71,14 @@ function handleApiError(errorCode: string): string {
     }
   }
 
+  // Handle encoding errors specifically
+  if (errorCode === 'RequestEncodingError') {
+    return i18next.t(
+      'Errors.RequestEncodingError',
+      'Request contains characters that cannot be processed. Please try rephrasing your message with simpler text.'
+    )
+  }
+
   return i18next.t(`Errors.${errorCode || 'AIAPIError'}`)
 }
 
@@ -190,16 +198,31 @@ export async function getVercelAIChatResponse(messages: Message[]) {
         error.message.includes('unauthorized')
       ) {
         errorCode = 'InvalidAPIKey'
-      } else if (error.message.includes('RequestContentLengthMismatchError')) {
-        // This specific error often indicates API key issues
-        errorCode = 'InvalidAPIKey'
+      } else if (
+        error.message.includes('RequestContentLengthMismatchError') ||
+        error.cause?.code === 'UND_ERR_REQ_CONTENT_LENGTH_MISMATCH'
+      ) {
+        errorCode = 'RequestEncodingError'
         console.error(
-          'RequestContentLengthMismatchError detected - likely API key issue'
+          '🔥 Request encoding error detected. This may be due to special characters in the prompt.'
         )
       }
     }
 
-    return { text: handleApiError(errorCode) }
+    const errorMessage = handleApiError(errorCode)
+    console.error('🔥 Final error message:', errorMessage)
+
+    return {
+      response: new Response(
+        JSON.stringify({
+          choices: [{ message: { content: errorMessage } }],
+        }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      ),
+    }
   }
 }
 

@@ -198,10 +198,11 @@
   "WhisperTranscriptionModelInfo": "You can select the model to use for voice recognition. More advanced models can recognize with higher accuracy, but may incur higher API costs.",
   "SpeechRecognitionModeDisabledInfo": "If audio mode is enabled, only browser voice recognition can be used.\nAlso, in real-time API mode, only browser voice recognition can be used, and the voice recognition timeout function is disabled.",
   "Errors": {
-    "EmptyAPIKey": "API key is not configured. Please check your settings.",
-    "EmptyLocalLLMURL": "Local LLM URL is not set",
-    "AIInvalidProperty": "AI service setting value is incorrect",
     "AIAPIError": "AI service is currently unavailable. Please try again later.",
+    "EmptyAPIKey": "API key is not configured. Please check your settings.",
+    "InvalidAPIKey": "Invalid API key. Please check your API key configuration.",
+    "AnthropicAPIKeyRequired": "Please configure your Anthropic API key in Settings → Model Provider. Get your free API key at https://console.anthropic.com/",
+    "RequestEncodingError": "Request contains characters that cannot be processed. Please try rephrasing your message with simpler text.",
     "InvalidAIService": "Selected AI service is incorrect",
     "MethodNotAllowed": "Request is not appropriate",
     "TTSServiceError": "An error occurred in {{serviceName}} TTS service: {{message}}",
@@ -212,9 +213,7 @@
     "LocalLLMNotFound": "Local LLM endpoint not found",
     "LocalLLMAPIError": "An error occurred in local LLM API",
     "CustomAPIError": "An error occurred in custom API",
-    "InvalidJSON": "JSON format is incorrect",
-    "InvalidAPIKey": "Invalid API key. Please check your API key configuration.",
-    "AnthropicAPIKeyRequired": "Please configure your Anthropic API key in Settings → Model Provider. Get your free API key at https://console.anthropic.com/"
+    "InvalidJSON": "JSON format is incorrect"
   },
   "MessageReceiver": "Accept instructions from external sources",
   "MessageReceiverDescription": "You can instruct the AI character's speech from external sources using API.",
