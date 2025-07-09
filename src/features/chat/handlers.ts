@@ -1271,6 +1271,7 @@ export const handleWidgetChatFn = () => async (text: string) => {
       isComplete: data.isComplete,
       step: data.step,
       hasData: !!data.data,
+      hasRecommendations: !!data.data?.recommendations,
     })
 
     // Add assistant message to chat log
@@ -1279,6 +1280,23 @@ export const handleWidgetChatFn = () => async (text: string) => {
       content: data.message,
       timestamp: new Date().toISOString(),
     })
+
+    // Send recommendations to parent if available
+    if (data.data?.recommendations && data.data.recommendations.length > 0) {
+      console.log(
+        '🎯 Widget Chat - Sending recommendations to parent:',
+        data.data.recommendations.length
+      )
+      window.parent.postMessage(
+        {
+          type: 'CHAT_ACTION_CARDS_UPDATE',
+          data: {
+            actionCards: data.data.recommendations,
+          },
+        },
+        '*'
+      )
+    }
 
     // MamaSan is now in continuous profiling mode - no completion event
     // The conversation continues indefinitely to build user profile

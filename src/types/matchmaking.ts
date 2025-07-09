@@ -10,6 +10,11 @@ export interface MamaSanSessionState {
   answers: string[]
   isComplete: boolean
   topicConversation?: TopicConversationState
+  greetingState?: {
+    hasGreeted: boolean
+    greetingAttempts: number
+    maxGreetingAttempts: number
+  }
 }
 
 export interface TopicConversationState {
@@ -140,6 +145,19 @@ export interface MatchmakingResult {
       searchQuery: string
       answers: string[]
     }
+    mode?: string
+    onboardingComplete?: boolean
+    topicConversation?: TopicConversationState
+    recommendations?: Array<{
+      id: string
+      title: string
+      description?: string
+      action: string
+      data?: any
+      priority: number
+      isVisible?: boolean
+      icon?: string
+    }>
   }
 }
 

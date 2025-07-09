@@ -809,33 +809,9 @@ const Widget = () => {
   }, [chatLog])
 
   useEffect(() => {
-    // On initial load, if chat log is empty, insert Emi's greeting
+    // On initial load, if chat log is empty, do NOT insert Emi's greeting. The backend will provide the first message (welcome + onboarding question).
     if (homeStore.getState().chatLog.length === 0) {
-      const welcomeMessage = new MamaSanSpecialist().getIntro()
-      const timestamp = new Date().toISOString()
-
-      homeStore.getState().upsertMessage({
-        role: 'assistant',
-        content: welcomeMessage,
-        timestamp: timestamp,
-      })
-
-      // Send welcome message to parent
-      console.log(
-        '🎪 Widget - Sending welcome message to parent:',
-        welcomeMessage
-      )
-      if (config.postMessages) {
-        window.parent.postMessage(
-          {
-            type: 'WIDGET_CHAT_DONE',
-            message: welcomeMessage,
-            timestamp: timestamp,
-            isWelcomeMessage: true,
-          },
-          '*'
-        )
-      }
+      // No-op: let the backend handle the first message
     } else {
       // If there's existing chat history, send it to parent
       console.log(
@@ -967,46 +943,8 @@ const Widget = () => {
             )}
           </div>
 
-          {/* Profile Overlay - Always show for debugging */}
-          <ProfileOverlay />
-
-          {/* Debug buttons */}
-          <div className="fixed top-4 left-4 z-[60] flex flex-col gap-2 pointer-events-auto">
-            <button
-              onClick={() =>
-                setConfig((prev) => ({
-                  ...prev,
-                  showProfileOverlay: !prev.showProfileOverlay,
-                }))
-              }
-              className="px-3 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600"
-            >
-              Toggle Profile Overlay ({config.showProfileOverlay ? 'ON' : 'OFF'}
-              )
-            </button>
-            <button
-              onClick={() => {
-                console.log(
-                  '🔥 [Widget] TEST: Simulating CHAT_MESSAGE_SEND event'
-                )
-                window.dispatchEvent(
-                  new MessageEvent('message', {
-                    data: {
-                      type: 'CHAT_MESSAGE_SEND',
-                      data: {
-                        content: 'Test message from debug button',
-                        timestamp: Date.now(),
-                        userId: 'test-user',
-                      },
-                    },
-                  })
-                )
-              }}
-              className="px-3 py-1 bg-red-500 text-white text-xs rounded hover:bg-red-600"
-            >
-              Test Chat Message
-            </button>
-          </div>
+          {/* Profile Overlay - Show only when explicitly enabled */}
+          {config.showProfileOverlay && <ProfileOverlay />}
 
           {/* Fullscreen Button */}
           {config.allowFullscreen && (

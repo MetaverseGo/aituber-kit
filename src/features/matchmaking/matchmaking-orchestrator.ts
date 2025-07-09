@@ -92,7 +92,6 @@ export class MatchmakingOrchestrator {
   private personalityProfiler: PersonalityProfiler
   private mamaSan: MamaSanSpecialist
   private config: MatchmakingConfig
-  private sessionKey: string
   private userId: string
 
   // Core state management
@@ -100,23 +99,26 @@ export class MatchmakingOrchestrator {
   private currentSessionId: string | null = null
   private mode: 'mamasan' | 'kokology' | 'profiling' = 'mamasan'
 
-  // Mode-specific state
+  // Mode-specific state - will be initialized with state from MongoDB
   private mamaSanState: MamaSanSessionState
   private session: MatchmakingSession | null = null
 
-  constructor(userId: string, config: MatchmakingConfig = {}) {
+  constructor(
+    userId: string,
+    config: MatchmakingConfig = {},
+    initialMamaSanState?: MamaSanSessionState
+  ) {
     console.log('[Orchestrator] Constructor called for userId:', userId)
     this.userId = userId
     this.config = {
       kokologyPersonality: 'emi',
       writerPersonality: 'emi',
       profilerPersonality: 'emi',
-      questionCount: 5,
+      questionCount: 4,
       ...config,
     }
 
-    this.sessionKey = `matchmaking_session_${userId}`
-    console.log('[Orchestrator] Session key:', this.sessionKey)
+    console.log('[Orchestrator] Initializing specialists...')
 
     this.kokologyAnalyst = new KokologyAnalyst({
       personality: this.config.kokologyPersonality!,
@@ -138,17 +140,13 @@ export class MatchmakingOrchestrator {
       userId: userId,
     })
 
-    // Initialize MamaSan state
-    this.mamaSanState = { currentQuestion: 0, answers: [], isComplete: false }
-    console.log('[Orchestrator] Initial mamaSanState:', this.mamaSanState)
-    // Only restore from localStorage in the browser
-    if (typeof window !== 'undefined') {
-      this.restoreMamaSanState()
-      console.log(
-        '[Orchestrator] mamaSanState after restoration:',
-        this.mamaSanState
-      )
+    // Initialize MamaSan state from provided parameter or default
+    this.mamaSanState = initialMamaSanState || {
+      currentQuestion: 0,
+      answers: [],
+      isComplete: false,
     }
+    console.log('[Orchestrator] Initial mamaSanState:', this.mamaSanState)
   }
 
   /**
@@ -231,19 +229,10 @@ export class MatchmakingOrchestrator {
       this.isActive = true
       this.currentSessionId = sessionId
 
-      // Restore MamaSan state when activating
-      if (this.mode === 'mamasan') {
-        this.restoreMamaSanState()
-      }
-
       // Determine intent from message
       const intent = this.determineIntent(message)
       if (intent) {
         this.mode = intent
-        // If mode changed to mamasan, restore state
-        if (this.mode === 'mamasan') {
-          this.restoreMamaSanState()
-        }
       }
 
       console.log('[Orchestrator] Activated with mode:', this.mode)
@@ -304,10 +293,9 @@ export class MatchmakingOrchestrator {
     console.log('🎭 Orchestrator - SessionId:', sessionId)
 
     try {
-      // Always restore the latest MamaSan state from localStorage to ensure correct progression
-      console.log('🎭 Orchestrator - Restoring MamaSan state...')
-      this.restoreMamaSanState()
-      console.log('🎭 Orchestrator - MamaSan state restored')
+      // State is now managed via MongoDB, no localStorage restore needed
+      console.log('🎭 Orchestrator - Using state from MongoDB')
+      console.log('🎭 Orchestrator - MamaSan state ready')
 
       console.log('[MamaSan] Processing message:', { message, sessionId })
       console.log('[MamaSan] Current state before processing:', {
@@ -315,7 +303,24 @@ export class MatchmakingOrchestrator {
         answersLength: this.mamaSanState.answers.length,
         isComplete: this.mamaSanState.isComplete,
         answers: this.mamaSanState.answers,
+        greetingState: this.mamaSanState.greetingState,
       })
+
+      // Check if this should be handled as a greeting instead of a question response
+      if (this.mamaSan.shouldHandleAsGreeting(message, this.mamaSanState)) {
+        console.log('🎭 Orchestrator - Handling as greeting interaction')
+        const greetingResult = this.mamaSan.handleGreeting(
+          message,
+          this.mamaSanState
+        )
+        this.mamaSanState = greetingResult.updatedState
+
+        return {
+          message: greetingResult.message,
+          isComplete: false,
+          step: 'mamasan_greeting',
+        }
+      }
 
       // Only treat as a new session if the message is a start trigger
       const isNewSession =
@@ -334,10 +339,9 @@ export class MatchmakingOrchestrator {
         this.mamaSanState.answers = []
         this.mamaSanState.isComplete = false
 
-        console.log('🎭 Orchestrator - Saving initial MamaSan state...')
-        // Save initial state
-        this.saveMamaSanState()
-        console.log('🎭 Orchestrator - Initial state saved')
+        console.log('🎭 Orchestrator - State will be saved via API/MongoDB')
+        // State is saved via the API endpoint that calls this orchestrator
+        console.log('🎭 Orchestrator - State tracking ready')
 
         console.log('🎭 Orchestrator - Getting intro and first question...')
         const intro = this.mamaSan.getIntro()
@@ -382,9 +386,9 @@ export class MatchmakingOrchestrator {
       if (isInContinuousMode) {
         console.log('[MamaSan] Processing continuous profiling response')
 
-        // Record the previous question and response if available
+        // Record the previous question and response if available (from state)
         try {
-          const lastQuestion = localStorage.getItem('mamasan_last_question')
+          const lastQuestion = this.mamaSanState.topicConversation?.lastQuestion
           if (lastQuestion && lastQuestion !== 'undefined') {
             console.log(
               '🎭 Orchestrator - Recording previous question response:',
@@ -412,19 +416,12 @@ export class MatchmakingOrchestrator {
         )
         console.log('🎭 Orchestrator - Continuous analysis result:', analysis)
 
-        // Get user profile for question generation (if available)
+        // User profile should be passed from MongoDB or fetched via API if needed
+        // For now, continuous mode will work without explicit user profile
         let userProfile = null
-        try {
-          const profileData = localStorage.getItem('user_profile')
-          if (profileData) {
-            userProfile = JSON.parse(profileData)
-          }
-        } catch (error) {
-          console.log(
-            '🎭 Orchestrator - No user profile available for continuous mode:',
-            error
-          )
-        }
+        console.log(
+          '🎭 Orchestrator - User profile not available in client-side context, will use state-based conversation'
+        )
 
         // Generate next continuous question
         console.log('🎭 Orchestrator - Generating next continuous question...')
@@ -440,11 +437,19 @@ export class MatchmakingOrchestrator {
         console.log('  Mode: CONTINUOUS PROFILING')
         console.log('  Will track this question for next response')
 
-        // Store the question for next response tracking
-        localStorage.setItem('mamasan_last_question', continuousQuestion)
+        // Store the question in state for next response tracking
+        if (!this.mamaSanState.topicConversation) {
+          this.mamaSanState.topicConversation = {
+            currentTopic: 'continuous_profiling',
+            turnCount: 0,
+            topicHistory: [],
+            lastQuestion: continuousQuestion,
+          }
+        } else {
+          this.mamaSanState.topicConversation.lastQuestion = continuousQuestion
+        }
 
-        // Save updated state with topic conversation
-        this.saveMamaSanState()
+        // State will be saved via API/MongoDB by the calling endpoint
 
         const result = {
           message: continuousQuestion,
@@ -513,10 +518,9 @@ export class MatchmakingOrchestrator {
         answers: this.mamaSanState.answers,
       })
 
-      console.log('🎭 Orchestrator - Saving updated MamaSan state...')
-      // Save state after updating
-      this.saveMamaSanState()
-      console.log('🎭 Orchestrator - Updated state saved')
+      console.log('🎭 Orchestrator - State updated in memory')
+      // State will be saved via API/MongoDB by the calling endpoint
+      console.log('🎭 Orchestrator - State ready for persistence')
 
       // Check if onboarding is complete (use configured question count)
       if (!this.mamaSan.isOnboardingComplete(this.mamaSanState)) {
@@ -540,12 +544,26 @@ export class MatchmakingOrchestrator {
           transitionResponse
         )
 
+        // Generate recommendations after each answered question
+        console.log(
+          '🎯 Orchestrator - Generating recommendations after question answered...'
+        )
+        const recommendations = this.mamaSan.getRecommendations(
+          this.mamaSanState
+        )
+
         const result = {
           message: transitionResponse,
           isComplete: false,
           step: `mamasan_${this.mamaSanState.currentQuestion}`,
+          data: {
+            recommendations: recommendations,
+          },
         }
-        console.log('🎭 Orchestrator - Returning transition result:', result)
+        console.log(
+          '🎭 Orchestrator - Returning transition result with recommendations:',
+          result
+        )
         return result
       } else {
         console.log(
@@ -554,26 +572,22 @@ export class MatchmakingOrchestrator {
 
         // Switch to continuous profiling mode
         this.mamaSanState.isComplete = false // Keep session active for continuous profiling
-        this.saveMamaSanState()
+        // State will be saved via API/MongoDB by the calling endpoint
 
-        // Mark onboarding completion in localStorage but keep session active
+        // Mark onboarding completion in state (while keeping session active for continuous mode)
         console.log(
-          '🎭 Orchestrator - Setting localStorage onboarding completion...'
+          '🎭 Orchestrator - Onboarding complete, entering continuous mode...'
         )
-        localStorage.setItem('mamasan_onboarding_completed', 'true')
+        // Note: isComplete remains false to keep the session active for continuous profiling
 
         console.log('🎭 Orchestrator - Generating continuous question...')
 
-        // Get user profile for question generation (if available)
+        // User profile should be passed from MongoDB or fetched via API if needed
+        // For now, continuous mode will work without explicit user profile
         let userProfile = null
-        try {
-          const profileData = localStorage.getItem('user_profile')
-          if (profileData) {
-            userProfile = JSON.parse(profileData)
-          }
-        } catch (error) {
-          console.log('🎭 Orchestrator - No user profile available:', error)
-        }
+        console.log(
+          '🎭 Orchestrator - User profile not available in client-side context, will use state-based conversation'
+        )
 
         // Generate next continuous question
         const continuousQuestion =
@@ -583,11 +597,27 @@ export class MatchmakingOrchestrator {
             undefined // No previous message for initial transition to continuous mode
           )
 
-        // Store the question for next response tracking
-        localStorage.setItem('mamasan_last_question', continuousQuestion)
+        // Store the question in state for next response tracking
+        if (!this.mamaSanState.topicConversation) {
+          this.mamaSanState.topicConversation = {
+            currentTopic: 'continuous_profiling',
+            turnCount: 0,
+            topicHistory: [],
+            lastQuestion: continuousQuestion,
+          }
+        } else {
+          this.mamaSanState.topicConversation.lastQuestion = continuousQuestion
+        }
 
-        // Save updated state with topic conversation
-        this.saveMamaSanState()
+        // State will be saved via API/MongoDB by the calling endpoint
+
+        // Generate final comprehensive recommendations
+        console.log(
+          '🎯 Orchestrator - Generating final comprehensive recommendations...'
+        )
+        const finalRecommendations = this.mamaSan.getRecommendations(
+          this.mamaSanState
+        )
 
         const result = {
           message: continuousQuestion,
@@ -607,10 +637,11 @@ export class MatchmakingOrchestrator {
             mode: 'continuous',
             onboardingComplete: true,
             topicConversation: this.mamaSanState.topicConversation,
+            recommendations: finalRecommendations,
           },
         }
         console.log(
-          '🎭 Orchestrator - Returning continuous profiling result:',
+          '🎭 Orchestrator - Returning continuous profiling result with final recommendations:',
           result
         )
         return result
@@ -711,13 +742,10 @@ export class MatchmakingOrchestrator {
     this.mamaSanState = { currentQuestion: 0, answers: [], isComplete: false }
     this.session = null
 
-    // Clear localStorage
-    try {
-      localStorage.removeItem(this.sessionKey)
-      console.log('[MamaSan] Cleared session from localStorage')
-    } catch (error) {
-      console.error('Error clearing session:', error)
-    }
+    // State is now managed via MongoDB, no localStorage to clear
+    console.log(
+      '[MamaSan] Session reset in memory, MongoDB state will be updated via API'
+    )
   }
 
   /**
@@ -1202,34 +1230,17 @@ export class MatchmakingOrchestrator {
     }
   }
 
-  // Session management methods using localStorage
+  // Session management methods - now using in-memory session only
+  // MongoDB persistence is handled by the API endpoint that calls this orchestrator
   private getSession(): MatchmakingSession | null {
-    try {
-      const sessionData = localStorage.getItem(this.sessionKey)
-      if (!sessionData) return null
-
-      const session = JSON.parse(sessionData)
-      // Convert timestamp strings back to Date objects
-      if (session.kokologyQuestions) {
-        session.kokologyQuestions = session.kokologyQuestions.map((q: any) => ({
-          ...q,
-          timestamp: new Date(q.timestamp),
-        }))
-      }
-      return session
-    } catch (error) {
-      console.error('Error getting session from localStorage:', error)
-      return null
-    }
+    return this.session
   }
 
   private saveSession(session: MatchmakingSession): void {
-    try {
-      localStorage.setItem(this.sessionKey, JSON.stringify(session))
-      this.session = session
-    } catch (error) {
-      console.error('Error saving session to localStorage:', error)
-    }
+    this.session = session
+    console.log(
+      '[Orchestrator] Session updated in memory, will be persisted via API'
+    )
   }
 
   // Helper methods for external access
@@ -1245,82 +1256,15 @@ export class MatchmakingOrchestrator {
     return this.personalityProfiler.getAllCategories()
   }
 
-  // New method to restore MamaSan state from localStorage
-  private restoreMamaSanState(): void {
-    if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
-      // Server environment: skip restoring from localStorage
-      return
-    }
-    try {
-      console.log('[MamaSan] Attempting to restore state from localStorage...')
-      const sessionData = localStorage.getItem(this.sessionKey)
-      console.log('[MamaSan] Raw session data from localStorage:', sessionData)
-      if (sessionData) {
-        const session = JSON.parse(sessionData)
-        console.log('[MamaSan] Parsed session from localStorage:', session)
-        if (session.mamasan) {
-          if (
-            !session.mamasan.isComplete &&
-            (session.mamasan.currentQuestion > 0 ||
-              session.mamasan.answers.length > 0)
-          ) {
-            this.mamaSanState = session.mamasan
-            console.log(
-              '[MamaSan] Successfully restored active MamaSan state from localStorage:',
-              this.mamaSanState
-            )
-          } else {
-            console.log(
-              '[MamaSan] Found mamasan state but it was completed or empty, starting fresh'
-            )
-          }
-        } else {
-          console.log('[MamaSan] No mamasan state found in session data')
-        }
-      } else {
-        console.log('[MamaSan] No session data found in localStorage')
-      }
-    } catch (error) {
-      console.error('Error restoring MamaSan state:', error)
-    }
+  // Get current MamaSan state (for external access)
+  getCurrentMamaSanState(): MamaSanSessionState {
+    return this.mamaSanState
   }
 
-  // New method to save MamaSan state to localStorage
-  private saveMamaSanState(): void {
-    if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
-      // Server environment: skip saving to localStorage
-      return
-    }
-    try {
-      console.log('[MamaSan] Attempting to save state to localStorage...')
-      let session = this.getSession()
-      if (!session) {
-        console.log('[MamaSan] No existing session found, creating new one')
-        session = {
-          sessionId: this.currentSessionId || 'unknown',
-          status: 'idle' as const,
-          step: this.mamaSanState.currentQuestion,
-          missingFields: [],
-          kokologyQuestions: [],
-        }
-      } else {
-        console.log('[MamaSan] Found existing session, updating MamaSan state')
-        session.sessionId = this.currentSessionId || session.sessionId
-        session.step = this.mamaSanState.currentQuestion
-      }
-      session.mamasan = this.mamaSanState
-      console.log(
-        '[MamaSan] Saving session with updated MamaSan state:',
-        session
-      )
-      this.saveSession(session)
-      console.log(
-        '[MamaSan] Successfully saved state to localStorage:',
-        this.mamaSanState
-      )
-    } catch (error) {
-      console.error('Error saving MamaSan state:', error)
-    }
+  // Update MamaSan state (for external updates from MongoDB)
+  updateMamaSanState(newState: MamaSanSessionState): void {
+    this.mamaSanState = newState
+    console.log('[Orchestrator] MamaSan state updated from external source')
   }
 
   // Server-friendly, stateless version for API usage
@@ -1335,6 +1279,20 @@ export class MatchmakingOrchestrator {
     profileUpdates: any
     data?: any
   }> {
+    // Check if this should be handled as a greeting instead of a question response
+    if (this.mamaSan.shouldHandleAsGreeting(message, mamasanState)) {
+      console.log('🎭 Orchestrator Server - Handling as greeting interaction')
+      const greetingResult = this.mamaSan.handleGreeting(message, mamasanState)
+
+      return {
+        message: greetingResult.message,
+        isComplete: false,
+        step: 'mamasan_greeting',
+        updatedState: greetingResult.updatedState,
+        profileUpdates: {},
+      }
+    }
+
     // Only treat as a new session if the message is a start trigger
     const isNewSession =
       mamasanState.currentQuestion === 0 &&
@@ -1468,6 +1426,9 @@ export class MatchmakingOrchestrator {
         message
       )
 
+      // Generate recommendations for continuous mode
+      const recommendations = this.mamaSan.getRecommendations(mamasanState)
+
       return {
         message: continuousQuestion,
         isComplete: false, // Keep session active for continuous mode
@@ -1482,6 +1443,7 @@ export class MatchmakingOrchestrator {
           mode: 'continuous',
           onboardingComplete: true,
           topicConversation: mamasanState.topicConversation,
+          recommendations: recommendations,
         },
       }
     }
@@ -1599,6 +1561,9 @@ export class MatchmakingOrchestrator {
       }
     }
 
+    // Generate recommendations after each answered question
+    const recommendations = this.mamaSan.getRecommendations(updatedState)
+
     // Check if onboarding is complete (use configured question count)
     if (!this.mamaSan.isOnboardingComplete(updatedState)) {
       // Still in onboarding mode
@@ -1612,6 +1577,9 @@ export class MatchmakingOrchestrator {
         step: `mamasan_${updatedState.currentQuestion}`,
         updatedState,
         profileUpdates,
+        data: {
+          recommendations: recommendations,
+        },
       }
     } else {
       // Onboarding complete, enter continuous mode
@@ -1643,6 +1611,7 @@ export class MatchmakingOrchestrator {
           mode: 'continuous',
           onboardingComplete: true,
           topicConversation: finalUpdatedState.topicConversation,
+          recommendations: recommendations,
         },
       }
     }

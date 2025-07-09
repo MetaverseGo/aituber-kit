@@ -139,3 +139,64 @@ The `canvas` npm package (~100MB+) has been conditionally removed from productio
 
 See `amplify.yml` for build configuration and `next.config.js` for optimization settings.
 Add NEXT*PUBLIC* to Amplify Environment Variables settings
+
+# Anthropic API Fix - RequestContentLengthMismatchError
+
+## Issue Resolved ✅
+
+**Problem**: `RequestContentLengthMismatchError: Request body length does not match content-length header` when making Anthropic API calls through the matchmaking system.
+
+**Root Cause**: Character encoding mismatch between JavaScript string length and actual UTF-8 byte length in HTTP request bodies. The matchmaking system uses very long system prompts (1600+ characters) with special characters, JSON escape sequences, and Unicode quotes that caused byte count discrepancies.
+
+## Why Local vs Production Difference
+
+- **Local Development**: More lenient HTTP handling with direct localhost requests
+- **Production**: Strict RFC compliance enforcement by CDNs, proxies, and load balancers
+- **Character Encoding**: JavaScript `string.length` counts characters but HTTP `Content-Length` requires bytes
+- **UTF-8 Encoding**: Special characters take 2-3 bytes each, causing mismatch between calculated vs actual request body size
+
+## Fix Implementation
+
+### 1. Message Sanitization
+
+- Added character cleaning to remove control characters (`\u0000-\u001F\u007F`)
+- Removed zero-width characters (`\u200B-\u200F\uFEFF`)
+- Applied to all message content before API calls
+
+### 2. Proper HTTP Headers
+
+- Added explicit `charset=utf-8` to Content-Type headers
+- Ensured consistent encoding throughout the request pipeline
+
+### 3. Custom Fetch Implementation
+
+- Implemented custom fetch for Anthropic service with proper request body sanitization
+- Enhanced error handling for encoding-related issues
+
+### 4. Enhanced Error Handling
+
+- Added specific detection for `RequestContentLengthMismatchError`
+- New error code `RequestEncodingError` for encoding issues
+- User-friendly error messages in both English and Japanese
+
+## Files Modified
+
+- `src/pages/api/ai/vercel.ts` - Core API endpoint with sanitization
+- `src/pages/api/services/vercelAi.ts` - Custom fetch implementation
+- `locales/en/translation.json` - English error messages
+- `locales/ja/translation.json` - Japanese error messages
+
+## Testing
+
+- ✅ Local development: Works with sanitized requests
+- ✅ Production deployment: Resolves encoding mismatch errors
+- ✅ Long system prompts: Handles 1600+ character prompts correctly
+- ✅ Special characters: Properly encodes Unicode and escape sequences
+
+## Prevention
+
+This fix prevents similar issues with other AI services by:
+
+- Standardizing character encoding across all API calls
+- Providing clear error messages for encoding issues
+- Implementing proper byte-level content length calculation
