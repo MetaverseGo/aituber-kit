@@ -242,6 +242,26 @@
           </label>
         </div>
 
+        <div style="margin: 20px 0">
+          <h4>MamaSan Recommendations:</h4>
+          <div
+            id="recommendation-cards"
+            style="
+              border: 1px solid #ddd;
+              border-radius: 5px;
+              padding: 15px;
+              background: #f9f9f9;
+              min-height: 100px;
+              text-align: center;
+            "
+          >
+            <p style="color: #666; margin: 0">
+              Recommendation cards will appear here after MamaSan analyzes your
+              preferences...
+            </p>
+          </div>
+        </div>
+
         <pre><code>&lt;!-- Interactive Widget Setup --&gt;
 &lt;iframe 
     id="ai-widget"
@@ -511,6 +531,28 @@ function performHostSearch(searchData) {
             </tr>
             <tr style="background: #e8f5e8">
               <td style="border: 1px solid #ddd; padding: 8px">
+                <code>CHAT_ACTION_CARDS_UPDATE</code>
+              </td>
+              <td style="border: 1px solid #ddd; padding: 8px">
+                <strong>NEW:</strong> MamaSan sends host recommendation cards
+                with images
+              </td>
+              <td style="border: 1px solid #ddd; padding: 8px">
+                <code
+                  >{<br />
+                  &nbsp;&nbsp;actionCards: Array&lt;{<br />
+                  &nbsp;&nbsp;&nbsp;&nbsp;id: string,<br />
+                  &nbsp;&nbsp;&nbsp;&nbsp;title: string,<br />
+                  &nbsp;&nbsp;&nbsp;&nbsp;description: string,<br />
+                  &nbsp;&nbsp;&nbsp;&nbsp;data: { image: string, tags: string[]
+                  }<br />
+                  &nbsp;&nbsp;}&gt;<br />
+                  }</code
+                >
+              </td>
+            </tr>
+            <tr style="background: #e8f5e8">
+              <td style="border: 1px solid #ddd; padding: 8px">
                 <code>MAMASAN_SEARCH_READY</code>
               </td>
               <td style="border: 1px solid #ddd; padding: 8px">
@@ -697,6 +739,14 @@ function performHostSearch(searchData) {
           // Handle fullscreen toggle in parent
           console.log('Fullscreen toggle requested')
         }
+        if (event.data.type === 'CHAT_ACTION_CARDS_UPDATE') {
+          // Handle recommendation cards from MamaSan
+          console.log(
+            'Recommendation cards received:',
+            event.data.data.actionCards
+          )
+          displayRecommendationCards(event.data.data.actionCards)
+        }
         if (event.data.type === 'MAMASAN_SEARCH_READY') {
           // MamaSan personality analysis completed, search query ready
           console.log('MamaSan analysis completed!')
@@ -733,6 +783,106 @@ function performHostSearch(searchData) {
         alert(
           `Host search triggered!\nQuery: ${searchData.searchQuery}\nAnswers: ${searchData.answers.length} responses collected`
         )
+      }
+
+      // Display recommendation cards with images
+      function displayRecommendationCards(actionCards) {
+        console.log('Displaying recommendation cards:', actionCards)
+
+        const container = document.getElementById('recommendation-cards')
+        if (!container) {
+          console.warn('No recommendation cards container found')
+          return
+        }
+
+        // Clear existing cards
+        container.innerHTML = ''
+
+        if (!actionCards || actionCards.length === 0) {
+          container.innerHTML =
+            '<p class="no-cards">No recommendations available</p>'
+          return
+        }
+
+        // Create cards
+        actionCards.forEach((card) => {
+          const cardElement = document.createElement('div')
+          cardElement.className = 'recommendation-card'
+          cardElement.style.cssText = `
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 16px;
+            margin: 10px;
+            background: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            cursor: pointer;
+            transition: transform 0.2s;
+            min-width: 200px;
+            display: inline-block;
+            vertical-align: top;
+          `
+
+          const imagePath = card.data?.image || ''
+          const imageUrl = imagePath ? `http://localhost:3000${imagePath}` : ''
+          const tags = card.data?.tags || []
+          const tagColors = card.data?.tagColors || ['#6366f1', '#10b981']
+
+          cardElement.innerHTML = `
+            <div style="text-align: center; margin-bottom: 12px;">
+              ${
+                imageUrl
+                  ? `
+                <img src="${imageUrl}" alt="${card.title}" 
+                     style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 3px solid ${card.data?.customColor || '#6366f1'};"
+                     onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                <div style="display: none; width: 80px; height: 80px; border-radius: 50%; background: ${card.data?.customColor || '#6366f1'}; color: white; display: flex; align-items: center; justify-content: center; font-size: 24px;">
+                  👤
+                </div>
+              `
+                  : `
+                <div style="width: 80px; height: 80px; border-radius: 50%; background: ${card.data?.customColor || '#6366f1'}; color: white; display: flex; align-items: center; justify-content: center; font-size: 24px; margin: 0 auto;">
+                  👤
+                </div>
+              `
+              }
+            </div>
+            <h3 style="margin: 0 0 8px 0; font-size: 18px; color: #333;">${card.title}</h3>
+            <p style="margin: 0 0 12px 0; font-size: 14px; color: #666; line-height: 1.4;">${card.description || ''}</p>
+            <div style="display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px;">
+              ${tags
+                .map(
+                  (tag, index) => `
+                <span style="
+                  padding: 2px 8px; 
+                  border-radius: 12px; 
+                  font-size: 12px; 
+                  background: ${tagColors[index] || '#6b7280'}; 
+                  color: white;
+                ">${tag}</span>
+              `
+                )
+                .join('')}
+            </div>
+            <div style="font-size: 12px; color: #999;">Priority: ${card.priority}</div>
+          `
+
+          cardElement.addEventListener('click', () => {
+            console.log('Card clicked:', card)
+            alert(
+              `Clicked on ${card.title}\nLink: ${card.data?.link || 'No link'}`
+            )
+          })
+
+          cardElement.addEventListener('mouseenter', () => {
+            cardElement.style.transform = 'translateY(-2px)'
+          })
+
+          cardElement.addEventListener('mouseleave', () => {
+            cardElement.style.transform = 'translateY(0)'
+          })
+
+          container.appendChild(cardElement)
+        })
       }
 
       // Allow Enter key to send message

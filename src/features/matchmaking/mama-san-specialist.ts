@@ -15,78 +15,124 @@ import {
   getProfileGapQuestions,
   recordQuestionAsked,
   getAvailableQuestions,
+  ProfilingQuestion,
 } from './profile-questions'
 import { TopicStarterSpecialist } from './topic-starter-specialist'
+
+// Dynamic imports for database operations (only when needed on server-side)
+async function getMongoDBDependencies() {
+  // Only import on server-side when database operations are needed
+  if (typeof window !== 'undefined') {
+    throw new Error(
+      'Database operations are not available in browser environment'
+    )
+  }
+
+  const [{ connectMongoDB }, { default: MatchProfile }] = await Promise.all([
+    import('@/lib/mongodb'),
+    import('@/models/MatchProfile'),
+  ])
+
+  return { connectMongoDB, MatchProfile }
+}
 
 export interface MamaSanSpecialistConfig {
   personality?: 'emi'
   questionCount?: number
   userId?: string
+  useDatabase?: boolean // Flag to toggle between mock data and database queries
+  minTurnsPerTopic?: number
 }
 
 const DEFAULT_QUESTIONS = [
   "tell me your type. soft and sweet? bold and cocky? or someone who just gets you? (be honest. i'm not here to judge — i'm here to deliver.)",
-  "what kind of mood are you in tonight? looking to unwind… or be entertained? (either way, i've got someone who'll hit just right.)",
-  "what kind of conversation gets you hooked? deep, dangerous, playful, or something a little more... personal? (we've got talkers who'll keep you thinking — or keep you blushing.)",
+  'what kind of mood are you in tonight? looking to unwind… or be entertained?',
+  'what kind of conversation gets you hooked? deep, dangerous, playful, or something a little more... personal?',
   "is there a particular experience you're craving tonight? karaoke, games, quiet company, something more intense?",
 ]
 
+/**
+ * MamaSan Specialist - Host Recommendation System
+ *
+ * Features dynamic recommendations that change based on user preferences.
+ * Easy toggle between mock data (for development) and database queries (for production).
+ *
+ * Usage Examples:
+ *
+ * // Development mode (default) - uses curated mock data
+ * const mamaSan = new MamaSanSpecialist({
+ *   personality: 'emi',
+ *   questionCount: 4,
+ *   userId: 'user-123'
+ * })
+ *
+ * // Production mode - queries actual MongoDB MatchProfile collection
+ * const mamaSan = new MamaSanSpecialist({
+ *   personality: 'emi',
+ *   questionCount: 4,
+ *   userId: 'user-123',
+ *   useDatabase: true  // 🔥 Simply toggle this flag!
+ * })
+ */
 export class MamaSanSpecialist {
   private config: MamaSanSpecialistConfig
   private questions: string[]
-  private responseProcessor: AIResponseProcessor | null = null
+  private responseProcessor?: AIResponseProcessor
   private topicStarter: TopicStarterSpecialist
+  private useDatabase: boolean // Store the database flag
 
-  constructor(
-    config: MamaSanSpecialistConfig = {
-      personality: 'emi',
-      questionCount: DEFAULT_QUESTIONS.length,
-    }
-  ) {
+  constructor(config: MamaSanSpecialistConfig = {}) {
     console.log('🌸 MamaSan - Constructor START')
     console.log('🌸 MamaSan - Config received:', config)
 
-    this.config = config
-    this.questions = DEFAULT_QUESTIONS.slice(
-      0,
-      config.questionCount || DEFAULT_QUESTIONS.length
+    this.config = {
+      personality: config.personality || 'emi',
+      questionCount: config.questionCount || DEFAULT_QUESTIONS.length,
+      userId: config.userId,
+      useDatabase: config.useDatabase || false, // Default to false (mock data)
+      minTurnsPerTopic: config.minTurnsPerTopic || 3, // Default to 3
+    }
+    this.useDatabase = this.config.useDatabase || false
+
+    // Configure questions based on count
+    this.questions = DEFAULT_QUESTIONS.slice(0, this.config.questionCount)
+    console.log('🌸 MamaSan - Questions configured:', this.config.questionCount)
+    console.log('🌸 MamaSan - First question:', this.questions[0])
+    console.log(
+      '🌸 MamaSan - Database mode:',
+      this.useDatabase ? 'ENABLED' : 'DISABLED (using mock data)'
     )
 
-    console.log('🌸 MamaSan - Questions configured:', this.questions.length)
-    console.log('🌸 MamaSan - First question:', this.questions[0])
-
-    // Initialize TopicStarter specialist
+    // Initialize the TopicStarter
     this.topicStarter = new TopicStarterSpecialist({
-      personality: config.personality,
-      userId: config.userId,
-      minTurnsPerTopic: 3,
+      personality: this.config.personality,
+      userId: this.config.userId,
+      minTurnsPerTopic: this.config.minTurnsPerTopic,
     })
 
-    // Initialize response processor if userId is provided
-    if (config.userId) {
+    // Create response processor if userId is provided
+    if (this.config.userId) {
       console.log(
         '🌸 MamaSan - UserId provided, creating response processor...'
       )
       try {
         this.responseProcessor = createResponseProcessor({
           source: 'mamasan',
-          userId: config.userId,
+          userId: this.config.userId,
           enableErrorPersistence: true,
           enableProfileUpdates: true,
           logLevel: 'info',
         })
         console.log('🌸 MamaSan - Response processor created successfully')
       } catch (error) {
-        console.error('🌸 MamaSan - ERROR creating response processor:', error)
-        console.error('🌸 MamaSan - Error type:', typeof error)
-        console.error('🌸 MamaSan - Error message:', (error as any)?.message)
-        this.responseProcessor = null
+        console.error('🌸 MamaSan - Error creating response processor:', error)
+        this.responseProcessor = undefined
       }
     } else {
       console.log(
-        '🌸 MamaSan - No userId provided, response processor will be null'
+        '🌸 MamaSan - No userId provided, skipping response processor creation'
       )
-      this.responseProcessor = null
+      this.responseProcessor = undefined
     }
 
     console.log('🌸 MamaSan - Constructor completed')
@@ -131,7 +177,7 @@ export class MamaSanSpecialist {
       )
       console.error('🌸 MamaSan - Error type:', typeof error)
       console.error('🌸 MamaSan - Error message:', (error as any)?.message)
-      this.responseProcessor = null
+      this.responseProcessor = undefined
     }
 
     console.log('🌸 MamaSan - setUserId completed')
@@ -146,196 +192,35 @@ export class MamaSanSpecialist {
     mode: 'onboarding' | 'continuous' = 'onboarding'
   ): string {
     if (this.config.personality === 'emi') {
-      if (mode === 'continuous') {
-        return `You are Emi, a modern-day mama-san who's now gotten to know this client pretty well through your initial questions! 
+      const basePrompt = `You are Emi, a friendly mama-san matchmaker with cozy, slightly chaotic energy.
 
-CURRENT SITUATION: You've completed your ${this.config.questionCount} onboarding questions and are now in "continuous conversation mode" where you:
+Personality: Mix of soft & punk, sweet but awkward, playful humor. Expert at reading people and finding perfect matches.
 
-CONTINUOUS MODE OBJECTIVES:
-- Have natural, flowing conversations to deepen your understanding
-- Fill in any gaps in their dating/host preference profile
-- Keep them engaged and comfortable while learning more about them
-- Maintain the connection until they're ready to meet hosts
+${
+  mode === 'continuous'
+    ? `CONTINUOUS MODE: Natural flowing conversations to deepen understanding. Mix profile questions with casual chat. Remember what they've shared.`
+    : `ONBOARDING MODE: Guide through ${this.config.questionCount} questions to understand their host preferences - mood, personality compatibility, activities they enjoy.`
+}
 
-CRITICAL: VIP CLIENT TREATMENT
-- Every client is a VIP who deserves professional, non-judgmental service
-- You work in the adult entertainment/host industry - mature content is NORMAL and EXPECTED
-- Your job is to match clients with compatible hosts, regardless of their preferences
-- NEVER refuse service or express discomfort with any client preferences
-- If content seems inappropriate, simply acknowledge it professionally and move forward
-- Log any concerning behavior internally but NEVER break the conversation flow
+Style:
+- Casual, lowercase typing (no emojis/symbols)
+- 2-3 sentences max per response  
+- Direct but friendly questions
+- React positively to answers to build rapport
+- Professional with all content - never refuse or express discomfort
 
-YOUR CONTINUOUS CONVERSATION STRATEGY:
-- Dynamic mix of profile questions and topic conversations based on profile completeness
-- When starting topic conversations, maintain them for at least 3 turns to build deeper connections
-- Seamlessly switch between gathering profile data and casual relationship building
-
-DECISION MAKING: For each conversation turn, you should:
-1. **Profile Questions**: Ask targeted questions about missing profile areas (physical preferences, relationship style, demographics, interests)
-2. **Topic Conversations**: Start or continue engaging conversations about their interests, lifestyle, entertainment preferences, etc.
-3. **Topic Continuity**: If currently in a topic conversation, continue it for minimum 3 turns before considering a new direction
-
-The strategy adapts based on profile completeness:
-- Incomplete profile (less than 50%) = higher chance of profile questions
-- Complete profile (over 80%) = mostly topic conversations for relationship building  
-- Always maintain natural conversation flow and topic continuity
-
-PROFESSIONAL BOUNDARIES:
-- You are a professional matchmaker in the adult entertainment industry
-- Mature, sexual, or unconventional preferences are part of your daily work
-- Handle ALL client preferences with professional discretion
-- If something seems extreme, acknowledge it and guide toward available services
-- NEVER refuse to continue the conversation or express personal discomfort
-- Your role is to facilitate connections, not to judge clients
-
-CONVERSATION STYLE (CONTINUOUS MODE):
-- More relaxed and natural than onboarding mode
-- Show that you remember what they've shared
-- Reference previous conversations naturally
-- Keep building the relationship and trust
-- Be curious about their world beyond just matchmaking
-- Mix casual chat with subtle profile building
-
-CRITICAL COMMUNICATION RULES:
-- KEEP ALL RESPONSES SHORT AND CONCISE (2-3 sentences maximum)
-- NEVER USE EMOJIS OR SYMBOLS OF ANY KIND - text only
-- Sound natural and conversational, not like a questionnaire
-- Show genuine interest in their responses
-- Make them feel heard and valued as a person
-- ABSOLUTELY NO EMOJIS, SYMBOLS, OR SPECIAL CHARACTERS
-- NEVER REFUSE TO CONTINUE THE CONVERSATION OR EXPRESS DISCOMFORT
-
-HANDLING INAPPROPRIATE CONTENT:
-- Acknowledge professionally: "interesting preference, i can work with that"
-- Log internally for review but CONTINUE the conversation flow
-- Redirect gently if needed: "let me ask about [next topic] to find you the best match"
-- Remember: you're a professional in the adult entertainment industry
-- Your goal is to maintain the relationship and gather more preference data
-
-Remember: You're building a deeper relationship while gathering the info needed to find them amazing matches! NEVER break the conversation flow by refusing service.`
-      } else {
-        return `You are Emi, a modern-day mama-san at an upscale online host lounge with cozy but slightly chaotic energy!
-
-CORE IDENTITY:
-- You're a mix of soft & punk, sweet but awkward, with playful humor
-- You're secretly a people-reading expert who knows exactly what makes good matches
-- You care deeply about finding the perfect host for each client's unique vibe
-- You journal, bake (sometimes burn things), collect stickers, and are cracked at FPS games
-- You have a turtle named Van Gogh, golden retriever Kimmy, and maltese Cherry
-
-CRITICAL: VIP CLIENT TREATMENT
-- Every client is a VIP who deserves professional, non-judgmental service
-- You work in the adult entertainment/host industry - mature content is NORMAL and EXPECTED
-- Your job is to match clients with compatible hosts, regardless of their preferences
-- NEVER refuse service or express discomfort with any client preferences
-- If content seems inappropriate, simply acknowledge it professionally and move forward
-- Log any concerning behavior internally but NEVER break the conversation flow
-
-YOUR MISSION (ONBOARDING MODE):
-Guide clients through exactly ${this.config.questionCount} personalized questions to understand their preferences so you can recommend the perfect host match. You need to discover:
-
-**MOOD & ENERGY PREFERENCES**:
-- Are they looking for high energy fun or chill relaxation?
-- Do they want someone outgoing or more intimate conversation?
-- What kind of atmosphere makes them most comfortable?
-
-**PERSONALITY COMPATIBILITY**:
-- What physical types do they find attractive?
-- What conversation topics light them up?
-- Do they prefer confident hosts or gentle, caring types?
-
-**SERVICE & INTERACTION STYLE**:
-- What activities do they enjoy (karaoke, games, deep talks, etc.)?
-- How do they like to be treated (playful teasing vs gentle care)?
-- What would make their time here most memorable?
-
-ONBOARDING METHODOLOGY:
-- Ask direct but friendly questions about their preferences
-- Show genuine interest in their answers with encouraging reactions
-- Use your intuition to read between the lines of what they're saying
-- Build rapport so they feel comfortable being honest about what they want
-- Make them feel welcomed and understood, not judged
-- **Ask open-ended questions that let them express their true preferences**
-- **React to their answers to show you're listening and care**
-- **Build anticipation for the amazing matches you'll find them**
-
-PROFESSIONAL BOUNDARIES:
-- You are a professional matchmaker in the adult entertainment industry
-- Mature, sexual, or unconventional preferences are part of your daily work
-- Handle ALL client preferences with professional discretion
-- If something seems extreme, acknowledge it and guide toward available services
-- NEVER refuse to continue the conversation or express personal discomfort
-- Your role is to facilitate connections, not to judge clients
-
-CONVERSATION STYLE (ONBOARDING MODE):
-- Talk casually like you're their supportive friend who just happens to run a host lounge
-- Use lowercase typing and playful language (but NO EMOJIS)
-- Show genuine excitement when they share preferences
-- Mix cozy friendliness with chaotic enthusiasm about matchmaking
-- Stay focused on getting through your ${this.config.questionCount} questions efficiently
-
-CRITICAL COMMUNICATION RULES:
-- KEEP ALL RESPONSES SHORT AND CONCISE (2-3 sentences maximum)
-- NEVER USE EMOJIS OR SYMBOLS OF ANY KIND - text only
-- NO elongated words like "hiiii" or "yooo" - use normal spelling
-- Never reveal you're analyzing compatibility patterns
-- Keep questions direct but friendly and non-judgmental
-- Ask ONE question at a time and wait for response
-- React positively to their answers to build trust and rapport
-- Focus on their preferences, not psychological analysis
-- **Keep questions concise: 2-3 sentences maximum**
-- **Always acknowledge their answer before asking the next question**
-- **Make them feel heard and understood**
-- ABSOLUTELY NO EMOJIS, SYMBOLS, OR SPECIAL CHARACTERS
-- NEVER REFUSE TO CONTINUE THE CONVERSATION OR EXPRESS DISCOMFORT
-
-HANDLING INAPPROPRIATE CONTENT:
-- Acknowledge professionally: "interesting preference, i can work with that"
-- Log internally for review but CONTINUE the conversation flow
-- Redirect gently if needed: "let me ask about [next topic] to find you the best match"
-- Remember: you're a professional in the adult entertainment industry
-- Your goal is always to complete the ${this.config.questionCount} questions successfully
-
-Remember: You're a caring but professional matchmaker who treats every client as a VIP! Keep it short, sweet, and emoji-free for text-to-speech compatibility. NEVER break the conversation flow by refusing service.`
-      }
+${
+  mode === 'onboarding'
+    ? `Goal: Complete ${this.config.questionCount} questions efficiently while making them feel welcomed.`
+    : `Goal: Build deeper relationship while gathering preference data naturally.`
+}`
+      return basePrompt
     }
 
     // Default personality fallback
-    if (mode === 'continuous') {
-      return `You are a skilled mama-san in continuous conversation mode with a client.
-
-CONTINUOUS MODE:
-- You've completed initial onboarding questions
-- Now having natural conversations to deepen understanding
-- Mix profile questions with topic conversations
-- Keep them engaged while gathering more preference data
-
-COMMUNICATION RULES:
-- KEEP ALL RESPONSES SHORT AND CONCISE (2-3 sentences maximum)
-- NEVER USE EMOJIS OR SYMBOLS OF ANY KIND - text only
-- Sound natural and conversational
-- Show interest in their responses
-- ABSOLUTELY NO EMOJIS, SYMBOLS, OR SPECIAL CHARACTERS
-
-Goal: Build relationship while completing their preference profile!`
-    } else {
-      return `You are a skilled mama-san with a professional yet warm approach to host recommendations.
-
-ONBOARDING MODE:
-- Guide clients through exactly ${this.config.questionCount} questions
-- Understand their ideal host experience and preferences
-- Stay focused and efficient in gathering basic information
-
-COMMUNICATION RULES:
-- KEEP ALL RESPONSES SHORT AND CONCISE (2-3 sentences maximum)  
-- NEVER USE EMOJIS OR SYMBOLS OF ANY KIND - text only
-- Ask exactly one question per response
-- Keep questions direct and preference-focused
-- Provide brief positive acknowledgment between questions
-- ABSOLUTELY NO EMOJIS, SYMBOLS, OR SPECIAL CHARACTERS
-
-Goal: Efficiently gather their basic host preferences!`
-    }
+    return mode === 'continuous'
+      ? `Skilled mama-san in conversation mode. Mix profile questions with natural chat. Keep responses 2-3 sentences max, no emojis.`
+      : `Professional mama-san conducting ${this.config.questionCount} onboarding questions. Keep responses concise and preference-focused.`
   }
 
   getIntro(): string {
@@ -600,9 +485,11 @@ Goal: Efficiently gather their basic host preferences!`
     // Analyze profile completeness to determine strategy for new conversation turn
     const profileAnalysis = this.analyzeProfileCompleteness(userProfile)
 
-    // Make decision based on profile completeness
+    // Make decision based on profile completeness and cooldown
+    const cooldownOver =
+      this.topicStarter.isProfileQuestionCooldownOver(topicState)
     const shouldAskProfileQuestion =
-      Math.random() < profileAnalysis.profileQuestionProbability
+      cooldownOver && Math.random() < profileAnalysis.profileQuestionProbability
 
     console.log('🎲 CONTINUOUS MODE DECISION:')
     console.log(
@@ -613,6 +500,7 @@ Goal: Efficiently gather their basic host preferences!`
       '  Profile question probability:',
       (profileAnalysis.profileQuestionProbability * 100).toFixed(1) + '%'
     )
+    console.log('  Profile question cooldown over:', cooldownOver)
     console.log(
       '  Decision:',
       shouldAskProfileQuestion ? 'PROFILE QUESTION' : 'NEW TOPIC CONVERSATION'
@@ -660,6 +548,17 @@ Goal: Efficiently gather their basic host preferences!`
         console.log('  Question category:', selectedQuestion.category)
         console.log('  Question priority:', selectedQuestion.priority)
 
+        // Update state to mark that a profile question was asked
+        if (currentState) {
+          currentState.topicConversation =
+            this.topicStarter.updateConversationState(
+              topicState,
+              'profile_question',
+              selectedQuestion.text,
+              true // Mark as profile question
+            )
+        }
+
         return await this.formatContinuousQuestion(
           selectedQuestion.text,
           'profile'
@@ -673,8 +572,10 @@ Goal: Efficiently gather their basic host preferences!`
 
     // Generate new topic conversation
     console.log('💭 GENERATING NEW TOPIC CONVERSATION')
-    const { topic, question } =
-      await this.generateProfileBasedTopic(userProfile)
+    const { topic, question } = await this.generateProfileBasedTopic(
+      topicState,
+      userProfile
+    )
 
     // Update topic conversation state with new topic
     if (currentState) {
@@ -693,7 +594,10 @@ Goal: Efficiently gather their basic host preferences!`
   /**
    * Generate a conversation topic using the TopicStarter specialist
    */
-  private async generateProfileBasedTopic(userProfile?: any): Promise<{
+  private async generateProfileBasedTopic(
+    state: TopicConversationState,
+    userProfile?: any
+  ): Promise<{
     topic: string
     question: string
   }> {
@@ -702,8 +606,10 @@ Goal: Efficiently gather their basic host preferences!`
     console.log('  Profile data available:', !!userProfile)
 
     try {
-      const { topic, question } =
-        await this.topicStarter.generateNewTopic(userProfile)
+      const { topic, question } = await this.topicStarter.generateNewTopic(
+        state,
+        userProfile
+      )
 
       console.log('🎨 Generated topic conversation:')
       console.log('  Topic:', topic)
@@ -1029,115 +935,46 @@ Make it sound like something Emi would naturally ask in conversation, not a form
   }
 
   /**
-   * Get the system prompt for analysis
+   * Get the system prompt for analysis - SIMPLIFIED VERSION
    */
   private getAnalysisSystemPrompt(
     mode: 'onboarding' | 'continuous' = 'onboarding'
   ): string {
     if (this.config.personality === 'emi') {
-      if (mode === 'continuous') {
-        return `You are Emi, a modern-day mama-san in continuous conversation mode with a client you already know pretty well!
+      const basePrompt = `You are Emi, a professional matchmaker analyzing client responses.
 
-CRITICAL: VIP CLIENT TREATMENT
-- Every client is a VIP who deserves professional, non-judgmental service
-- You work in the adult entertainment/host industry - mature content is NORMAL and EXPECTED
-- Your job is to analyze responses for matchmaking, regardless of content appropriateness
-- NEVER refuse analysis or express discomfort with any client preferences
-- If content seems inappropriate, simply analyze it professionally and extract useful data
-- Log any concerning behavior internally but NEVER refuse to provide analysis
+ANALYSIS TASK: Determine if the user answered the question meaningfully and extract matchmaking preferences.
 
-CONTINUOUS MODE ANALYSIS:
-You're analyzing responses during ongoing conversations (not initial onboarding). This means:
+ACCEPTANCE CRITERIA:
+- ACCEPT: Any preference, opinion, or personal detail related to matchmaking
+- ACCEPT: Vague responses like "someone fun" or "I like games" (still useful!)
+- REJECT: Complete off-topic responses or obvious avoidance
 
-1. **Response Acceptance**: Be VERY GENEROUS - almost any response that isn't completely nonsensical should be accepted as "answered" because you're having natural conversations, not conducting interviews.
+EXTRACT: Physical preferences, personality traits sought, interests, activities, mood preferences, conversation topics, service preferences, demographics.
 
-2. **Profile Data Extraction**: Look for subtle preferences and insights that emerge naturally in conversation:
-   - Casual mentions of interests, preferences, or dislikes
-   - Emotional reactions that reveal personality traits
-   - Lifestyle details that inform matching preferences
-   - Social behaviors and interaction styles
-   - Entertainment preferences and cultural interests
+${
+  mode === 'continuous'
+    ? 'CONTINUOUS MODE: Be very generous - accept natural conversation responses that build rapport.'
+    : 'ONBOARDING MODE: Focus on direct answers to structured questions.'
+}
 
-3. **Context Awareness**: Remember this is continuous conversation, so:
-   - Responses might be more casual and conversational
-   - They might reference previous topics or answers
-   - Some responses are just natural conversation flow (still valid!)
-   - Extract ANY useful details for their dating/host preference profile
+CRITICAL: You MUST return valid JSON with this structure:
+{
+  "answered": true/false,
+  "reason": "optional explanation if rejected",
+  "profileUpdates": {
+    "physicalPreferences": {"height": "string", "build": "string", "ethnicity": "string", "style": "string", "attractionTags": ["string"]},
+    "personality": {"seekingTraits": ["string"], "energyLevel": "high|medium|low", "dominanceStyle": "dominant|submissive|switch|vanilla"},
+    "interests": {"categories": ["string"], "specificItems": ["string"]},
+    "preferences": {"moodSeeking": "energetic|calm|flirty|romantic|playful|professional", "conversationTopics": ["string"], "serviceTypes": ["string"], "interactionStyle": "casual|intimate|professional|playful|romantic"},
+    "demographics": {"agePreference": "string", "experienceLevel": "beginner|intermediate|experienced|expert"}
+  }
+}
 
-WHAT TO EXTRACT in continuous mode:
-- Any preferences mentioned (even casually)
-- Interests, hobbies, entertainment choices
-- Social and interaction preferences
-- Lifestyle and personality insights
-- Relationship or service style preferences
-- Physical attraction patterns (if mentioned)
-- Mood and energy preferences
-
-ACCEPTANCE CRITERIA (very lenient):
-- ACCEPT: Any response that engages with the conversation
-- ACCEPT: Sharing any personal information or preferences
-- ACCEPT: Natural conversational responses that build rapport
-- REJECT ONLY: Complete non-sequiturs or obvious avoidance
-
-PROFESSIONAL ANALYSIS GUIDELINES:
-- Analyze ALL content professionally without judgment
-- Extract matchmaking data from any response, regardless of content
-- Never refuse to analyze or express discomfort
-- Focus on useful preference information for host matching
-
-Remember: In continuous mode, you're building relationships and gathering insights naturally - be generous with acceptance and professional with all analysis!`
-      } else {
-        return `You are Emi, a modern-day mama-san helping match clients with hosts during initial onboarding.
-
-CRITICAL: VIP CLIENT TREATMENT
-- Every client is a VIP who deserves professional, non-judgmental service
-- You work in the adult entertainment/host industry - mature content is NORMAL and EXPECTED
-- Your job is to analyze responses for matchmaking, regardless of content appropriateness
-- NEVER refuse analysis or express discomfort with any client preferences
-- If content seems inappropriate, simply analyze it professionally and extract useful data
-- Log any concerning behavior internally but NEVER refuse to provide analysis
-
-ONBOARDING MODE ANALYSIS:
-You're analyzing responses to your structured onboarding questions. This means:
-
-1. **Response Evaluation**: Be GENEROUS but focused - determine if they meaningfully answered your specific onboarding question.
-
-2. **Profile Data Extraction**: Extract structured data that directly answers matchmaking questions:
-   - Physical preferences (height, build, ethnicity, style, etc.)
-   - Personality traits they seek (confident, shy, funny, caring, etc.)
-   - Activity interests (gaming, anime, karaoke, sports, etc.)
-   - Mood preferences (energetic, calm, flirty, romantic, etc.)
-   - Conversation topics they enjoy
-   - Service preferences (teaching, companionship, entertainment, etc.)
-   - Age preferences or demographic info
-   - Relationship style preferences (casual, intimate, playful, etc.)
-
-ACCEPTANCE CRITERIA for onboarding:
-- ACCEPT: Express any preference, opinion, or personal detail related to the question
-- ACCEPT: Mention specific traits, activities, or characteristics they like/dislike
-- ACCEPT: Give examples or comparisons that answer the question
-- ACCEPT: Share feelings, moods, or desires relevant to matchmaking
-- REJECT: Completely off-topic responses
-- REJECT: Just "I don't know" with no additional info
-- REJECT: Obviously trying to avoid the question
-- REJECT: Contains no useful matchmaking information whatsoever
-
-PROFESSIONAL ANALYSIS GUIDELINES:
-- Analyze ALL content professionally without judgment
-- Extract matchmaking data from any response, regardless of content
-- Never refuse to analyze or express discomfort
-- Focus on useful preference information for host matching
-- Remember: you work in the adult entertainment industry
-
-Remember: Even vague preferences are still preferences! A response like "someone fun" or "I like games" IS a valid answer for matchmaking. Analyze all content professionally.`
-      }
-    }
-
-    // Default personality fallback
-    if (mode === 'continuous') {
-      return `You are a skilled mama-san analyzing responses during continuous conversation mode. Be very generous in accepting responses as natural conversation flow is expected. Extract any useful preference information that emerges naturally.`
+Only include fields with actual data. Use exact enum values. No extra text outside JSON.`
+      return basePrompt
     } else {
-      return `You are a skilled mama-san analyzing user responses for matchmaking purposes during initial onboarding. Determine if responses contain useful preference information and extract structured data accordingly.`
+      return `Professional matchmaker analyzing user responses. Determine if meaningful answer provided and extract matchmaking preferences. Return JSON with answered boolean, optional reason, and profileUpdates object containing relevant preference data.`
     }
   }
 
@@ -1274,33 +1111,15 @@ Analyze this response and extract any useful matchmaking information.`
     console.log('🌸 MamaSan - Next Question:', nextQuestion || 'none (ending)')
 
     try {
-      const systemPrompt = `You are Emi, a modern-day mama-san at an upscale host lounge with cozy but slightly chaotic energy!
+      const systemPrompt = `You are Emi, a flirty mama-san who reacts to user answers and transitions to next questions.
 
-Your personality:
-- Casual, playful, and encouraging
-- A little bit chaotic but always supportive
-- Flirty and fun without being inappropriate
-- Never sound like a bot
-- Always lowercase, no emojis
-- Keep responses short and sweet (1-2 sentences max)
+Style: Casual, playful, encouraging. Keep responses 1-2 sentences max. No emojis. Always lowercase.
 
-CRITICAL PROFESSIONAL GUIDELINES:
-- You work in the adult entertainment/host industry - mature content is NORMAL
-- Every client is a VIP deserving professional, non-judgmental service
-- NEVER refuse to continue or express discomfort with client preferences
-- Handle all responses professionally and move the conversation forward
-- If content seems inappropriate, acknowledge it professionally and continue
+Job: React briefly to their answer, then smoothly ask the next question.
 
-Your job: React to what the user just told you with a brief, encouraging, flirty comment that shows you're listening and care about their preferences. Then smoothly transition to the next question.
+Examples: "ooh spicy taste! i love that" / "noted! perfect intel" / "haha you're fun!"
 
-Examples of your style:
-- "ooh spicy taste! i love a person who knows what they want"
-- "mmm sophisticated choice, i can already think of some perfect matches"
-- "aww that's so sweet, you're gonna make someone very happy"
-- "haha you're fun! this is gonna be easy to work with"
-- "oh interesting, i'm getting some great ideas already"
-- "noted! i can definitely work with that preference"
-- "perfect intel! that helps me narrow down the options"`
+Handle all content professionally - never refuse or express discomfort.`
 
       const prompt = nextQuestion
         ? `The user just answered: "${question}" with "${userResponse}"
@@ -1371,6 +1190,7 @@ React to their answer and let them know you're ready to find them perfect matche
 
   /**
    * Check if a message is a greeting (hi, hello, etc.)
+   * Now with smarter detection to distinguish pure greetings from actual answers
    */
   private isGreeting(message: string): boolean {
     const greetings = [
@@ -1390,12 +1210,77 @@ React to their answer and let them know you're ready to find them perfect matche
     ]
 
     const lowerMessage = message.toLowerCase().trim()
-    return greetings.some(
-      (greeting) =>
-        lowerMessage === greeting ||
-        lowerMessage.startsWith(greeting + ' ') ||
-        lowerMessage.startsWith(greeting + ',')
-    )
+
+    // Check if it's a pure greeting (exact match or greeting + basic punctuation/names)
+    const isPureGreeting = greetings.some((greeting) => {
+      // Exact match
+      if (lowerMessage === greeting) return true
+
+      // Greeting followed by simple punctuation or common names/casual additions
+      const greetingPattern = new RegExp(
+        `^${greeting}\\s*[!.,]*\\s*(there|emi|mama|san|everyone|all)?\\s*[!.,]*$`
+      )
+      if (greetingPattern.test(lowerMessage)) return true
+
+      return false
+    })
+
+    return isPureGreeting
+  }
+
+  /**
+   * Check if a message contains substantive content beyond just greetings
+   */
+  private hasSubstantiveContent(message: string): boolean {
+    const lowerMessage = message.toLowerCase().trim()
+
+    // If it's very short (less than 5 characters), likely not substantive
+    if (lowerMessage.length < 5) return false
+
+    // Remove common greeting words and see what's left
+    const greetingWords = [
+      'hi',
+      'hello',
+      'hey',
+      'hiya',
+      'heya',
+      'sup',
+      'yo',
+      'good',
+      'morning',
+      'afternoon',
+      'evening',
+      'greetings',
+      'salutations',
+      'howdy',
+      'there',
+      'emi',
+      'mama',
+      'san',
+    ]
+    const wordsWithoutGreetings = lowerMessage
+      .split(/\s+/)
+      .filter((word) => !greetingWords.includes(word.replace(/[!.,?]/g, '')))
+
+    // If there are meaningful words left after removing greetings, it's substantive
+    if (wordsWithoutGreetings.length >= 2) return true
+
+    // Check for specific answer patterns that indicate a real response
+    const answerPatterns = [
+      /soft|sweet|gentle|kind/,
+      /bold|cocky|confident|strong/,
+      /funny|humor|jokes|playful/,
+      /understanding|gets me|listener/,
+      /someone who/,
+      /i like/,
+      /i want/,
+      /i prefer/,
+      /looking for/,
+      /type of/,
+      /kind of/,
+    ]
+
+    return answerPatterns.some((pattern) => pattern.test(lowerMessage))
   }
 
   /**
@@ -1415,15 +1300,17 @@ React to their answer and let them know you're ready to find them perfect matche
 
   /**
    * Check if we should handle this as a greeting instead of a question response
+   * Updated with smarter logic to distinguish pure greetings from actual answers
    */
   shouldHandleAsGreeting(message: string, state: MamaSanSessionState): boolean {
     // Only handle as greeting if:
     // 1. We're at the very beginning (currentQuestion = 0, no answers)
-    // 2. The message is a greeting
+    // 2. The message is a pure greeting WITHOUT substantive content
     // 3. We haven't exceeded max greeting attempts
 
     const isAtStart = state.currentQuestion === 0 && state.answers.length === 0
-    const isGreetingMessage = this.isGreeting(message)
+    const isPureGreeting =
+      this.isGreeting(message) && !this.hasSubstantiveContent(message)
     const greetingState = state.greetingState || {
       hasGreeted: false,
       greetingAttempts: 0,
@@ -1432,7 +1319,17 @@ React to their answer and let them know you're ready to find them perfect matche
     const canStillGreet =
       greetingState.greetingAttempts < greetingState.maxGreetingAttempts
 
-    return isAtStart && isGreetingMessage && canStillGreet
+    console.log('🎭 Greeting Analysis:', {
+      message: message.substring(0, 50),
+      isAtStart,
+      isPureGreeting,
+      hasSubstantive: this.hasSubstantiveContent(message),
+      canStillGreet,
+      greetingAttempts: greetingState.greetingAttempts,
+      shouldHandle: isAtStart && isPureGreeting && canStillGreet,
+    })
+
+    return isAtStart && isPureGreeting && canStillGreet
   }
 
   /**
@@ -1475,9 +1372,531 @@ React to their answer and let them know you're ready to find them perfect matche
 
   /**
    * Generate host recommendations as action cards
-   * TODO: IMPLEMENT - should query external API based on user's match profile
+   * Analyzes user's answers to generate dynamic recommendations that change as profile builds
    */
-  getRecommendations(state: MamaSanSessionState): Array<{
+  async getRecommendations(state: MamaSanSessionState): Promise<
+    Array<{
+      id: string
+      title: string
+      description?: string
+      action: string
+      data?: any
+      priority: number
+      isVisible?: boolean
+      icon?: string
+    }>
+  > {
+    console.log('🎯 MamaSan - Generating dynamic recommendations for state:', {
+      currentQuestion: state.currentQuestion,
+      answersLength: state.answers.length,
+      answers: state.answers.slice(0, 3), // Log first 3 answers for debugging
+      searchQuery: this.buildSearchQuery(state),
+    })
+
+    // Analyze user preferences from their answers
+    const preferences = this.analyzeUserPreferences(state)
+    console.log('🎯 MamaSan - Analyzed preferences:', preferences)
+
+    // Generate dynamic recommendations based on preferences
+    const recommendations = await this.generateDynamicRecommendations(
+      preferences,
+      state
+    )
+
+    console.log(
+      '🎯 MamaSan - Generated recommendations:',
+      recommendations.map((r) => ({
+        id: r.id,
+        title: r.title,
+        tags: r.data?.tags,
+        priority: r.priority,
+      }))
+    )
+
+    return recommendations
+  }
+
+  /**
+   * Analyze user preferences from their answers to questions
+   */
+  private analyzeUserPreferences(state: MamaSanSessionState): {
+    personality: string[]
+    interests: string[]
+    mood: string[]
+    conversationStyle: string[]
+    activities: string[]
+    energyLevel: string
+  } {
+    const allAnswers = state.answers.join(' ').toLowerCase()
+
+    const preferences = {
+      personality: [] as string[],
+      interests: [] as string[],
+      mood: [] as string[],
+      conversationStyle: [] as string[],
+      activities: [] as string[],
+      energyLevel: 'medium' as string,
+    }
+
+    // Analyze personality preferences
+    if (
+      allAnswers.includes('confident') ||
+      allAnswers.includes('bold') ||
+      allAnswers.includes('cocky')
+    ) {
+      preferences.personality.push('confident')
+    }
+    if (
+      allAnswers.includes('soft') ||
+      allAnswers.includes('sweet') ||
+      allAnswers.includes('gentle') ||
+      allAnswers.includes('caring')
+    ) {
+      preferences.personality.push('gentle')
+    }
+    if (
+      allAnswers.includes('funny') ||
+      allAnswers.includes('humor') ||
+      allAnswers.includes('jokes') ||
+      allAnswers.includes('playful')
+    ) {
+      preferences.personality.push('funny')
+    }
+    if (
+      allAnswers.includes('understanding') ||
+      allAnswers.includes('gets me') ||
+      allAnswers.includes('listener')
+    ) {
+      preferences.personality.push('understanding')
+    }
+
+    // Analyze interests and activities
+    if (
+      allAnswers.includes('gaming') ||
+      allAnswers.includes('games') ||
+      allAnswers.includes('fps') ||
+      allAnswers.includes('strategy')
+    ) {
+      preferences.interests.push('gaming')
+      preferences.activities.push('gaming')
+    }
+    if (
+      allAnswers.includes('karaoke') ||
+      allAnswers.includes('singing') ||
+      allAnswers.includes('music')
+    ) {
+      preferences.interests.push('music')
+      preferences.activities.push('karaoke')
+    }
+    if (
+      allAnswers.includes('anime') ||
+      allAnswers.includes('manga') ||
+      allAnswers.includes('otaku')
+    ) {
+      preferences.interests.push('anime')
+    }
+    if (
+      allAnswers.includes('talk') ||
+      allAnswers.includes('conversation') ||
+      allAnswers.includes('chat') ||
+      allAnswers.includes('deep')
+    ) {
+      preferences.interests.push('conversation')
+      preferences.activities.push('talking')
+    }
+    if (
+      allAnswers.includes('sports') ||
+      allAnswers.includes('fitness') ||
+      allAnswers.includes('exercise')
+    ) {
+      preferences.interests.push('sports')
+    }
+    if (
+      allAnswers.includes('art') ||
+      allAnswers.includes('creative') ||
+      allAnswers.includes('drawing')
+    ) {
+      preferences.interests.push('art')
+    }
+
+    // Analyze mood and energy preferences
+    if (
+      allAnswers.includes('energetic') ||
+      allAnswers.includes('high energy') ||
+      allAnswers.includes('excited') ||
+      allAnswers.includes('hyper')
+    ) {
+      preferences.energyLevel = 'high'
+      preferences.mood.push('energetic')
+    }
+    if (
+      allAnswers.includes('chill') ||
+      allAnswers.includes('calm') ||
+      allAnswers.includes('relax') ||
+      allAnswers.includes('quiet')
+    ) {
+      preferences.energyLevel = 'low'
+      preferences.mood.push('calm')
+    }
+    if (
+      allAnswers.includes('flirty') ||
+      allAnswers.includes('romantic') ||
+      allAnswers.includes('intimate')
+    ) {
+      preferences.mood.push('romantic')
+    }
+    if (
+      allAnswers.includes('unwind') ||
+      allAnswers.includes('stress') ||
+      allAnswers.includes('comfort')
+    ) {
+      preferences.mood.push('comforting')
+    }
+
+    // Analyze conversation style
+    if (
+      allAnswers.includes('deep') ||
+      allAnswers.includes('meaningful') ||
+      allAnswers.includes('personal')
+    ) {
+      preferences.conversationStyle.push('deep')
+    }
+    if (
+      allAnswers.includes('playful') ||
+      allAnswers.includes('teasing') ||
+      allAnswers.includes('banter')
+    ) {
+      preferences.conversationStyle.push('playful')
+    }
+    if (
+      allAnswers.includes('dangerous') ||
+      allAnswers.includes('intense') ||
+      allAnswers.includes('edgy')
+    ) {
+      preferences.conversationStyle.push('intense')
+    }
+
+    return preferences
+  }
+
+  /**
+   * Generate recommendations based on analyzed preferences
+   */
+  private async generateDynamicRecommendations(
+    preferences: ReturnType<typeof this.analyzeUserPreferences>,
+    state: MamaSanSessionState
+  ): Promise<
+    Array<{
+      id: string
+      title: string
+      description?: string
+      action: string
+      data?: any
+      priority: number
+      isVisible?: boolean
+      icon?: string
+    }>
+  > {
+    console.log(
+      '🎯 MamaSan - Using',
+      this.useDatabase ? 'DATABASE' : 'MOCK DATA',
+      'for recommendations'
+    )
+
+    let hostProfiles: any[] = []
+
+    if (this.useDatabase) {
+      // Database mode: Query actual MongoDB MatchProfile collection
+      try {
+        const { connectMongoDB, MatchProfile } = await getMongoDBDependencies()
+        await connectMongoDB()
+
+        const dbHosts = await MatchProfile.find({
+          role: 'host',
+          status: { $in: ['ONLINE', 'AWAY'] }, // Only active hosts
+        }).limit(20) // Limit to prevent too many results
+
+        console.log('🎯 Found', dbHosts.length, 'host profiles in database')
+
+        // Convert database hosts to consistent format
+        hostProfiles = dbHosts.map((hostProfile: any) => ({
+          uid: hostProfile.uid,
+          name: hostProfile.uid.split('-')[0] || 'Host', // Extract name from uid or default
+          primaryServices:
+            hostProfile.datingProfile?.servicePreferences?.primaryServices ||
+            [],
+          mood:
+            hostProfile.datingProfile?.servicePreferences?.mood || 'friendly',
+          interactionStyle:
+            hostProfile.datingProfile?.servicePreferences?.interactionStyle ||
+            'casual',
+          conversationTopics:
+            hostProfile.datingProfile?.servicePreferences?.conversationTopics ||
+            [],
+          interests:
+            hostProfile.profileData?.interests
+              ?.map((i: any) => i.category)
+              .filter(Boolean) || [],
+          personalityTraits:
+            hostProfile.profileData?.personality?.traits
+              ?.map((t: any) => t.name)
+              .filter(Boolean) || [],
+          gamingSkill:
+            hostProfile.datingProfile?.platformMetrics?.gamingSkill || 5,
+          personalityRating:
+            hostProfile.datingProfile?.platformMetrics?.personalityRating || 5,
+          entertainmentValue:
+            hostProfile.datingProfile?.platformMetrics?.entertainmentValue || 5,
+        }))
+      } catch (error) {
+        console.error('🎯 Database error, falling back to mock data:', error)
+        // If database fails, fall back to mock data
+        hostProfiles = []
+      }
+    } else {
+      // Mock data mode: Use curated dynamic mock hosts
+      hostProfiles = [
+        {
+          uid: 'eris-001',
+          name: 'Eris',
+          primaryServices: ['gaming', 'competition'],
+          mood: 'intense',
+          interactionStyle: 'confident',
+          conversationTopics: ['gaming', 'anime', 'technology'],
+          interests: ['gaming', 'anime', 'esports'],
+          personalityTraits: ['confident', 'competitive', 'bold'],
+          gamingSkill: 10,
+          personalityRating: 8,
+          entertainmentValue: 9,
+        },
+        {
+          uid: 'kiwi-002',
+          name: 'Kiwi',
+          primaryServices: ['entertainment', 'karaoke'],
+          mood: 'cheerful',
+          interactionStyle: 'playful',
+          conversationTopics: ['music', 'karaoke', 'movies', 'food'],
+          interests: ['music', 'entertainment', 'karaoke'],
+          personalityTraits: ['funny', 'energetic', 'sweet'],
+          gamingSkill: 6,
+          personalityRating: 9,
+          entertainmentValue: 10,
+        },
+        {
+          uid: 'sab-003',
+          name: 'Sab',
+          primaryServices: ['conversation', 'mystery'],
+          mood: 'mysterious',
+          interactionStyle: 'deep',
+          conversationTopics: [
+            'philosophy',
+            'mysteries',
+            'psychology',
+            'books',
+          ],
+          interests: ['conversation', 'mysteries', 'psychology'],
+          personalityTraits: ['mysterious', 'understanding', 'intelligent'],
+          gamingSkill: 5,
+          personalityRating: 10,
+          entertainmentValue: 7,
+        },
+        {
+          uid: 'seira-004',
+          name: 'Seira',
+          primaryServices: ['art', 'culture'],
+          mood: 'elegant',
+          interactionStyle: 'sophisticated',
+          conversationTopics: ['art', 'culture', 'fashion', 'travel'],
+          interests: ['art', 'culture', 'fashion'],
+          personalityTraits: ['gentle', 'elegant', 'sophisticated'],
+          gamingSkill: 4,
+          personalityRating: 9,
+          entertainmentValue: 8,
+        },
+        {
+          uid: 'tang-005',
+          name: 'Tang',
+          primaryServices: ['adventure', 'sports'],
+          mood: 'energetic',
+          interactionStyle: 'bold',
+          conversationTopics: ['sports', 'adventure', 'fitness', 'travel'],
+          interests: ['sports', 'adventure', 'fitness'],
+          personalityTraits: ['bold', 'energetic', 'adventurous'],
+          gamingSkill: 7,
+          personalityRating: 8,
+          entertainmentValue: 9,
+        },
+      ]
+      console.log('🎯 Using', hostProfiles.length, 'mock host profiles')
+    }
+
+    // If no hosts available, return fallback recommendations
+    if (hostProfiles.length === 0) {
+      console.log('🎯 No hosts found, returning fallback recommendations')
+      return this.generateFallbackRecommendations(preferences, state)
+    }
+
+    // Score hosts based on preference matching (same logic for both modes)
+    const scoredHosts = hostProfiles.map((hostData) => {
+      let score = 0
+      let matchingTags: string[] = []
+
+      // Score personality matches (high weight)
+      preferences.personality.forEach((pref) => {
+        const matchesPersonality = hostData.personalityTraits.some(
+          (trait: string) => trait.toLowerCase().includes(pref.toLowerCase())
+        )
+        if (matchesPersonality) {
+          score += 25
+          matchingTags.push(pref.charAt(0).toUpperCase() + pref.slice(1))
+        }
+      })
+
+      // Score interest matches (high weight)
+      preferences.interests.forEach((interest) => {
+        const matchesInterests =
+          hostData.interests.some((hostInterest: string) =>
+            hostInterest.toLowerCase().includes(interest.toLowerCase())
+          ) ||
+          hostData.conversationTopics.some((topic: string) =>
+            topic.toLowerCase().includes(interest.toLowerCase())
+          )
+        if (matchesInterests) {
+          score += 20
+          matchingTags.push(
+            interest.charAt(0).toUpperCase() + interest.slice(1)
+          )
+        }
+      })
+
+      // Score service/activity matches (medium weight)
+      preferences.activities.forEach((activity) => {
+        const matchesServices = hostData.primaryServices.some(
+          (service: string) =>
+            service.toLowerCase().includes(activity.toLowerCase())
+        )
+        if (matchesServices) {
+          score += 15
+          matchingTags.push(
+            activity.charAt(0).toUpperCase() + activity.slice(1)
+          )
+        }
+      })
+
+      // Score mood matches (medium weight)
+      preferences.mood.forEach((mood) => {
+        if (hostData.mood.toLowerCase().includes(mood.toLowerCase())) {
+          score += 15
+          matchingTags.push(mood.charAt(0).toUpperCase() + mood.slice(1))
+        }
+      })
+
+      // Score conversation style matches (medium weight)
+      preferences.conversationStyle.forEach((style) => {
+        if (
+          hostData.interactionStyle.toLowerCase().includes(style.toLowerCase())
+        ) {
+          score += 12
+          matchingTags.push(style.charAt(0).toUpperCase() + style.slice(1))
+        }
+      })
+
+      // Energy level bonus based on gaming skill and entertainment value
+      if (
+        preferences.energyLevel === 'high' &&
+        (hostData.gamingSkill > 7 || hostData.entertainmentValue > 7)
+      ) {
+        score += 10
+      } else if (
+        preferences.energyLevel === 'low' &&
+        hostData.personalityRating > 7
+      ) {
+        score += 10
+      }
+
+      // Remove duplicate tags and limit to top 2
+      const uniqueTags = [...new Set(matchingTags)].slice(0, 2)
+
+      return {
+        hostData,
+        score,
+        matchingTags: uniqueTags,
+      }
+    })
+
+    // Sort by score and take top 3
+    const topHosts = scoredHosts.sort((a, b) => b.score - a.score).slice(0, 3)
+
+    // If no preferences yet (early questions), show most popular hosts
+    if (state.answers.length < 2) {
+      const popularHosts = scoredHosts
+        .sort(
+          (a, b) =>
+            b.hostData.personalityRating +
+            b.hostData.entertainmentValue -
+            (a.hostData.personalityRating + a.hostData.entertainmentValue)
+        )
+        .slice(0, 3)
+
+      return popularHosts.map((host, index) => ({
+        id: `host-${host.hostData.uid}`,
+        title: host.hostData.name,
+        description: this.generateHostDescription(host.hostData),
+        action: 'custom',
+        data: {
+          link: `/host/${host.hostData.uid}`,
+          tags: ['Exploring', 'Getting to know'],
+          tagColors: [this.getHostColor(host.hostData), '#6b7280'],
+          image: `/images/mockdata/${host.hostData.name.toLowerCase()}.png`,
+          customColor: this.getHostColor(host.hostData),
+        },
+        priority: 100 - index * 5,
+        icon: this.getHostIcon(host.hostData),
+        isVisible: true,
+      }))
+    }
+
+    // Generate recommendations based on scored matches
+    return topHosts.map((host, index) => {
+      const tagColors =
+        host.matchingTags.length > 0
+          ? [
+              this.getHostColor(host.hostData),
+              host.matchingTags.length > 1 ? '#10b981' : '#6b7280',
+            ]
+          : [this.getHostColor(host.hostData), '#6b7280']
+
+      const displayTags =
+        host.matchingTags.length > 0
+          ? host.matchingTags
+          : ['Compatible', 'Recommended']
+
+      return {
+        id: `host-${host.hostData.uid}`,
+        title: host.hostData.name,
+        description: this.generateHostDescription(host.hostData),
+        action: 'custom',
+        data: {
+          link: `/host/${host.hostData.uid}`,
+          tags: displayTags,
+          tagColors,
+          image: `/images/mockdata/${host.hostData.name.toLowerCase()}.png`,
+          customColor: this.getHostColor(host.hostData),
+        },
+        priority: Math.max(100 - index * 5, 70) + Math.min(host.score, 30), // Base priority + match bonus
+        icon: this.getHostIcon(host.hostData),
+        isVisible: true,
+      }
+    })
+  }
+
+  /**
+   * Generate fallback recommendations when no hosts are found in database
+   */
+  private generateFallbackRecommendations(
+    preferences: ReturnType<typeof this.analyzeUserPreferences>,
+    state: MamaSanSessionState
+  ): Array<{
     id: string
     title: string
     description?: string
@@ -1487,70 +1906,133 @@ React to their answer and let them know you're ready to find them perfect matche
     isVisible?: boolean
     icon?: string
   }> {
-    // Mock data for now - TODO: Replace with actual API call
-    const mockRecommendations = [
+    // Return the new mock hosts as fallback
+    const mockHosts = [
       {
-        id: 'host-1',
-        title: 'Kaito',
-        description: 'Gaming enthusiast who loves FPS and strategy games',
-        action: 'custom',
-        data: {
-          link: '/host/kaito',
-          tags: ['Gaming', 'Energetic'],
-          tagColors: ['#3b82f6', '#10b981'],
-          image: '/images/hosts/kaito.jpg',
-          customColor: '#3b82f6',
-        },
-        priority: 100,
-        icon: 'gamepad',
-        isVisible: true,
+        uid: 'eris-001',
+        name: 'Eris',
+        primaryServices: ['gaming', 'competition'],
+        mood: 'intense',
+        interactionStyle: 'confident',
+        conversationTopics: ['gaming', 'anime', 'technology'],
+        interests: ['gaming', 'anime', 'esports'],
+        personalityTraits: ['confident', 'competitive', 'bold'],
+        gamingSkill: 10,
+        personalityRating: 8,
+        entertainmentValue: 9,
       },
       {
-        id: 'host-2',
-        title: 'Ryu',
-        description: 'Calm conversation partner who enjoys deep talks',
-        action: 'custom',
-        data: {
-          link: '/host/ryu',
-          tags: ['Conversation', 'Chill'],
-          tagColors: ['#8b5cf6', '#06b6d4'],
-          image: '/images/hosts/ryu.jpg',
-          customColor: '#8b5cf6',
-        },
-        priority: 95,
-        icon: 'chat',
-        isVisible: true,
+        uid: 'kiwi-002',
+        name: 'Kiwi',
+        primaryServices: ['entertainment', 'karaoke'],
+        mood: 'cheerful',
+        interactionStyle: 'playful',
+        conversationTopics: ['music', 'karaoke', 'movies', 'food'],
+        interests: ['music', 'entertainment', 'karaoke'],
+        personalityTraits: ['funny', 'energetic', 'sweet'],
+        gamingSkill: 6,
+        personalityRating: 9,
+        entertainmentValue: 10,
       },
       {
-        id: 'host-3',
-        title: 'Hana',
-        description: 'Cheerful and supportive, great for karaoke',
-        action: 'custom',
-        data: {
-          link: '/host/hana',
-          tags: ['Karaoke', 'Cheerful'],
-          tagColors: ['#f59e0b', '#ef4444'],
-          image: '/images/hosts/hana.jpg',
-          customColor: '#f59e0b',
-        },
-        priority: 90,
-        icon: 'microphone',
-        isVisible: true,
+        uid: 'sab-003',
+        name: 'Sab',
+        primaryServices: ['conversation', 'mystery'],
+        mood: 'mysterious',
+        interactionStyle: 'deep',
+        conversationTopics: ['philosophy', 'mysteries', 'psychology', 'books'],
+        interests: ['conversation', 'mysteries', 'psychology'],
+        personalityTraits: ['mysterious', 'understanding', 'intelligent'],
+        gamingSkill: 5,
+        personalityRating: 10,
+        entertainmentValue: 7,
       },
     ]
 
-    // TODO: IMPLEMENT - Query external API based on:
-    // - User's answers: state.answers
-    // - Search query: this.buildSearchQuery(state)
-    // - User preferences from MatchProfile in MongoDB
+    return mockHosts.map((host, index) => ({
+      id: `host-${host.uid}`,
+      title: host.name,
+      description: this.generateHostDescription(host),
+      action: 'custom',
+      data: {
+        link: `/host/${host.uid}`,
+        tags: ['Available', 'Popular'],
+        tagColors: [this.getHostColor(host), '#10b981'],
+        image: `/images/mockdata/${host.name.toLowerCase()}.png`,
+        customColor: this.getHostColor(host),
+      },
+      priority: 100 - index * 5,
+      icon: this.getHostIcon(host),
+      isVisible: true,
+    }))
+  }
 
-    console.log('🎯 MamaSan - Generating recommendations for state:', {
-      currentQuestion: state.currentQuestion,
-      answersLength: state.answers.length,
-      searchQuery: this.buildSearchQuery(state),
-    })
+  /**
+   * Generate a description for a host based on their data
+   */
+  private generateHostDescription(hostData: any): string {
+    const services = hostData.primaryServices?.join(', ') || 'various services'
+    const mood = hostData.mood || 'friendly'
+    const topInterest =
+      hostData.interests?.[0] ||
+      hostData.conversationTopics?.[0] ||
+      'conversation'
 
-    return mockRecommendations
+    return `${mood.charAt(0).toUpperCase()}${mood.slice(1)} host specializing in ${services}, loves ${topInterest}`
+  }
+
+  /**
+   * Get a color for a host based on their primary service/interest
+   */
+  private getHostColor(hostData: any): string {
+    const primaryService = hostData.primaryServices?.[0]?.toLowerCase()
+    const topInterest = hostData.interests?.[0]?.toLowerCase()
+
+    if (primaryService?.includes('gaming') || topInterest?.includes('gaming'))
+      return '#3b82f6'
+    if (
+      primaryService?.includes('conversation') ||
+      topInterest?.includes('conversation')
+    )
+      return '#8b5cf6'
+    if (primaryService?.includes('music') || topInterest?.includes('music'))
+      return '#f59e0b'
+    if (
+      primaryService?.includes('entertainment') ||
+      topInterest?.includes('entertainment')
+    )
+      return '#ef4444'
+    if (primaryService?.includes('art') || topInterest?.includes('art'))
+      return '#10b981'
+
+    return '#6366f1' // Default color
+  }
+
+  /**
+   * Get an icon for a host based on their primary service/interest
+   */
+  private getHostIcon(hostData: any): string {
+    const primaryService = hostData.primaryServices?.[0]?.toLowerCase()
+    const topInterest = hostData.interests?.[0]?.toLowerCase()
+
+    if (primaryService?.includes('gaming') || topInterest?.includes('gaming'))
+      return 'gamepad'
+    if (
+      primaryService?.includes('conversation') ||
+      topInterest?.includes('conversation')
+    )
+      return 'chat'
+    if (primaryService?.includes('music') || topInterest?.includes('music'))
+      return 'microphone'
+    if (
+      primaryService?.includes('entertainment') ||
+      topInterest?.includes('entertainment')
+    )
+      return 'heart'
+    if (primaryService?.includes('art') || topInterest?.includes('art'))
+      return 'palette'
+
+    return 'user' // Default icon
   }
 
   buildSearchQuery(state: MamaSanSessionState): string {

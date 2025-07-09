@@ -548,7 +548,7 @@ export class MatchmakingOrchestrator {
         console.log(
           '🎯 Orchestrator - Generating recommendations after question answered...'
         )
-        const recommendations = this.mamaSan.getRecommendations(
+        const recommendations = await this.mamaSan.getRecommendations(
           this.mamaSanState
         )
 
@@ -615,7 +615,7 @@ export class MatchmakingOrchestrator {
         console.log(
           '🎯 Orchestrator - Generating final comprehensive recommendations...'
         )
-        const finalRecommendations = this.mamaSan.getRecommendations(
+        const finalRecommendations = await this.mamaSan.getRecommendations(
           this.mamaSanState
         )
 
@@ -1299,14 +1299,52 @@ export class MatchmakingOrchestrator {
       mamasanState.answers.length === 0 &&
       isMamaSanStartTrigger(message)
 
+    console.log('🎭 Orchestrator Server - Session analysis:', {
+      message: message.substring(0, 50),
+      isNewSession,
+      currentQuestion: mamasanState.currentQuestion,
+      answersLength: mamasanState.answers.length,
+      needsFirstQuestion: mamasanState.needsFirstQuestion,
+      isStartTrigger: isMamaSanStartTrigger(message),
+    })
+
     if (isNewSession) {
+      // Send intro as first message, then queue the first question as a follow-up
       const intro = this.mamaSan.getIntro()
-      const firstQ = this.mamaSan.getCurrentQuestion(mamasanState)
+      console.log('🎭 Orchestrator Server - Sending intro message:', intro)
+
+      // Return intro first, with a special step to indicate a follow-up question is needed
       return {
-        message: intro + '\n' + firstQ,
+        message: intro,
+        isComplete: false,
+        step: 'mamasan_intro',
+        updatedState: {
+          currentQuestion: 0,
+          answers: [],
+          isComplete: false,
+          needsFirstQuestion: true,
+        },
+        profileUpdates: {},
+        data: {
+          needsFollowUp: true,
+          followUpDelay: 1500, // 1.5 second delay before first question
+        },
+      }
+    }
+
+    // Check if we need to send the first question after intro
+    if (
+      mamasanState.needsFirstQuestion &&
+      mamasanState.currentQuestion === 0 &&
+      mamasanState.answers.length === 0
+    ) {
+      const firstQ = this.mamaSan.getCurrentQuestion(mamasanState)
+      console.log('🎭 Orchestrator Server - Sending first question:', firstQ)
+      return {
+        message: firstQ,
         isComplete: false,
         step: 'mamasan_0',
-        updatedState: { currentQuestion: 0, answers: [], isComplete: false },
+        updatedState: { ...mamasanState, needsFirstQuestion: false },
         profileUpdates: {},
       }
     }
@@ -1427,7 +1465,8 @@ export class MatchmakingOrchestrator {
       )
 
       // Generate recommendations for continuous mode
-      const recommendations = this.mamaSan.getRecommendations(mamasanState)
+      const recommendations =
+        await this.mamaSan.getRecommendations(mamasanState)
 
       return {
         message: continuousQuestion,
@@ -1562,7 +1601,7 @@ export class MatchmakingOrchestrator {
     }
 
     // Generate recommendations after each answered question
-    const recommendations = this.mamaSan.getRecommendations(updatedState)
+    const recommendations = await this.mamaSan.getRecommendations(updatedState)
 
     // Check if onboarding is complete (use configured question count)
     if (!this.mamaSan.isOnboardingComplete(updatedState)) {
@@ -1589,7 +1628,18 @@ export class MatchmakingOrchestrator {
       const continuousQuestion = await this.mamaSan.generateContinuousQuestion(
         undefined, // No userProfile available in server context
         updatedState,
-        message
+        message // Pass user's last answer for context
+      )
+
+      // Get the last onboarding question to create a smooth transition
+      const lastOnboardingQuestion =
+        this.mamaSan.getCurrentQuestion(mamasanState)
+
+      // Generate a transition message that acknowledges the last answer
+      const transitionMessage = await this.mamaSan.generateTransition(
+        lastOnboardingQuestion,
+        message,
+        continuousQuestion
       )
 
       const finalUpdatedState = {
@@ -1598,7 +1648,7 @@ export class MatchmakingOrchestrator {
       }
 
       return {
-        message: continuousQuestion,
+        message: transitionMessage, // Use the new transition message
         isComplete: false, // Keep session active for continuous mode
         step: 'mamasan_continuous',
         updatedState: finalUpdatedState,

@@ -1,17 +1,8 @@
 import mongoose, { Schema, Document } from 'mongoose'
 import { MatchProfile as IMatchProfile } from '@/types/matchmaking'
 
-interface MatchProfileDocument extends IMatchProfile, Document {}
-
-// Extend IMatchProfile to include mamasanState, stamina, and intimacyLevel
-export interface MamaSanState {
-  currentQuestion: number
-  answers: string[]
-  isComplete: boolean
-}
-
-// Add stamina and intimacyLevel to the type
-export interface MatchProfileWithStats extends IMatchProfile {
+// Extended interface for the MatchProfile model with additional fields
+interface ExtendedMatchProfile extends IMatchProfile {
   mamasanState?: MamaSanState
   stamina?: number
   intimacyLevel?: number
@@ -84,80 +75,18 @@ export interface MatchProfileWithStats extends IMatchProfile {
   }
 }
 
-declare module '@/types/matchmaking' {
-  interface MatchProfile {
-    mamasanState?: MamaSanState
-    stamina?: number
-    intimacyLevel?: number
-    validationErrors?: Array<{
-      source: 'mamasan' | 'kokology' | 'profiler'
-      originalText: string
-      validationError: string
-      timestamp: Date
-      status: 'pending' | 'resolved' | 'ignore'
-      retryCount: number
-      context?: {
-        question?: string
-        userResponse?: string
-        attemptNumber?: number
-      }
-    }>
-    datingProfile?: {
-      physicalPreferences?: {
-        height?: string
-        build?: string
-        ethnicity?: string
-        style?: string
-        attractionTags?: string[]
-        dealBreakers?: string[]
-      }
-      relationshipStyle?: string
-      intimacyComfort?: string
-      dominanceStyle?: string
-      demographics?: {
-        agePreference?: {
-          min?: number
-          max?: number
-          preference?: string
-        }
-        locationImportance?: string
-        experienceLevel?: string
-      }
-      servicePreferences?: {
-        primaryServices?: string[]
-        mood?: string
-        interactionStyle?: string
-        conversationTopics?: string[]
-        sessionLength?: string
-      }
-      platformMetrics?: {
-        attractivenessRating?: number
-        personalityRating?: number
-        communicationRating?: number
-        gamingSkill?: number
-        entertainmentValue?: number
-        reliability?: number
-        friendliness?: number
-        responseTime?: number
-        sessionSuccessRate?: number
-        repeatClientRate?: number
-      }
-      contentPreferences?: {
-        explicitnessLevel?: string
-        boundaries?: string[]
-        specialties?: string[]
-        fantasies?: string[]
-      }
-      verification?: {
-        isVerified?: boolean
-        verificationMethod?: string
-        trustScore?: number
-        reportCount?: number
-        positiveReviews?: number
-      }
-    }
-  }
+interface MatchProfileDocument extends ExtendedMatchProfile, Document {}
+
+// Extend IMatchProfile to include mamasanState, stamina, and intimacyLevel
+export interface MamaSanState {
+  currentQuestion: number
+  answers: string[]
+  isComplete: boolean
 }
+
+// Add stamina and intimacyLevel to the type
+// Export the extended interface as an alias for backward compatibility
+export type MatchProfileWithStats = ExtendedMatchProfile
 
 const PersonalityTraitSchema = new Schema({
   name: { type: String, required: true },
@@ -584,14 +513,5 @@ MatchProfileSchema.index({
 })
 MatchProfileSchema.index({ status: 1, lastActive: -1 })
 
-// Clear any existing model to force reload of schema changes
-if (mongoose.models.MatchProfile) {
-  delete mongoose.models.MatchProfile
-}
-
-const MatchProfile = mongoose.model<MatchProfileDocument>(
-  'MatchProfile',
-  MatchProfileSchema
-)
-
-export default MatchProfile
+export default mongoose.models.MatchProfile ||
+  mongoose.model<MatchProfileDocument>('MatchProfile', MatchProfileSchema)

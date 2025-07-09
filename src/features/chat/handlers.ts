@@ -1315,6 +1315,55 @@ export const handleWidgetChatFn = () => async (text: string) => {
       await speakMessageHandler(data.message)
     }
 
+    // Check if we need to send a follow-up request for the first question
+    if (data.data?.needsFollowUp) {
+      console.log('🎪 Widget Chat - Follow-up needed, sending after delay...')
+
+      // Wait for the specified delay (or default to 1.5 seconds)
+      const delay = data.data.followUpDelay || 1500
+      setTimeout(async () => {
+        console.log(
+          '🎪 Widget Chat - Sending follow-up request for first question...'
+        )
+
+        try {
+          // Send empty message to trigger the first question
+          const followUpResponse = await fetch('/api/matchmaking', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: '', token }),
+          })
+
+          if (followUpResponse.ok) {
+            const followUpData = await followUpResponse.json()
+            console.log('🎪 Widget Chat - Follow-up response:', {
+              message: followUpData.message
+                ? followUpData.message.substring(0, 100) + '...'
+                : 'none',
+              step: followUpData.step,
+            })
+
+            // Add the first question to chat log
+            homeStore.getState().upsertMessage({
+              role: 'assistant',
+              content: followUpData.message,
+              timestamp: new Date().toISOString(),
+            })
+
+            // Process TTS for the first question if enabled
+            if (!disableTTS) {
+              await speakMessageHandler(followUpData.message)
+            }
+          }
+        } catch (followUpError) {
+          console.error(
+            '🎪 Widget Chat - Follow-up request failed:',
+            followUpError
+          )
+        }
+      }, delay)
+    }
+
     homeStore.setState({ chatProcessing: false })
     window.parent.postMessage(
       { type: 'WIDGET_CHAT_DONE', message: data.message },

@@ -59,7 +59,7 @@ export const aiServiceConfig: AIServiceConfig = {
       resourceName,
       apiKey,
     }),
-  xai: ({ apiKey }) => createXai({ apiKey }),
+  xai: ({ apiKey }) => createXai({ apiKey: process.env.XAI_API_KEY || apiKey }), // Uses XAI_API_KEY from env
   groq: ({ apiKey }) =>
     createOpenAI({
       baseURL: 'https://api.groq.com/openai/v1',

@@ -1,3 +1,7 @@
+// TODO: Implement Anthropic prompt caching using cache_control and the required headers (see https://docs.anthropic.com/claude/docs/prompt-caching). This will require restructuring system/user messages to use Anthropic's native message format and adding the 'anthropic-beta: prompt-caching-2024-07-31' header.
+// Current implementation does NOT use prompt caching.
+// ---
+//
 import { Message } from '../messages/messages'
 import i18next from 'i18next'
 import toastStore from '@/features/stores/toast'
@@ -91,7 +95,10 @@ function getApiEndpoint(aiService: string): string {
   return '/api/ai/vercel'
 }
 
-export async function getVercelAIChatResponse(messages: Message[]) {
+export async function getVercelAIChatResponse(
+  messages: Message[],
+  aiServiceOverride?: string
+) {
   const {
     aiApiKey,
     selectAIService,
@@ -106,8 +113,11 @@ export async function getVercelAIChatResponse(messages: Message[]) {
     customApiBody,
   } = getAIConfig()
 
+  // Use override if provided
+  const aiService = aiServiceOverride || selectAIService
+
   // APIエンドポイントを決定
-  const relativeEndpoint = getApiEndpoint(selectAIService)
+  const relativeEndpoint = getApiEndpoint(aiService)
   const isServer = typeof window === 'undefined'
   const apiEndpoint = isServer
     ? `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}${relativeEndpoint}`
@@ -121,7 +131,7 @@ export async function getVercelAIChatResponse(messages: Message[]) {
     }
 
     // サービスタイプに応じてリクエストデータを追加
-    if (selectAIService === 'custom-api') {
+    if (aiService === 'custom-api') {
       // カスタムAPI用データ
       const filteredMessages = getAIConfig().includeSystemMessagesInCustomApi
         ? messages
@@ -139,7 +149,7 @@ export async function getVercelAIChatResponse(messages: Message[]) {
       // Vercel AI SDK用データ
       Object.assign(requestData, {
         apiKey: aiApiKey,
-        aiService: selectAIService,
+        aiService: aiService,
         model: selectAIModel,
         localLlmUrl,
         azureEndpoint,
@@ -169,7 +179,7 @@ export async function getVercelAIChatResponse(messages: Message[]) {
       const responseBody = await response.json()
       console.log('🔥 VercelAI - Error response body:', responseBody)
       throw new Error(
-        `API request to ${selectAIService} failed with status ${response.status} and body ${responseBody.error}`,
+        `API request to ${aiService} failed with status ${response.status} and body ${responseBody.error}`,
         { cause: { errorCode: responseBody.errorCode } }
       )
     }
@@ -177,7 +187,7 @@ export async function getVercelAIChatResponse(messages: Message[]) {
     const data = await response.json()
     return { text: data.text }
   } catch (error: any) {
-    console.error(`Error fetching ${selectAIService} API response:`, error)
+    console.error(`Error fetching ${aiService} API response:`, error)
 
     // Handle specific error codes from API responses
     let errorCode = 'AIAPIError'

@@ -6,7 +6,7 @@ import Live2DViewer from '@/components/live2DViewer'
 import { Toasts } from '@/components/toasts'
 import MatchmakingProgress from '@/components/MatchmakingProgress'
 import PersonalityPanel from '@/components/PersonalityPanel'
-import ChatMenu from '@/components/ChatMenu'
+
 import VrmExpressionTester from '@/components/ui/VrmExpressionTester'
 import ProfileOverlay from '@/components/ui/ProfileOverlay'
 
@@ -37,7 +37,6 @@ interface WidgetConfig {
   // UI options
   showInput?: boolean
   showChatLog?: boolean
-  showVoiceButton?: boolean
   showSettingsButton?: boolean
 
   // Functional options
@@ -54,28 +53,6 @@ interface WidgetConfig {
   showVrmExpressionTester?: boolean
   disableTTS?: boolean
   showProfileOverlay?: boolean
-}
-
-// Audio context management for iframe compatibility
-const initializeAudioContext = async () => {
-  try {
-    const AudioContextClass =
-      window.AudioContext || (window as any).webkitAudioContext
-    if (!AudioContextClass) return null
-
-    const audioContext = new AudioContextClass()
-
-    // For iframes, we need to resume the context after user interaction
-    if (audioContext.state === 'suspended') {
-      await audioContext.resume()
-      console.log('AudioContext resumed successfully in iframe')
-    }
-
-    return audioContext
-  } catch (error) {
-    console.warn('Failed to initialize AudioContext:', error)
-    return null
-  }
 }
 
 const Widget = () => {
@@ -103,7 +80,6 @@ const Widget = () => {
   const router = useRouter()
   const chatScrollRef = useRef<HTMLDivElement>(null)
   const chatScrollRefHidden = useRef<HTMLDivElement>(null)
-  const [audioContextReady, setAudioContextReady] = useState(false)
   const [config, setConfig] = useState<WidgetConfig>({
     width: '800px',
     height: '600px',
@@ -112,7 +88,6 @@ const Widget = () => {
     showCharacter: true,
     showInput: true,
     showChatLog: true,
-    showVoiceButton: true,
     showSettingsButton: false,
     autoFocus: true,
     postMessages: true,
@@ -124,17 +99,9 @@ const Widget = () => {
 
   console.log('🔧 Widget initial config:', config)
 
-  const modelType = settingsStore((s) => s.modelType)
-  const backgroundImageUrl = homeStore((s) => s.backgroundImageUrl)
-  const chatLog = homeStore((s) => s.chatLog)
-
-  // Debug logging for profile overlay
-  // useEffect(() => {
-  //   console.log('🎭 Widget - Config updated:')
-  //   console.log('  showProfileOverlay:', config.showProfileOverlay)
-  //   console.log('  showVrmExpressionTester:', config.showVrmExpressionTester)
-  //   console.log('  Full config:', config)
-  // }, [config])
+  const modelType = settingsStore(s => s.modelType)
+  const backgroundImageUrl = homeStore(s => s.backgroundImageUrl)
+  const chatLog = homeStore(s => s.chatLog)
 
   // Auth state
   const [isAuthenticated, setIsAuthenticated] = useState(false)
@@ -163,7 +130,7 @@ const Widget = () => {
     }
 
     // Get last 2 messages for context
-    const recentMessages = currentChatLog.slice(-2).map((msg) => ({
+    const recentMessages = currentChatLog.slice(-2).map(msg => ({
       role: msg.role,
       content: msg.content,
       timestamp: msg.timestamp,
@@ -208,7 +175,7 @@ const Widget = () => {
     console.log('🔧   authError:', authError)
     console.log('🔧 Widget ready to receive messages!')
 
-    function handleAllMessages(event: MessageEvent) {
+    function handleAllMessages (event: MessageEvent) {
       // LOG EVERY SINGLE MESSAGE - even if malformed
       console.log('🔥 [Widget] === INCOMING MESSAGE ===')
       console.log('🔥 [Widget] Event object:', event)
@@ -261,7 +228,7 @@ const Widget = () => {
       // Handle WIDGET_CONFIG
       if (event.data.type === 'WIDGET_CONFIG') {
         console.log('[Widget] Processing WIDGET_CONFIG event')
-        setConfig((prev) => ({ ...prev, ...event.data.config }))
+        setConfig(prev => ({ ...prev, ...event.data.config }))
         return
       }
 
@@ -347,7 +314,7 @@ const Widget = () => {
           )
 
           console.log('🔥 [Widget] Calling widgetChatHandler with content...')
-          widgetChatHandler(content).catch((error) => {
+          widgetChatHandler(content).catch(error => {
             console.error('🔥 [Widget] ❌ Chat handler error:', error)
             console.error('🔥 [Widget] ❌ Error stack:', error.stack)
             window.parent.postMessage(
@@ -470,7 +437,7 @@ const Widget = () => {
           )
 
           console.log('🔥 [Widget] Calling widgetChatHandler with content...')
-          widgetChatHandler(content).catch((error) => {
+          widgetChatHandler(content).catch(error => {
             console.error('🔥 [Widget] ❌ Chat handler error:', error)
             console.error('🔥 [Widget] ❌ Error stack:', error.stack)
             window.parent.postMessage(
@@ -605,34 +572,6 @@ const Widget = () => {
     }
   }, [authChecked, isAuthenticated])
 
-  // Audio context initialization with user gesture
-  const handleUserInteraction = useCallback(async () => {
-    if (!audioContextReady) {
-      const audioContext = await initializeAudioContext()
-      if (audioContext) {
-        setAudioContextReady(true)
-        console.log('Audio context initialized after user interaction')
-      }
-    }
-  }, [audioContextReady])
-
-  // Add global click listener for audio context initialization
-  useEffect(() => {
-    const handleClick = () => handleUserInteraction()
-    const handleKeydown = () => handleUserInteraction()
-
-    // Add event listeners for user interaction
-    document.addEventListener('click', handleClick, { once: true })
-    document.addEventListener('keydown', handleKeydown, { once: true })
-    document.addEventListener('touchstart', handleClick, { once: true })
-
-    return () => {
-      document.removeEventListener('click', handleClick)
-      document.removeEventListener('keydown', handleKeydown)
-      document.removeEventListener('touchstart', handleClick)
-    }
-  }, [handleUserInteraction])
-
   // Detect if personality analysis is completed for split layout
   const [isPersonalityCompleted, setIsPersonalityCompleted] = useState(false)
 
@@ -647,17 +586,9 @@ const Widget = () => {
       // Personality is completed if analysis is done and has result, regardless of dismissal
       const isCompleted = completed && hasResult
       const shouldShow = isCompleted && !hasDismissed
-      // console.log('🎨 Widget - Personality completion check:', {
-      //   completed,
-      //   hasResult,
-      //   hasDismissed,
-      //   isCompleted,
-      //   shouldShow,
-      // })
       // Only adjust layout when panel should actually be visible
       setIsPersonalityCompleted(shouldShow)
     } catch (error) {
-      // console.log('🎨 Widget - Error checking personality completion:', error)
       setIsPersonalityCompleted(false)
     }
   }, [])
@@ -673,7 +604,6 @@ const Widget = () => {
         e.key === 'last_matchmaking_result' ||
         e.key === 'personality_panel_dismissed'
       ) {
-        // console.log('🎨 Widget - Storage changed:', e.key)
         checkCompletionStatus()
       }
     }
@@ -689,9 +619,6 @@ const Widget = () => {
   useEffect(() => {
     const unsubscribe = homeStore.subscribe((state, prevState) => {
       if (state.chatLog !== prevState.chatLog) {
-        // console.log(
-        //   '🎨 Widget - Chat log changed, checking completion status...'
-        // )
         // Small delay to allow localStorage to be updated
         setTimeout(checkCompletionStatus, 100)
       }
@@ -708,7 +635,7 @@ const Widget = () => {
     const urlConfig: Partial<WidgetConfig> = {}
 
     // Parse all URL parameters
-    Object.keys(config).forEach((key) => {
+    Object.keys(config).forEach(key => {
       const value = urlParams.get(key)
       if (value !== null) {
         if (typeof config[key as keyof WidgetConfig] === 'boolean') {
@@ -726,7 +653,7 @@ const Widget = () => {
       urlConfig.backgroundColor = urlParams.get('backgroundColor') || undefined
     }
 
-    setConfig((prev) => ({ ...prev, ...urlConfig }))
+    setConfig(prev => ({ ...prev, ...urlConfig }))
 
     // Apply settings from URL
     if (urlConfig.characterModel) {
@@ -809,17 +736,32 @@ const Widget = () => {
   }, [chatLog])
 
   useEffect(() => {
-    // On initial load, if chat log is empty, do NOT insert Emi's greeting. The backend will provide the first message (welcome + onboarding question).
-    if (homeStore.getState().chatLog.length === 0) {
-      // No-op: let the backend handle the first message
-    } else {
+    // On initial load, if chat log is empty and user is authenticated, send a synthetic 'start matchmaking' message to trigger onboarding
+    if (
+      homeStore.getState().chatLog.length === 0 &&
+      isAuthenticated &&
+      authChecked
+    ) {
+      // Prevent duplicate trigger by setting a flag in sessionStorage
+      if (!sessionStorage.getItem('mamasanOnboardingStarted')) {
+        sessionStorage.setItem('mamasanOnboardingStarted', 'true')
+        // Use the same handler as user input
+        const widgetChatHandler = handleWidgetChatFn()
+        widgetChatHandler('start matchmaking')
+      }
+    } else if (homeStore.getState().chatLog.length > 0) {
       // If there's existing chat history, send it to parent
       console.log(
         '🎪 Widget - Found existing chat history, sending to parent...'
       )
       sendChatHistoryToParent()
     }
-  }, [config.postMessages, sendChatHistoryToParent])
+  }, [
+    isAuthenticated,
+    authChecked,
+    config.postMessages,
+    sendChatHistoryToParent,
+  ])
 
   const getThemeClasses = () => {
     if (config.backgroundColor) return ''
@@ -849,29 +791,22 @@ const Widget = () => {
   const backgroundStyle = config.backgroundColor
     ? { backgroundColor: config.backgroundColor }
     : config.showBackground && backgroundImageUrl
-      ? {
-          backgroundImage: `url(${buildUrl(backgroundImageUrl)})`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-        }
-      : {}
-
-  // Debug logging
-  // console.log('🎨 Widget - isPersonalityCompleted:', isPersonalityCompleted)
-  // console.log(
-  //   '🎨 Widget - Rendering main content with right constraint:',
-  //   isPersonalityCompleted ? '320px' : '0'
-  // )
+    ? {
+        backgroundImage: `url(${buildUrl(backgroundImageUrl)})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+      }
+    : {}
 
   return (
     <>
       {!authChecked ? (
-        <div className="flex items-center justify-center h-screen text-lg">
+        <div className='flex items-center justify-center h-screen text-lg'>
           Loading...
         </div>
       ) : !isAuthenticated ? (
         <div
-          className="fixed inset-0 flex items-center justify-center w-screen h-screen"
+          className='fixed inset-0 flex items-center justify-center w-screen h-screen'
           style={{
             backgroundImage: "url('/backgrounds/static-noise.gif')",
             backgroundSize: 'cover',
@@ -900,36 +835,16 @@ const Widget = () => {
           className={`relative overflow-hidden ${getThemeClasses()}`}
           style={{ ...containerStyle, ...backgroundStyle }}
         >
-          {/* Audio Context Permission Banner */}
-          {!audioContextReady && (
-            <div
-              onClick={handleUserInteraction}
-              className="absolute top-0 left-0 right-0 bg-blue-500 text-white text-sm py-2 px-4 z-50 cursor-pointer hover:bg-blue-600 transition-colors"
-            >
-              <div className="flex items-center justify-center gap-2">
-                <svg
-                  className="w-4 h-4"
-                  fill="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z" />
-                  <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z" />
-                </svg>
-                <span>Click to enable microphone & audio features</span>
-              </div>
-            </div>
-          )}
-
           {/* Matchmaking Progress Bar */}
           <MatchmakingProgress forceHidden={true} />
           <PersonalityPanel />
 
           {/* Main content */}
-          <div className="absolute inset-0">
+          <div className='absolute inset-0'>
             {/* Character Display */}
             {config.showCharacter && (
               <div
-                className="absolute top-0 left-0 bottom-0 right-0 pointer-events-none z-0"
+                className='absolute top-0 left-0 bottom-0 right-0 pointer-events-none z-0'
                 style={{ paddingBottom: config.showInput ? '80px' : '0' }}
                 key={`character-${isPersonalityCompleted}`}
               >
@@ -954,27 +869,26 @@ const Widget = () => {
                   window.parent.postMessage({ type: 'TOGGLE_FULLSCREEN' }, '*')
                 }
               }}
-              className="absolute top-2 right-2 p-2 bg-white/80 hover:bg-white rounded-full shadow-lg z-30"
-              title="Toggle Fullscreen"
+              className='absolute top-2 right-2 p-2 bg-white/80 hover:bg-white rounded-full shadow-lg z-30'
+              title='Toggle Fullscreen'
             >
               <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
+                className='w-4 h-4'
+                fill='none'
+                stroke='currentColor'
+                viewBox='0 0 24 24'
               >
                 <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
+                  strokeLinecap='round'
+                  strokeLinejoin='round'
                   strokeWidth={2}
-                  d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"
+                  d='M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4'
                 />
               </svg>
             </button>
           )}
 
           <Toasts />
-          <ChatMenu isWidget={true} />
         </div>
       )}
     </>
