@@ -99,9 +99,9 @@ const Widget = () => {
 
   console.log('🔧 Widget initial config:', config)
 
-  const modelType = settingsStore(s => s.modelType)
-  const backgroundImageUrl = homeStore(s => s.backgroundImageUrl)
-  const chatLog = homeStore(s => s.chatLog)
+  const modelType = settingsStore((s) => s.modelType)
+  const backgroundImageUrl = homeStore((s) => s.backgroundImageUrl)
+  const chatLog = homeStore((s) => s.chatLog)
 
   // Auth state
   const [isAuthenticated, setIsAuthenticated] = useState(false)
@@ -130,7 +130,7 @@ const Widget = () => {
     }
 
     // Get last 2 messages for context
-    const recentMessages = currentChatLog.slice(-2).map(msg => ({
+    const recentMessages = currentChatLog.slice(-2).map((msg) => ({
       role: msg.role,
       content: msg.content,
       timestamp: msg.timestamp,
@@ -175,7 +175,7 @@ const Widget = () => {
     console.log('🔧   authError:', authError)
     console.log('🔧 Widget ready to receive messages!')
 
-    function handleAllMessages (event: MessageEvent) {
+    function handleAllMessages(event: MessageEvent) {
       // LOG EVERY SINGLE MESSAGE - even if malformed
       console.log('🔥 [Widget] === INCOMING MESSAGE ===')
       console.log('🔥 [Widget] Event object:', event)
@@ -228,7 +228,7 @@ const Widget = () => {
       // Handle WIDGET_CONFIG
       if (event.data.type === 'WIDGET_CONFIG') {
         console.log('[Widget] Processing WIDGET_CONFIG event')
-        setConfig(prev => ({ ...prev, ...event.data.config }))
+        setConfig((prev) => ({ ...prev, ...event.data.config }))
         return
       }
 
@@ -314,7 +314,7 @@ const Widget = () => {
           )
 
           console.log('🔥 [Widget] Calling widgetChatHandler with content...')
-          widgetChatHandler(content).catch(error => {
+          widgetChatHandler(content).catch((error) => {
             console.error('🔥 [Widget] ❌ Chat handler error:', error)
             console.error('🔥 [Widget] ❌ Error stack:', error.stack)
             window.parent.postMessage(
@@ -437,7 +437,7 @@ const Widget = () => {
           )
 
           console.log('🔥 [Widget] Calling widgetChatHandler with content...')
-          widgetChatHandler(content).catch(error => {
+          widgetChatHandler(content).catch((error) => {
             console.error('🔥 [Widget] ❌ Chat handler error:', error)
             console.error('🔥 [Widget] ❌ Error stack:', error.stack)
             window.parent.postMessage(
@@ -635,7 +635,7 @@ const Widget = () => {
     const urlConfig: Partial<WidgetConfig> = {}
 
     // Parse all URL parameters
-    Object.keys(config).forEach(key => {
+    Object.keys(config).forEach((key) => {
       const value = urlParams.get(key)
       if (value !== null) {
         if (typeof config[key as keyof WidgetConfig] === 'boolean') {
@@ -653,7 +653,7 @@ const Widget = () => {
       urlConfig.backgroundColor = urlParams.get('backgroundColor') || undefined
     }
 
-    setConfig(prev => ({ ...prev, ...urlConfig }))
+    setConfig((prev) => ({ ...prev, ...urlConfig }))
 
     // Apply settings from URL
     if (urlConfig.characterModel) {
@@ -791,22 +791,22 @@ const Widget = () => {
   const backgroundStyle = config.backgroundColor
     ? { backgroundColor: config.backgroundColor }
     : config.showBackground && backgroundImageUrl
-    ? {
-        backgroundImage: `url(${buildUrl(backgroundImageUrl)})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-      }
-    : {}
+      ? {
+          backgroundImage: `url(${buildUrl(backgroundImageUrl)})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+        }
+      : {}
 
   return (
     <>
       {!authChecked ? (
-        <div className='flex items-center justify-center h-screen text-lg'>
+        <div className="flex items-center justify-center h-screen text-lg">
           Loading...
         </div>
       ) : !isAuthenticated ? (
         <div
-          className='fixed inset-0 flex items-center justify-center w-screen h-screen'
+          className="fixed inset-0 flex items-center justify-center w-screen h-screen"
           style={{
             backgroundImage: "url('/backgrounds/static-noise.gif')",
             backgroundSize: 'cover',
@@ -840,11 +840,11 @@ const Widget = () => {
           <PersonalityPanel />
 
           {/* Main content */}
-          <div className='absolute inset-0'>
+          <div className="absolute inset-0">
             {/* Character Display */}
             {config.showCharacter && (
               <div
-                className='absolute top-0 left-0 bottom-0 right-0 pointer-events-none z-0'
+                className="absolute top-0 left-0 bottom-0 right-0 pointer-events-none z-0"
                 style={{ paddingBottom: config.showInput ? '80px' : '0' }}
                 key={`character-${isPersonalityCompleted}`}
               >
@@ -869,20 +869,20 @@ const Widget = () => {
                   window.parent.postMessage({ type: 'TOGGLE_FULLSCREEN' }, '*')
                 }
               }}
-              className='absolute top-2 right-2 p-2 bg-white/80 hover:bg-white rounded-full shadow-lg z-30'
-              title='Toggle Fullscreen'
+              className="absolute top-2 right-2 p-2 bg-white/80 hover:bg-white rounded-full shadow-lg z-30"
+              title="Toggle Fullscreen"
             >
               <svg
-                className='w-4 h-4'
-                fill='none'
-                stroke='currentColor'
-                viewBox='0 0 24 24'
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
               >
                 <path
-                  strokeLinecap='round'
-                  strokeLinejoin='round'
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
                   strokeWidth={2}
-                  d='M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4'
+                  d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"
                 />
               </svg>
             </button>

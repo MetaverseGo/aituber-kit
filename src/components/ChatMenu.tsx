@@ -58,26 +58,26 @@ export const ChatMenu: React.FC<ChatMenuProps> = ({ isWidget = false }) => {
   }, [isOpen])
 
   return (
-    <div className='relative' ref={menuRef}>
+    <div className="relative" ref={menuRef}>
       {/* Menu Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={`${
           isWidget ? 'absolute top-2 right-12' : 'fixed top-4 right-4'
         } z-50 p-2 bg-white/90 hover:bg-white rounded-full shadow-lg transition-all duration-200 border border-gray-200`}
-        title='Chat Commands'
+        title="Chat Commands"
       >
         <svg
-          className='w-5 h-5 text-gray-600'
-          fill='none'
-          stroke='currentColor'
-          viewBox='0 0 24 24'
+          className="w-5 h-5 text-gray-600"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
         >
           <path
-            strokeLinecap='round'
-            strokeLinejoin='round'
+            strokeLinecap="round"
+            strokeLinejoin="round"
             strokeWidth={2}
-            d='M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z'
+            d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"
           />
         </svg>
       </button>
@@ -90,49 +90,49 @@ export const ChatMenu: React.FC<ChatMenuProps> = ({ isWidget = false }) => {
           } z-50 w-64 bg-white rounded-lg shadow-xl border border-gray-200 overflow-hidden`}
         >
           {/* Header */}
-          <div className='bg-gradient-to-r from-pink-500 to-purple-600 text-white px-4 py-3'>
-            <div className='flex items-center space-x-2'>
+          <div className="bg-gradient-to-r from-pink-500 to-purple-600 text-white px-4 py-3">
+            <div className="flex items-center space-x-2">
               <svg
-                className='w-5 h-5'
-                fill='none'
-                stroke='currentColor'
-                viewBox='0 0 24 24'
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
               >
                 <path
-                  strokeLinecap='round'
-                  strokeLinejoin='round'
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
                   strokeWidth={2}
-                  d='M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z'
+                  d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
                 />
               </svg>
-              <span className='font-semibold'>Chat Commands</span>
+              <span className="font-semibold">Chat Commands</span>
             </div>
           </div>
 
           {/* Menu Items */}
-          <div className='py-2'>
+          <div className="py-2">
             {/* Show Personality Panel - only when analysis is available */}
             {hasPersonalityAnalysis && (
               <button
                 onClick={showPersonalityPanel}
-                className='w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors duration-150 flex items-center space-x-3 text-gray-700'
+                className="w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors duration-150 flex items-center space-x-3 text-gray-700"
               >
                 <svg
-                  className='w-5 h-5 text-purple-500'
-                  fill='none'
-                  stroke='currentColor'
-                  viewBox='0 0 24 24'
+                  className="w-5 h-5 text-purple-500"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
                 >
                   <path
-                    strokeLinecap='round'
-                    strokeLinejoin='round'
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
                     strokeWidth={2}
-                    d='M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z'
+                    d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
                   />
                 </svg>
                 <div>
-                  <div className='font-medium'>Show Personality</div>
-                  <div className='text-sm text-gray-500'>
+                  <div className="font-medium">Show Personality</div>
+                  <div className="text-sm text-gray-500">
                     View your personality analysis
                   </div>
                 </div>
@@ -140,17 +140,17 @@ export const ChatMenu: React.FC<ChatMenuProps> = ({ isWidget = false }) => {
             )}
 
             {/* Placeholder for future commands */}
-            <div className='px-4 py-2 text-sm text-gray-400 border-t border-gray-100 mt-1'>
-              <div className='flex items-center space-x-2'>
+            <div className="px-4 py-2 text-sm text-gray-400 border-t border-gray-100 mt-1">
+              <div className="flex items-center space-x-2">
                 <svg
-                  className='w-4 h-4'
-                  fill='currentColor'
-                  viewBox='0 0 20 20'
+                  className="w-4 h-4"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
                 >
                   <path
-                    fillRule='evenodd'
-                    d='M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z'
-                    clipRule='evenodd'
+                    fillRule="evenodd"
+                    d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z"
+                    clipRule="evenodd"
                   />
                 </svg>
                 <span>More commands coming soon</span>
