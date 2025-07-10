@@ -20,6 +20,143 @@ import {
   getCurrentWidgetAuthToken,
 } from '@/features/chat/handlers'
 
+/**
+ * CHAT_ACTION_CARD_CLICK Handler Documentation
+ * ===========================================
+ *
+ * This widget handles action card clicks and generates profile recommendations
+ * using mock host recommendation logic.
+ *
+ * ## Input Payload Structure
+ *
+ * The parent should send this message when a user clicks an action card:
+ *
+ * ```typescript
+ * {
+ *   type: 'CHAT_ACTION_CARD_CLICK',
+ *   data: {
+ *     actionId: string,     // ID of the action card
+ *     actionType: string,   // Type of action (follow, subscribe, donate, etc.)
+ *     actionData?: any,     // Optional additional action data
+ *     timestamp: number,    // Unix timestamp
+ *     userId: string        // ID of the user performing the action
+ *   }
+ * }
+ * ```
+ *
+ * ### Supported Action IDs:
+ * - `"cute-anime"` - Anime and kawaii culture enthusiasts
+ * - `"gaming-creators"` - Gaming streamers and content creators
+ * - `"vtuber-recs"` - VTuber recommendation specialists
+ * - `"kawaii-content"` - Kawaii lifestyle and content creators
+ *
+ * ## Output Payload Structure
+ *
+ * The widget responds by sending 1 `CHAT_MESSAGE_RECEIVE` message with a randomly selected profile:
+ *
+ * ```typescript
+ * {
+ *   type: 'CHAT_MESSAGE_RECEIVE',
+ *   data: {
+ *     role: 'assistant',
+ *     content: string,           // Personalized greeting message
+ *     timestamp: string,         // ISO timestamp
+ *     metadata: {
+ *       profileCard: true,       // Indicates this is a profile card
+ *       profileData: {
+ *         id: string,            // Unique profile ID
+ *         name: string,          // Character name
+ *         message: string,       // Same as content
+ *         description: string,   // Profile summary
+ *         interests: string[],   // Array of interest tags
+ *         personality: string[], // Array of personality traits
+ *         profileImage?: string  // Path to character image
+ *       }
+ *     }
+ *   }
+ * }
+ * ```
+ *
+ * ## Parent Consumption Guide
+ *
+ * ### 1. Detecting Profile Cards
+ * ```typescript
+ * window.addEventListener('message', (event) => {
+ *   if (event.data.type === 'CHAT_MESSAGE_RECEIVE') {
+ *     const isProfileCard = event.data.data?.metadata?.profileCard === true
+ *
+ *     if (isProfileCard) {
+ *       // Handle as profile card
+ *       const profileData = event.data.data.metadata.profileData
+ *       renderProfileCard(profileData)
+ *     } else {
+ *       // Handle as regular chat message
+ *       renderChatMessage(event.data.data)
+ *     }
+ *   }
+ * })
+ * ```
+ *
+ * ### 2. Profile Data Structure
+ * ```typescript
+ * interface ProfileData {
+ *   id: string              // "seira-001", "eris-001", etc.
+ *   name: string            // "Seira", "Eris", etc.
+ *   message: string         // Personalized greeting
+ *   description: string     // Short bio/description
+ *   interests: string[]     // ["anime", "kawaii", "art"]
+ *   personality: string[]   // ["gentle", "sweet", "creative"]
+ *   profileImage?: string   // "https://localhost:3000/images/mockdata/seira.png"
+ * }
+ * ```
+ *
+ * ### 3. Example Implementation
+ * ```typescript
+ * function handleProfileCard(profileData: ProfileData) {
+ *   // Create profile card UI
+ *   const cardElement = document.createElement('div')
+ *   cardElement.className = 'profile-card'
+ *
+ *   cardElement.innerHTML = `
+ *     <img src="${profileData.profileImage}" alt="${profileData.name}" />
+ *     <h3>${profileData.name}</h3>
+ *     <p>${profileData.description}</p>
+ *     <div class="interests">
+ *       ${profileData.interests.map(i => `<span class="tag">${i}</span>`).join('')}
+ *     </div>
+ *     <div class="personality">
+ *       ${profileData.personality.map(p => `<span class="trait">${p}</span>`).join('')}
+ *     </div>
+ *   `
+ *
+ *   // Add click handler for profile interaction
+ *   cardElement.addEventListener('click', () => {
+ *     // Send message to widget to start conversation with this profile
+ *     widget.postMessage({
+ *       type: 'CHAT_MESSAGE_SEND',
+ *       data: {
+ *         content: `I'd like to chat with ${profileData.name}!`,
+ *         timestamp: Date.now(),
+ *         userId: currentUserId
+ *       }
+ *     }, '*')
+ *   })
+ *
+ *   // Append to profile container
+ *   document.getElementById('profile-cards-container').appendChild(cardElement)
+ * }
+ * ```
+ *
+ * ### 4. Message Timing
+ * - Single message sent immediately upon action card click
+ * - No delays or multiple messages to handle
+ * - Instant delivery of one randomly selected profile
+ *
+ * ### 5. Error Handling
+ * If actionId validation fails, no messages will be sent.
+ * Check browser console for detailed error logs starting with `🔥 [Widget]`
+ */
+
 interface WidgetConfig {
   // Display options
   width?: string
@@ -53,6 +190,190 @@ interface WidgetConfig {
   showVrmExpressionTester?: boolean
   disableTTS?: boolean
   showProfileOverlay?: boolean
+}
+
+// Mock profile card generator based on action categories
+const generateProfileCards = (
+  actionId: string
+): Array<{
+  id: string
+  name: string
+  message: string
+  description: string
+  interests: string[]
+  personality: string[]
+  profileImage?: string
+}> => {
+  // Get the base URL for the widget
+  const getBaseUrl = () => {
+    if (typeof window !== 'undefined') {
+      return `${window.location.protocol}//${window.location.host}`
+    }
+    return 'https://localhost:3000' // Fallback for SSR
+  }
+
+  const baseUrl = getBaseUrl()
+
+  const profiles: Record<
+    string,
+    Array<{
+      id: string
+      name: string
+      message: string
+      description: string
+      interests: string[]
+      personality: string[]
+      profileImage?: string
+    }>
+  > = {
+    'cute-anime': [
+      {
+        id: 'seira-001',
+        name: 'Seira',
+        message:
+          'Hi! I love cute anime and kawaii culture! 🌸 Want to chat about magical girls or cozy slice-of-life series? I know all the best hidden gems! ✨',
+        description:
+          'Sweet anime enthusiast who loves discussing magical girl series and kawaii culture',
+        interests: ['anime', 'kawaii', 'magical-girls', 'art'],
+        personality: ['gentle', 'sweet', 'creative'],
+        profileImage: `${baseUrl}/images/mockdata/seira.png`,
+      },
+      {
+        id: 'kiwi-002',
+        name: 'Kiwi',
+        message:
+          'Kyaa~! Another anime lover! 🥝 I just finished watching the cutest romance anime - want me to tell you about it? No spoilers, promise! (*´∀｀*)',
+        description:
+          'Bubbly anime fan with infectious enthusiasm for romance and comedy series',
+        interests: ['anime', 'romance', 'comedy', 'music'],
+        personality: ['energetic', 'bubbly', 'enthusiastic'],
+        profileImage: `${baseUrl}/images/mockdata/kiwi.png`,
+      },
+      {
+        id: 'emi-003',
+        name: 'Emi',
+        message:
+          "Oh! Someone with great taste in anime! ฅ(♡ω♡*ฅ) I collect anime figures and love cosplay - maybe we can geek out together? What's your favorite series?",
+        description:
+          'Anime collector and cosplayer who loves sharing her passion for Japanese culture',
+        interests: ['anime', 'cosplay', 'collecting', 'japanese-culture'],
+        personality: ['passionate', 'creative', 'friendly'],
+        profileImage: `${baseUrl}/images/mockdata/emi.png`,
+      },
+    ],
+    'gaming-creators': [
+      {
+        id: 'eris-001',
+        name: 'Eris',
+        message:
+          "A fellow gamer, I see! 🎮 I stream competitive FPS and love strategy games. Want to team up for some matches or talk game development? I'm always down for a challenge!",
+        description:
+          'Competitive gaming streamer with expertise in FPS and strategy games',
+        interests: ['gaming', 'streaming', 'esports', 'game-development'],
+        personality: ['competitive', 'confident', 'strategic'],
+        profileImage: `${baseUrl}/images/mockdata/eris.png`,
+      },
+      {
+        id: 'tang-002',
+        name: 'Tang',
+        message:
+          'Gaming creators unite! 🚀 I do game reviews and speedruns - just set a new personal record yesterday! What games are you creating content for?',
+        description:
+          'Gaming content creator specializing in reviews and speedrunning',
+        interests: ['gaming', 'speedrunning', 'content-creation', 'reviews'],
+        personality: ['determined', 'analytical', 'energetic'],
+        profileImage: `${baseUrl}/images/mockdata/tang.png`,
+      },
+      {
+        id: 'sab-003',
+        name: 'Sab',
+        message:
+          "Interesting... another creator in the gaming space. 🎯 I focus on indie games and hidden gems. There's something fascinating about discovering games before they become mainstream...",
+        description:
+          'Indie game specialist who discovers and showcases underground gaming gems',
+        interests: [
+          'indie-games',
+          'game-discovery',
+          'storytelling',
+          'mysteries',
+        ],
+        personality: ['mysterious', 'analytical', 'insightful'],
+        profileImage: `${baseUrl}/images/mockdata/sab.png`,
+      },
+    ],
+    'vtuber-recs': [
+      {
+        id: 'kiwi-vt-001',
+        name: 'Kiwi',
+        message:
+          'Ooh, VTuber recommendations! (ﾉ◕ヮ◕)ﾉ*:･ﾟ✧ I watch so many! From cozy chatting streams to epic gaming collabs - what kind of content do you like? I can recommend the perfect VTubers for you!',
+        description:
+          'VTuber enthusiast with encyclopedic knowledge of streamers and content styles',
+        interests: ['vtubers', 'streaming', 'entertainment', 'community'],
+        personality: ['enthusiastic', 'knowledgeable', 'helpful'],
+        profileImage: `${baseUrl}/images/mockdata/kiwi.png`,
+      },
+      {
+        id: 'emi-vt-002',
+        name: 'Emi',
+        message:
+          "VTuber recs? YES! ✨ I follow so many amazing creators - some focus on singing, others on gaming, and some just have the most comfy chatting streams ever. What's your vibe?",
+        description:
+          'VTuber community member who loves supporting diverse creators and content',
+        interests: ['vtubers', 'music', 'gaming', 'community-support'],
+        personality: ['supportive', 'diverse-interests', 'community-minded'],
+        profileImage: `${baseUrl}/images/mockdata/emi.png`,
+      },
+      {
+        id: 'seira-vt-003',
+        name: 'Seira',
+        message:
+          'VTuber recommendations! 🌸 I particularly enjoy the artistic and creative streamers - drawing streams are so relaxing to watch. Do you prefer high-energy or chill content?',
+        description:
+          'Art-focused VTuber fan who appreciates creative and aesthetic streaming content',
+        interests: ['vtubers', 'art', 'creativity', 'aesthetic'],
+        personality: ['artistic', 'calm', 'aesthetic-minded'],
+        profileImage: `${baseUrl}/images/mockdata/seira.png`,
+      },
+    ],
+    'kawaii-content': [
+      {
+        id: 'seira-kawaii-001',
+        name: 'Seira',
+        message:
+          'Kawaii content! ♡(˃͈ દ ˂͈ ༶ ) You have excellent taste! I love everything kawaii - from fashion to room decor to the cutest accessories. Want to share kawaii finds together?',
+        description:
+          'Kawaii culture enthusiast with a passion for cute fashion and lifestyle',
+        interests: ['kawaii', 'fashion', 'lifestyle', 'decor'],
+        personality: ['cute', 'stylish', 'trend-aware'],
+        profileImage: `${baseUrl}/images/mockdata/seira.png`,
+      },
+      {
+        id: 'emi-kawaii-002',
+        name: 'Emi',
+        message:
+          'Kawaii content lover! (´｡• ᵕ •｡`) ♡ I collect the most adorable things - plushies, stationery, accessories! My room is like a kawaii wonderland. What kawaii stuff do you love most?',
+        description:
+          'Kawaii collector who creates adorable spaces and loves cute merchandise',
+        interests: ['kawaii', 'collecting', 'plushies', 'stationery'],
+        personality: ['collector', 'adorable', 'organized'],
+        profileImage: `${baseUrl}/images/mockdata/emi.png`,
+      },
+      {
+        id: 'kiwi-kawaii-003',
+        name: 'Kiwi',
+        message:
+          'Kawaii squad! ヾ(＾-＾)ノ I make kawaii content and love sharing the cutest discoveries! From tiny desserts to adorable outfits - kawaii makes everything better! Want to kawaii-fy your day together?',
+        description:
+          'Kawaii content creator who spreads joy through cute discoveries and lifestyle tips',
+        interests: ['kawaii', 'content-creation', 'lifestyle', 'desserts'],
+        personality: ['creative', 'joyful', 'inspiring'],
+        profileImage: `${baseUrl}/images/mockdata/kiwi.png`,
+      },
+    ],
+  }
+
+  return profiles[actionId] || profiles['cute-anime'] // Default fallback
 }
 
 const Widget = () => {
@@ -344,6 +665,70 @@ const Widget = () => {
       if (event.data.type === 'CLEAR_CHAT') {
         console.log('[Widget] Processing CLEAR_CHAT event')
         homeStore.setState({ chatLog: [] })
+        return
+      }
+
+      // Handle CHAT_ACTION_CARD_CLICK
+      if (event.data.type === 'CHAT_ACTION_CARD_CLICK') {
+        console.log('🔥 [Widget] === PROCESSING CHAT_ACTION_CARD_CLICK ===')
+        console.log('🔥 [Widget] Raw event.data:', event.data)
+        console.log('🔥 [Widget] Raw event.data.data:', event.data.data)
+
+        const { actionId, actionType, actionData, timestamp, userId } =
+          event.data.data || {}
+        console.log('🔥 [Widget] Extracted values:')
+        console.log('🔥 [Widget]   actionId:', actionId)
+        console.log('🔥 [Widget]   actionType:', actionType)
+        console.log('🔥 [Widget]   actionData:', actionData)
+        console.log('🔥 [Widget]   timestamp:', timestamp)
+        console.log('🔥 [Widget]   userId:', userId)
+
+        if (actionId && typeof actionId === 'string') {
+          console.log('🔥 [Widget] ✅ ActionId validation passed!')
+
+          // Generate profile cards based on actionId
+          const profileCards = generateProfileCards(actionId)
+          console.log(
+            '🔥 [Widget] Generated profile cards:',
+            profileCards.length
+          )
+
+          // Select one random profile card to send
+          const selectedProfile =
+            profileCards[Math.floor(Math.random() * profileCards.length)]
+          console.log(
+            '🔥 [Widget] Selected profile card:',
+            selectedProfile.name
+          )
+
+          // Send single CHAT_MESSAGE_RECEIVE message
+          window.parent.postMessage(
+            {
+              type: 'CHAT_MESSAGE_RECEIVE',
+              data: {
+                role: 'assistant',
+                content: selectedProfile.message,
+                timestamp: new Date().toISOString(),
+                metadata: {
+                  profileCard: true,
+                  profileData: selectedProfile,
+                },
+              },
+            },
+            '*'
+          )
+
+          console.log('🔥 [Widget] Profile card sent successfully')
+        } else {
+          console.error('🔥 [Widget] ❌ ActionId validation failed!')
+          console.error('🔥 [Widget] Invalid CHAT_ACTION_CARD_CLICK data:', {
+            actionId: typeof actionId,
+            actionIdValue: actionId,
+            hasData: !!event.data.data,
+            dataKeys: event.data.data ? Object.keys(event.data.data) : [],
+          })
+        }
+        console.log('🔥 [Widget] === END CHAT_ACTION_CARD_CLICK PROCESSING ===')
         return
       }
 
