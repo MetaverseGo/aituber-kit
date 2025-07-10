@@ -45,7 +45,7 @@ export interface MamaSanSpecialistConfig {
 }
 
 const DEFAULT_QUESTIONS = [
-  'what will it be? girls, boys, or anime or something else?',
+  'what will it be? selfies, videos, e-chat, video calls, or something else?',
   'what kind of mood are you in tonight? looking to unwind… or be entertained?',
   'what kind of conversation gets you hooked? deep, dangerous, playful, or something a little more... personal?',
   "is there a particular experience you're craving tonight? karaoke, games, quiet company, something more intimate?",
