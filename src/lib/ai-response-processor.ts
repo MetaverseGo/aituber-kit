@@ -194,32 +194,63 @@ export class AIResponseProcessor {
       context: { ...error.context, ...context },
     }))
 
-    // Construct API endpoint URL (absolute for server, relative for client)
     const isServer = typeof window === 'undefined'
-    const apiEndpoint = isServer
-      ? `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/match-profile`
-      : '/api/match-profile'
 
-    // Save to database via API
-    const response = await fetch(apiEndpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        action: 'saveValidationErrors',
-        uid: this.config.userId,
-        data: { validationErrors: dbValidationErrors },
-      }),
-    })
+    if (isServer) {
+      // Server-side: Use direct database operations
+      try {
+        const { connectMongoDB } = await import('@/lib/mongodb')
+        const { default: MatchProfile } = await import('@/models/MatchProfile')
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
-    }
+        await connectMongoDB()
 
-    const result = await response.json()
-    if (!result.success) {
-      throw new Error(`Database error: ${result.error}`)
+        // Add validation errors to the profile's validation error log
+        const result = await MatchProfile.updateOne(
+          { uid: this.config.userId },
+          {
+            $push: {
+              validationErrorLog: {
+                $each: dbValidationErrors,
+              },
+            },
+          },
+          { upsert: true }
+        )
+
+        this.log('debug', `Validation errors saved to database:`, {
+          uid: this.config.userId,
+          errorCount: dbValidationErrors.length,
+          result: result,
+        })
+      } catch (error) {
+        this.log('error', `Failed to save validation errors directly:`, error)
+        throw new Error(
+          `Database error: ${error instanceof Error ? error.message : 'Unknown error'}`
+        )
+      }
+    } else {
+      // Client-side: Use API endpoint (this would need the token to be passed from the client)
+      const response = await fetch('/api/match-profile', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'saveValidationErrors',
+          uid: this.config.userId,
+          data: { validationErrors: dbValidationErrors },
+          // Note: Client-side would need to provide Firebase token here
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const result = await response.json()
+      if (!result.success) {
+        throw new Error(`Database error: ${result.error}`)
+      }
     }
   }
 
@@ -351,31 +382,56 @@ export class AIResponseProcessor {
    * Save profile updates to database
    */
   private async saveProfileUpdates(profileUpdates: any): Promise<void> {
-    // Construct API endpoint URL (absolute for server, relative for client)
     const isServer = typeof window === 'undefined'
-    const apiEndpoint = isServer
-      ? `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/match-profile`
-      : '/api/match-profile'
 
-    const response = await fetch(apiEndpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        action: 'updateProfile',
-        uid: this.config.userId,
-        data: { profileUpdates },
-      }),
-    })
+    if (isServer) {
+      // Server-side: Use direct database operations
+      try {
+        const { connectMongoDB } = await import('@/lib/mongodb')
+        const { default: MatchProfile } = await import('@/models/MatchProfile')
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
-    }
+        await connectMongoDB()
 
-    const result = await response.json()
-    if (!result.success) {
-      throw new Error(`Database error: ${result.error}`)
+        const result = await MatchProfile.updateOne(
+          { uid: this.config.userId },
+          { $set: profileUpdates },
+          { upsert: true }
+        )
+
+        this.log('debug', `Profile updates saved to database:`, {
+          uid: this.config.userId,
+          updates: profileUpdates,
+          result: result,
+        })
+      } catch (error) {
+        this.log('error', `Failed to save profile updates directly:`, error)
+        throw new Error(
+          `Database error: ${error instanceof Error ? error.message : 'Unknown error'}`
+        )
+      }
+    } else {
+      // Client-side: Use API endpoint (this would need the token to be passed from the client)
+      const response = await fetch('/api/match-profile', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'updateProfile',
+          uid: this.config.userId,
+          data: { profileUpdates },
+          // Note: Client-side would need to provide Firebase token here
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const result = await response.json()
+      if (!result.success) {
+        throw new Error(`Database error: ${result.error}`)
+      }
     }
   }
 

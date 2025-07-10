@@ -37,6 +37,21 @@ export default function VrmExpressionTester() {
     )
   }, [expressionManager])
 
+  // Set default to 'relaxed' if available
+  React.useEffect(() => {
+    if (!availablePresets.length) return
+    const relaxedIdx = availablePresets.indexOf('relaxed')
+    if (relaxedIdx !== -1) {
+      setCurrentIdx(relaxedIdx)
+      model?.playEmotion(availablePresets[relaxedIdx])
+    } else {
+      setCurrentIdx(0)
+      model?.playEmotion(availablePresets[0])
+    }
+    // Only run on mount or when availablePresets changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expressionManager, model, availablePresets])
+
   const handleNext = () => {
     if (!availablePresets.length) return
     const nextIdx = (currentIdx + 1) % availablePresets.length

@@ -142,10 +142,26 @@ const KokologyQuestionSchema = new Schema({
   timestamp: { type: Date, default: Date.now },
 })
 
+const TopicConversationSchema = new Schema({
+  currentTopic: { type: String, default: null },
+  turnCount: { type: Number, default: 0 },
+  turnsSinceLastProfileQuestion: { type: Number, default: 0 },
+  topicHistory: { type: [String], default: [] },
+  lastProfileQuestionTurn: { type: Number, default: -1 },
+})
+
+const GreetingStateSchema = new Schema({
+  hasGreeted: { type: Boolean, default: false },
+  greetingType: { type: String, default: null },
+})
+
 const MamaSanStateSchema = new Schema({
   currentQuestion: { type: Number, default: 0 },
   answers: { type: [String], default: [] },
   isComplete: { type: Boolean, default: false },
+  needsFirstQuestion: { type: Boolean, default: false },
+  topicConversation: { type: TopicConversationSchema, default: () => ({}) },
+  greetingState: { type: GreetingStateSchema, default: () => ({}) },
 })
 
 const MatchProfileSchema = new Schema<MatchProfileDocument>(

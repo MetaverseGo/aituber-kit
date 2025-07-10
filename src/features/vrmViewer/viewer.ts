@@ -57,6 +57,11 @@ export class Viewer {
 
       this._scene.add(this.model.vrm.scene)
 
+      // Set default expression to 'relaxed' if available
+      if (this.model.emoteController) {
+        this.model.emoteController.playEmotion('relaxed')
+      }
+
       const vrma = await loadVRMAnimation(buildUrl('/idle_loop.vrma'))
       if (vrma) this.model.loadAnimation(vrma)
 
@@ -92,7 +97,7 @@ export class Viewer {
 
     // camera
     this._camera = new THREE.PerspectiveCamera(20.0, width / height, 0.1, 20.0)
-    this._camera.position.set(0, 1.3, 1.5)
+    this._camera.position.set(0, 1.3, 2.2)
     this._cameraControls?.target.set(0, 1.3, 0)
     this._cameraControls?.update()
     // camera controls
@@ -155,12 +160,13 @@ export class Viewer {
 
     if (headNode) {
       const headWPos = headNode.getWorldPosition(new THREE.Vector3())
+      // Use our custom lower camera position to show character higher
       this._camera?.position.set(
         this._camera.position.x,
-        headWPos.y,
+        1.3, // Keep our custom lower Y position
         this._camera.position.z
       )
-      this._cameraControls?.target.set(headWPos.x, headWPos.y, headWPos.z)
+      this._cameraControls?.target.set(headWPos.x, 1.3, headWPos.z) // Look at lower point
       this._cameraControls?.update()
     }
   }
@@ -256,8 +262,8 @@ export class Viewer {
   public resetCameraPosition() {
     settingsStore.setState({
       fixedCharacterPosition: false,
-      characterPosition: { x: 0, y: 0, z: 0, scale: 1 },
-      characterRotation: { x: 0, y: 0, z: 0 },
+      characterPosition: { x: 0, y: 1.3, z: 2.2, scale: 1 }, // Use our new default position
+      characterRotation: { x: 0, y: 1.3, z: 0 }, // Use our new default target
     })
     if (this._cameraControls) {
       this._cameraControls.enabled = true

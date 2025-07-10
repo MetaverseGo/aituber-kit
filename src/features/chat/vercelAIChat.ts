@@ -159,11 +159,6 @@ export async function getVercelAIChatResponse(
       })
     }
 
-    console.log(
-      '🔥 VercelAI - Request data:',
-      JSON.stringify(requestData, null, 2)
-    )
-
     const response = await fetch(apiEndpoint, {
       method: 'POST',
       headers: {
@@ -172,12 +167,8 @@ export async function getVercelAIChatResponse(
       body: JSON.stringify(requestData),
     })
 
-    console.log('🔥 VercelAI - Response status:', response.status)
-    console.log('🔥 VercelAI - Response ok:', response.ok)
-
     if (!response.ok) {
       const responseBody = await response.json()
-      console.log('🔥 VercelAI - Error response body:', responseBody)
       throw new Error(
         `API request to ${aiService} failed with status ${response.status} and body ${responseBody.error}`,
         { cause: { errorCode: responseBody.errorCode } }
@@ -214,13 +205,13 @@ export async function getVercelAIChatResponse(
       ) {
         errorCode = 'RequestEncodingError'
         console.error(
-          '🔥 Request encoding error detected. This may be due to special characters in the prompt.'
+          'Request encoding error detected. This may be due to special characters in the prompt.'
         )
       }
     }
 
     const errorMessage = handleApiError(errorCode)
-    console.error('🔥 Final error message:', errorMessage)
+    console.error('Final error message:', errorMessage)
 
     return {
       response: new Response(

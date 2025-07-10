@@ -82,9 +82,6 @@ export class MamaSanSpecialist {
   private useDatabase: boolean // Store the database flag
 
   constructor(config: MamaSanSpecialistConfig = {}) {
-    console.log('🌸 MamaSan - Constructor START')
-    console.log('🌸 MamaSan - Config received:', config)
-
     this.config = {
       personality: config.personality || 'emi',
       questionCount: config.questionCount || DEFAULT_QUESTIONS.length,
@@ -96,12 +93,6 @@ export class MamaSanSpecialist {
 
     // Configure questions based on count
     this.questions = DEFAULT_QUESTIONS.slice(0, this.config.questionCount)
-    console.log('🌸 MamaSan - Questions configured:', this.config.questionCount)
-    console.log('🌸 MamaSan - First question:', this.questions[0])
-    console.log(
-      '🌸 MamaSan - Database mode:',
-      this.useDatabase ? 'ENABLED' : 'DISABLED (using mock data)'
-    )
 
     // Initialize the TopicStarter
     this.topicStarter = new TopicStarterSpecialist({
@@ -112,9 +103,6 @@ export class MamaSanSpecialist {
 
     // Create response processor if userId is provided
     if (this.config.userId) {
-      console.log(
-        '🌸 MamaSan - UserId provided, creating response processor...'
-      )
       try {
         this.responseProcessor = createResponseProcessor({
           source: 'mamasan',
@@ -123,37 +111,19 @@ export class MamaSanSpecialist {
           enableProfileUpdates: true,
           logLevel: 'info',
         })
-        console.log('🌸 MamaSan - Response processor created successfully')
       } catch (error) {
         console.error('🌸 MamaSan - Error creating response processor:', error)
         this.responseProcessor = undefined
       }
     } else {
-      console.log(
-        '🌸 MamaSan - No userId provided, skipping response processor creation'
-      )
       this.responseProcessor = undefined
     }
-
-    console.log('🌸 MamaSan - Constructor completed')
-    console.log('🌸 MamaSan - Final config:', this.config)
-    console.log(
-      '🌸 MamaSan - Response processor status:',
-      !!this.responseProcessor
-    )
   }
 
   /**
    * Set the user ID to enable validation and persistence features
    */
   setUserId(userId: string): void {
-    console.log('🌸 MamaSan - setUserId called with:', userId)
-    console.log('🌸 MamaSan - Previous config userId:', this.config.userId)
-    console.log(
-      '🌸 MamaSan - Previous response processor status:',
-      !!this.responseProcessor
-    )
-
     this.config.userId = userId
 
     // Update TopicStarter with new userId
@@ -167,25 +137,10 @@ export class MamaSanSpecialist {
         enableProfileUpdates: true,
         logLevel: 'info',
       })
-      console.log(
-        '🌸 MamaSan - Response processor created/updated successfully'
-      )
     } catch (error) {
-      console.error(
-        '🌸 MamaSan - ERROR creating/updating response processor:',
-        error
-      )
-      console.error('🌸 MamaSan - Error type:', typeof error)
-      console.error('🌸 MamaSan - Error message:', (error as any)?.message)
+      console.error('🌸 MamaSan - Error creating response processor:', error)
       this.responseProcessor = undefined
     }
-
-    console.log('🌸 MamaSan - setUserId completed')
-    console.log('🌸 MamaSan - New config userId:', this.config.userId)
-    console.log(
-      '🌸 MamaSan - New response processor status:',
-      !!this.responseProcessor
-    )
   }
 
   private getSystemPrompt(
@@ -450,11 +405,26 @@ ${
     console.log('  Current topic:', topicState.currentTopic)
     console.log('  Turn count:', topicState.turnCount)
     console.log('  Topic history length:', topicState.topicHistory.length)
+    console.log(
+      '  Turns since last profile question:',
+      topicState.turnsSinceLastProfileQuestion
+    )
+    console.log('  Min turns per topic:', this.config.minTurnsPerTopic || 3)
 
     // If we have an active topic conversation and user response, check if we should continue
     if (topicState.currentTopic && lastUserResponse) {
-      const shouldContinueTopic =
-        !this.topicStarter.shouldStartNewTopic(topicState)
+      const shouldStartNewTopic =
+        this.topicStarter.shouldStartNewTopic(topicState)
+      const shouldContinueTopic = !shouldStartNewTopic
+
+      console.log('🕰️ TOPIC COOLDOWN ANALYSIS:')
+      console.log('  Should start new topic:', shouldStartNewTopic)
+      console.log('  Should continue current topic:', shouldContinueTopic)
+      console.log('  Current topic turn count:', topicState.turnCount)
+      console.log(
+        '  Minimum turns required:',
+        this.config.minTurnsPerTopic || 3
+      )
 
       if (shouldContinueTopic) {
         console.log('💬 CONTINUING CURRENT TOPIC:', topicState.currentTopic)
@@ -479,10 +449,46 @@ ${
 
         console.log('✅ TOPIC CONTINUATION GENERATED:', continuationQuestion)
         return continuationQuestion
+      } else {
+        // Topic cooldown is over, need to transition to new topic/question with acknowledgment
+        console.log(
+          '🔄 TOPIC CHANGE DETECTED - generating transition with acknowledgment'
+        )
+        console.log(
+          "  User's last response:",
+          lastUserResponse?.substring(0, 50) + '...'
+        )
+        console.log('  Current topic ending:', topicState.currentTopic)
+
+        return await this.generateTopicTransition(
+          topicState,
+          lastUserResponse,
+          userProfile,
+          currentState
+        )
       }
     }
 
-    // Analyze profile completeness to determine strategy for new conversation turn
+    // Handle case where user responded but no active topic (previous topic ended)
+    if (lastUserResponse && !topicState.currentTopic) {
+      console.log(
+        '🔄 USER RESPONSE WITHOUT ACTIVE TOPIC - generating acknowledgment transition'
+      )
+      console.log(
+        "  User's response:",
+        lastUserResponse?.substring(0, 50) + '...'
+      )
+      console.log('  Need to acknowledge response before continuing')
+
+      return await this.generateResponseAcknowledgmentTransition(
+        lastUserResponse,
+        userProfile,
+        topicState,
+        currentState
+      )
+    }
+
+    // No active topic conversation and no user response - analyze profile completeness for initial decision
     const profileAnalysis = this.analyzeProfileCompleteness(userProfile)
 
     // Make decision based on profile completeness and cooldown
@@ -491,7 +497,7 @@ ${
     const shouldAskProfileQuestion =
       cooldownOver && Math.random() < profileAnalysis.profileQuestionProbability
 
-    console.log('🎲 CONTINUOUS MODE DECISION:')
+    console.log('🎲 CONTINUOUS MODE DECISION (No active topic):')
     console.log(
       '  Profile completeness:',
       (profileAnalysis.completeness * 100).toFixed(1) + '%'
@@ -501,6 +507,11 @@ ${
       (profileAnalysis.profileQuestionProbability * 100).toFixed(1) + '%'
     )
     console.log('  Profile question cooldown over:', cooldownOver)
+    console.log(
+      '  Turns since last profile question:',
+      topicState.turnsSinceLastProfileQuestion
+    )
+    console.log('  Profile question cooldown required:', 4) // PROFILE_QUESTION_COOLDOWN
     console.log(
       '  Decision:',
       shouldAskProfileQuestion ? 'PROFILE QUESTION' : 'NEW TOPIC CONVERSATION'
@@ -589,6 +600,332 @@ ${
     }
 
     return question
+  }
+
+  /**
+   * Generate a smooth transition when changing topics/questions
+   * Acknowledges the user's response to the current topic before moving to the next
+   */
+  private async generateTopicTransition(
+    topicState: TopicConversationState,
+    lastUserResponse: string,
+    userProfile?: any,
+    currentState?: MamaSanSessionState
+  ): Promise<string> {
+    console.log('🔄 GENERATING TOPIC TRANSITION:')
+    console.log('  Current topic:', topicState.currentTopic)
+    console.log('  User response:', lastUserResponse?.substring(0, 50) + '...')
+
+    // Analyze profile completeness to decide next step
+    const profileAnalysis = this.analyzeProfileCompleteness(userProfile)
+    const cooldownOver =
+      this.topicStarter.isProfileQuestionCooldownOver(topicState)
+    const shouldAskProfileQuestion =
+      cooldownOver && Math.random() < profileAnalysis.profileQuestionProbability
+
+    console.log('🎲 TOPIC TRANSITION DECISION:')
+    console.log('  Profile question cooldown over:', cooldownOver)
+    console.log('  Should ask profile question:', shouldAskProfileQuestion)
+    console.log(
+      '  Profile completeness:',
+      (profileAnalysis.completeness * 100).toFixed(1) + '%'
+    )
+
+    // Generate acknowledgment + transition using AI with Emi's personality
+    const systemPrompt = `You are Emi, a casual and friendly AI. The user just responded to a conversation topic, and you need to acknowledge their response before moving to something new.
+
+Current conversation context:
+- Topic that just ended: ${topicState.currentTopic}
+- User's response: ${lastUserResponse}
+
+Your response should:
+1. Acknowledge what they said in a casual, friendly way (use lowercase, casual language)
+2. ${shouldAskProfileQuestion ? 'Ask a profile question to learn more about them' : 'Start a new conversation topic'}
+3. Keep it conversational and natural - like talking to a friend
+4. Use Emi's casual style: lowercase, friendly, relatable
+
+Example acknowledgments:
+- "oh that's cool!"
+- "haha that sounds fun"
+- "aww that's sweet"
+- "ooh interesting!"
+
+${shouldAskProfileQuestion ? 'Then ask a question to learn more about their preferences, personality, or background.' : 'Then naturally transition to a new topic of conversation.'}
+
+Respond in one message that flows naturally from acknowledgment to new question.`
+
+    try {
+      let nextContent: string
+
+      if (shouldAskProfileQuestion && this.config.userId) {
+        // Try to get a profile question
+        const availableQuestions = await getAvailableQuestions(
+          this.config.userId
+        )
+        if (availableQuestions.length > 0) {
+          const selectedQuestion =
+            availableQuestions[
+              Math.floor(Math.random() * availableQuestions.length)
+            ]
+          nextContent = selectedQuestion.text
+
+          // Update state for profile question
+          if (currentState) {
+            currentState.topicConversation =
+              this.topicStarter.updateConversationState(
+                topicState,
+                'profile_question',
+                nextContent,
+                true
+              )
+          }
+        } else {
+          // Fallback to topic conversation
+          const { topic, question } = await this.generateProfileBasedTopic(
+            topicState,
+            userProfile
+          )
+          nextContent = question
+
+          // Update state for new topic
+          if (currentState) {
+            currentState.topicConversation =
+              this.topicStarter.updateConversationState(
+                topicState,
+                topic,
+                nextContent
+              )
+          }
+        }
+      } else {
+        // Generate new topic conversation
+        const { topic, question } = await this.generateProfileBasedTopic(
+          topicState,
+          userProfile
+        )
+        nextContent = question
+
+        // Update state for new topic
+        if (currentState) {
+          currentState.topicConversation =
+            this.topicStarter.updateConversationState(
+              topicState,
+              topic,
+              nextContent
+            )
+        }
+      }
+
+      // Use AI to create the acknowledgment + transition
+      const prompt = `${systemPrompt}\n\nNext question/topic to transition to: ${nextContent}`
+
+      try {
+        const response = await callAI([
+          {
+            role: 'system',
+            content: prompt,
+          },
+        ])
+
+        if (response && !this.isRefusalResponse(response)) {
+          console.log('✅ TOPIC TRANSITION GENERATED:', response)
+          return response.trim()
+        } else {
+          throw new Error('AI response was empty or refused')
+        }
+      } catch (aiError) {
+        console.error('❌ AI call failed for topic transition:', aiError)
+        // Fallback to simple format
+        const acknowledgments = [
+          "oh that's cool!",
+          'haha nice',
+          'ooh interesting!',
+          'aww that sounds fun',
+        ]
+        const randomAck =
+          acknowledgments[Math.floor(Math.random() * acknowledgments.length)]
+        const result = `${randomAck} ${nextContent}`
+        console.log('✅ TOPIC TRANSITION GENERATED (fallback):', result)
+        return result
+      }
+    } catch (error) {
+      console.error('❌ Error generating topic transition:', error)
+      // Fallback
+      const acknowledgments = [
+        "oh that's cool!",
+        'haha nice',
+        'ooh interesting!',
+      ]
+      const randomAck =
+        acknowledgments[Math.floor(Math.random() * acknowledgments.length)]
+      return `${randomAck} anyway, what's something you're passionate about?`
+    }
+  }
+
+  /**
+   * Generate acknowledgment when user responds but no active topic exists
+   * This handles the case where a previous topic/question ended but user still responded
+   */
+  private async generateResponseAcknowledgmentTransition(
+    lastUserResponse: string,
+    userProfile?: any,
+    topicState?: TopicConversationState,
+    currentState?: MamaSanSessionState
+  ): Promise<string> {
+    console.log('🔄 GENERATING RESPONSE ACKNOWLEDGMENT TRANSITION:')
+    console.log('  User response:', lastUserResponse?.substring(0, 50) + '...')
+
+    // Analyze profile completeness to decide next step
+    const profileAnalysis = this.analyzeProfileCompleteness(userProfile)
+    const cooldownOver = topicState
+      ? this.topicStarter.isProfileQuestionCooldownOver(topicState)
+      : true
+    const shouldAskProfileQuestion =
+      cooldownOver && Math.random() < profileAnalysis.profileQuestionProbability
+
+    console.log('🎲 ACKNOWLEDGMENT TRANSITION DECISION:')
+    console.log('  Profile question cooldown over:', cooldownOver)
+    console.log('  Should ask profile question:', shouldAskProfileQuestion)
+    console.log(
+      '  Profile completeness:',
+      (profileAnalysis.completeness * 100).toFixed(1) + '%'
+    )
+
+    // Generate acknowledgment + transition using AI with Emi's personality
+    const systemPrompt = `You are Emi, a casual and friendly AI. The user just responded to something, and you need to acknowledge their response before moving to something new.
+
+User's response: ${lastUserResponse}
+
+Your response should:
+1. Acknowledge what they said in a casual, friendly way (use lowercase, casual language)
+2. ${shouldAskProfileQuestion ? 'Ask a profile question to learn more about them' : 'Start a new conversation topic'}
+3. Keep it conversational and natural - like talking to a friend
+4. Use Emi's casual style: lowercase, friendly, relatable
+
+Example acknowledgments:
+- "oh that's cool!"
+- "haha that sounds fun"
+- "aww that's sweet"
+- "ooh interesting!"
+
+${shouldAskProfileQuestion ? 'Then ask a question to learn more about their preferences, personality, or background.' : 'Then naturally transition to a new topic of conversation.'}
+
+Respond in one message that flows naturally from acknowledgment to new question.`
+
+    try {
+      let nextContent: string
+      const defaultTopicState =
+        topicState || this.topicStarter.createInitialState()
+
+      if (shouldAskProfileQuestion && this.config.userId) {
+        // Try to get a profile question
+        const availableQuestions = await getAvailableQuestions(
+          this.config.userId
+        )
+        if (availableQuestions.length > 0) {
+          const selectedQuestion =
+            availableQuestions[
+              Math.floor(Math.random() * availableQuestions.length)
+            ]
+          nextContent = selectedQuestion.text
+
+          // Update state for profile question
+          if (currentState) {
+            currentState.topicConversation =
+              this.topicStarter.updateConversationState(
+                defaultTopicState,
+                'profile_question',
+                nextContent,
+                true
+              )
+          }
+        } else {
+          // Fallback to topic conversation
+          const { topic, question } = await this.generateProfileBasedTopic(
+            defaultTopicState,
+            userProfile
+          )
+          nextContent = question
+
+          // Update state for new topic
+          if (currentState) {
+            currentState.topicConversation =
+              this.topicStarter.updateConversationState(
+                defaultTopicState,
+                topic,
+                nextContent
+              )
+          }
+        }
+      } else {
+        // Generate new topic conversation
+        const { topic, question } = await this.generateProfileBasedTopic(
+          defaultTopicState,
+          userProfile
+        )
+        nextContent = question
+
+        // Update state for new topic
+        if (currentState) {
+          currentState.topicConversation =
+            this.topicStarter.updateConversationState(
+              defaultTopicState,
+              topic,
+              nextContent
+            )
+        }
+      }
+
+      // Use AI to create the acknowledgment + transition
+      const prompt = `${systemPrompt}\n\nNext question/topic to transition to: ${nextContent}`
+
+      try {
+        const response = await callAI([
+          {
+            role: 'system',
+            content: prompt,
+          },
+        ])
+
+        if (response && !this.isRefusalResponse(response)) {
+          console.log('✅ ACKNOWLEDGMENT TRANSITION GENERATED:', response)
+          return response.trim()
+        } else {
+          throw new Error('AI response was empty or refused')
+        }
+      } catch (aiError) {
+        console.error(
+          '❌ AI call failed for acknowledgment transition:',
+          aiError
+        )
+        // Fallback to simple format
+        const acknowledgments = [
+          "oh that's cool!",
+          'haha nice',
+          'ooh interesting!',
+          'aww that sounds fun',
+        ]
+        const randomAck =
+          acknowledgments[Math.floor(Math.random() * acknowledgments.length)]
+        const result = `${randomAck} ${nextContent}`
+        console.log(
+          '✅ ACKNOWLEDGMENT TRANSITION GENERATED (fallback):',
+          result
+        )
+        return result
+      }
+    } catch (error) {
+      console.error('❌ Error generating acknowledgment transition:', error)
+      // Fallback
+      const acknowledgments = [
+        "oh that's cool!",
+        'haha nice',
+        'ooh interesting!',
+      ]
+      const randomAck =
+        acknowledgments[Math.floor(Math.random() * acknowledgments.length)]
+      return `${randomAck} anyway, what's something you're passionate about?`
+    }
   }
 
   /**
@@ -707,42 +1044,22 @@ Make it sound like something Emi would naturally ask in conversation, not a form
     state: MamaSanSessionState,
     userResponse: string
   ): Promise<string> {
-    console.log('🌸 MamaSan - getResponseWithTransition START')
-    console.log('🌸 MamaSan - State:', state)
-    console.log('🌸 MamaSan - User response:', userResponse)
-
     try {
       const currentQuestion = this.getCurrentQuestion(state)
       const nextQuestion = this.getNextQuestion(state)
 
-      console.log('🌸 MamaSan - Current question:', currentQuestion)
-      console.log('🌸 MamaSan - Next question available:', !!nextQuestion)
-      console.log('🌸 MamaSan - Next question:', nextQuestion)
-
       // Generate the transition response
-      console.log('🌸 MamaSan - Calling generateTransition...')
       const result = await this.generateTransition(
         currentQuestion,
         userResponse,
         nextQuestion
       )
-      console.log('🌸 MamaSan - Generated transition result:', result)
       return result
     } catch (error) {
-      console.error(
-        '🌸 MamaSan - CRITICAL ERROR in getResponseWithTransition:',
-        error
-      )
-      console.error('🌸 MamaSan - Error type:', typeof error)
-      console.error('🌸 MamaSan - Error constructor:', error?.constructor?.name)
-      console.error('🌸 MamaSan - Error message:', (error as any)?.message)
-      console.error('🌸 MamaSan - Error stack:', (error as any)?.stack)
+      console.error('🌸 MamaSan - Error in getResponseWithTransition:', error)
 
       // Return a safe fallback
-      const fallback =
-        'thanks for sharing that! let me ask you something else...'
-      console.log('🌸 MamaSan - Returning fallback response:', fallback)
-      return fallback
+      return 'thanks for sharing that! let me ask you something else...'
     }
   }
 
@@ -763,291 +1080,177 @@ Make it sound like something Emi would naturally ask in conversation, not a form
     validationErrors?: any[]
     usedFallback?: boolean
   }> {
-    console.log('🌸 MamaSan - Analyzing response:')
-    console.log('  Question:', question)
-    console.log('  User Response:', userResponse)
-    console.log('  Response length:', userResponse.length)
-    console.log('  Response word count:', userResponse.split(/\s+/).length)
-    console.log('  Has response processor:', !!this.responseProcessor)
-    console.log('  Config userId:', this.config.userId)
-
     try {
-      // If we have a response processor, use the new validation system
+      // Use AI validation with response processor if available
       if (this.responseProcessor) {
-        console.log('🌸 MamaSan - Using new validation system')
-        return await this.analyzeWithNewSystem(question, userResponse, mode)
-      }
+        const validator = this.responseProcessor.createValidator(
+          responseAnalysisSchema
+        )
 
-      // Fallback to old system if no response processor
-      console.log(
-        '🌸 MamaSan - Using fallback analysis (no response processor)'
-      )
-      return await this.analyzeWithFallback(question, userResponse, mode)
+        const systemPrompt = `You are analyzing user responses to matchmaking questions.
+
+TASK: Determine if the user meaningfully answered the question and extract relevant profile information.
+
+CRITERIA for "answered: true":
+- User provided a clear preference, choice, or opinion
+- Response shows engagement with the question topic
+- Contains actionable information for matchmaking
+
+CRITERIA for "answered: false":
+- Vague responses like "idk", "whatever", "nothing"
+- Pure greetings without answers
+- Responses that don't address the question
+
+MODE: ${mode}
+${mode === 'continuous' ? 'Extract any profile insights from natural conversation.' : 'Focus on the specific onboarding question.'}
+
+Always extract relevant profile information when available, even from brief answers.`
+
+        const userPrompt = `Question: "${question}"
+User Response: "${userResponse}"
+
+Analyze this response and extract any profile information.`
+
+        const result = await this.responseProcessor.processStructuredResponse(
+          validator,
+          systemPrompt,
+          userPrompt,
+          { question, userResponse, mode }
+        )
+
+        if (result.success && result.data) {
+          const validatedData = result.data as any
+          return {
+            answered: validatedData.answered || false,
+            reason: validatedData.reason,
+            profileUpdates: validatedData.profileUpdates,
+            validationErrors: result.errors,
+            usedFallback: result.usedFallback,
+          }
+        } else {
+          console.error('🌸 MamaSan - AI validation failed:', result.errors)
+          // Fall back to heuristics only if AI fails
+          return this.analyzeWithSimpleHeuristics(question, userResponse, mode)
+        }
+      } else {
+        // No response processor available, use heuristics
+        console.log(
+          '🌸 MamaSan - No response processor available, using heuristics'
+        )
+        return this.analyzeWithSimpleHeuristics(question, userResponse, mode)
+      }
     } catch (error) {
-      console.error('🌸 MamaSan - CRITICAL ERROR in analyzeResponse:', error)
-      console.error('🌸 MamaSan - Error type:', typeof error)
-      console.error('🌸 MamaSan - Error constructor:', error?.constructor?.name)
-      console.error('🌸 MamaSan - Error message:', (error as any)?.message)
-      console.error('🌸 MamaSan - Error stack:', (error as any)?.stack)
+      console.error('🌸 MamaSan - Error in analyzeResponse:', error)
 
-      // Final safety fallback - return a safe response structure
-      const fallbackResult = {
-        answered: false,
-        reason: `Analysis failed due to error: ${error}`,
-        profileUpdates: {},
-        usedFallback: true,
-      }
-      console.log(
-        '🌸 MamaSan - Returning error fallback result:',
-        fallbackResult
-      )
-      return fallbackResult
+      // Final safety fallback
+      return this.analyzeWithSimpleHeuristics(question, userResponse, mode)
     }
   }
 
   /**
-   * Analyze response using the new validation system
+   * Simple, reliable heuristic analysis to avoid AI validation failures
    */
-  private async analyzeWithNewSystem(
+  private analyzeWithSimpleHeuristics(
     question: string,
     userResponse: string,
     mode: 'onboarding' | 'continuous' = 'onboarding'
-  ): Promise<{
+  ): {
     answered: boolean
     reason?: string
     profileUpdates?: any
     validationErrors?: any[]
     usedFallback?: boolean
-  }> {
-    console.log('🌸 MamaSan - analyzeWithNewSystem START')
-    console.log(
-      '🌸 MamaSan - Response processor exists:',
-      !!this.responseProcessor
-    )
-
-    try {
-      const systemPrompt = this.getAnalysisSystemPrompt(mode)
-      const userPrompt = this.buildAnalysisPrompt(question, userResponse)
-
-      console.log('🌸 MamaSan - System prompt length:', systemPrompt.length)
-      console.log('🌸 MamaSan - User prompt:', userPrompt)
-
-      const context = {
-        question,
-        userResponse,
-        questionLength: question.length,
-        responseLength: userResponse.length,
-        responseWordCount: userResponse.split(/\s+/).length,
-      }
-      console.log('🌸 MamaSan - Context created:', context)
-
-      // Create validator and process the response
-      console.log('🌸 MamaSan - Creating validator...')
-      const validator = this.responseProcessor!.createValidator(
-        responseAnalysisSchema
-      )
-      console.log('🌸 MamaSan - Validator created successfully')
-
-      console.log('🌸 MamaSan - Processing structured response...')
-      const result = await this.responseProcessor!.processStructuredResponse(
-        validator,
-        systemPrompt,
-        userPrompt,
-        context
-      )
-      console.log('🌸 MamaSan - Structured response processed')
-
-      console.log('🌸 MamaSan - New system result:', {
-        success: result.success,
-        hasData: !!result.data,
-        dataType: typeof result.data,
-        usedFallback: result.usedFallback,
-        hasErrors: !!result.errors?.length,
-        errorCount: result.errors?.length,
-        profileUpdatesSaved: result.profileUpdatesSaved,
-        errorsPersisted: result.errorsPersisted,
-      })
-
-      if (result.data) {
-        console.log('🌸 MamaSan - Result data keys:', Object.keys(result.data))
-        console.log('🌸 MamaSan - Result data:', result.data)
-      }
-
-      if (result.success && result.data) {
-        console.log('🌸 MamaSan - Validation successful, processing data...')
-        // Type assertion since we know the structure from responseAnalysisSchema
-        const validatedData = result.data as {
-          answered: boolean
-          reason?: string
-          profileUpdates?: any
-        }
-
-        console.log('🌸 MamaSan - Validated data:', validatedData)
-
-        const finalResult = {
-          answered: validatedData.answered ?? false,
-          reason: validatedData.reason,
-          profileUpdates: validatedData.profileUpdates || {},
-          validationErrors: result.errors,
-          usedFallback: result.usedFallback,
-        }
-        console.log('🌸 MamaSan - Returning successful result:', finalResult)
-        return finalResult
-      } else {
-        // Use basic heuristic fallback if validation completely failed
-        console.log('🌸 MamaSan - Validation failed, using heuristic fallback')
-        console.log('🌸 MamaSan - Result success:', result.success)
-        console.log('🌸 MamaSan - Result has data:', !!result.data)
-
-        const fallbackResult = this.attemptHeuristicFallback(userResponse)
-        console.log('🌸 MamaSan - Heuristic fallback result:', fallbackResult)
-
-        const finalFallbackResult = {
-          answered: fallbackResult.answered ?? false,
-          reason:
-            fallbackResult.reason ||
-            'Validation failed - using heuristic analysis',
-          profileUpdates: fallbackResult.profileUpdates || {},
-          validationErrors: result.errors,
-          usedFallback: true,
-        }
-        console.log(
-          '🌸 MamaSan - Returning fallback result:',
-          finalFallbackResult
-        )
-        return finalFallbackResult
-      }
-    } catch (error) {
-      console.error(
-        '🌸 MamaSan - CRITICAL ERROR in analyzeWithNewSystem:',
-        error
-      )
-      console.error('🌸 MamaSan - Error type:', typeof error)
-      console.error('🌸 MamaSan - Error constructor:', error?.constructor?.name)
-      console.error('🌸 MamaSan - Error message:', (error as any)?.message)
-      console.error('🌸 MamaSan - Error stack:', (error as any)?.stack)
-
-      console.log(
-        '🌸 MamaSan - Falling back to old analysis system due to error'
-      )
-      return await this.analyzeWithFallback(question, userResponse, mode)
-    }
-  }
-
-  /**
-   * Get the system prompt for analysis - SIMPLIFIED VERSION
-   */
-  private getAnalysisSystemPrompt(
-    mode: 'onboarding' | 'continuous' = 'onboarding'
-  ): string {
-    if (this.config.personality === 'emi') {
-      const basePrompt = `You are Emi, a professional matchmaker analyzing client responses.
-
-ANALYSIS TASK: Determine if the user answered the question meaningfully and extract matchmaking preferences.
-
-ACCEPTANCE CRITERIA:
-- ACCEPT: Any preference, opinion, or personal detail related to matchmaking
-- ACCEPT: Vague responses like "someone fun" or "I like games" (still useful!)
-- REJECT: Complete off-topic responses or obvious avoidance
-
-EXTRACT: Physical preferences, personality traits sought, interests, activities, mood preferences, conversation topics, service preferences, demographics.
-
-${
-  mode === 'continuous'
-    ? 'CONTINUOUS MODE: Be very generous - accept natural conversation responses that build rapport.'
-    : 'ONBOARDING MODE: Focus on direct answers to structured questions.'
-}
-
-CRITICAL: You MUST return valid JSON with this structure:
-{
-  "answered": true/false,
-  "reason": "optional explanation if rejected",
-  "profileUpdates": {
-    "physicalPreferences": {"height": "string", "build": "string", "ethnicity": "string", "style": "string", "attractionTags": ["string"]},
-    "personality": {"seekingTraits": ["string"], "energyLevel": "high|medium|low", "dominanceStyle": "dominant|submissive|switch|vanilla"},
-    "interests": {"categories": ["string"], "specificItems": ["string"]},
-    "preferences": {"moodSeeking": "energetic|calm|flirty|romantic|playful|professional", "conversationTopics": ["string"], "serviceTypes": ["string"], "interactionStyle": "casual|intimate|professional|playful|romantic"},
-    "demographics": {"agePreference": "string", "experienceLevel": "beginner|intermediate|experienced|expert"}
-  }
-}
-
-Only include fields with actual data. Use exact enum values. No extra text outside JSON.`
-      return basePrompt
-    } else {
-      return `Professional matchmaker analyzing user responses. Determine if meaningful answer provided and extract matchmaking preferences. Return JSON with answered boolean, optional reason, and profileUpdates object containing relevant preference data.`
-    }
-  }
-
-  /**
-   * Build the user prompt for analysis
-   */
-  private buildAnalysisPrompt(question: string, userResponse: string): string {
-    return `Question: "${question}"
-User Response: "${userResponse}"
-
-Analyze this response and extract any useful matchmaking information.`
-  }
-
-  /**
-   * Attempt basic heuristic fallback when validation fails
-   */
-  private attemptHeuristicFallback(userResponse: string): {
-    answered: boolean
-    reason?: string
-    profileUpdates: any
   } {
-    console.log('🌸 MamaSan - Using heuristic fallback logic')
-
-    // Basic heuristics to determine if response is meaningful
-    const responseLength = userResponse.trim().length
+    const trimmedResponse = userResponse.trim().toLowerCase()
+    const responseLength = trimmedResponse.length
     const wordCount = userResponse.split(/\s+/).length
 
-    // Very basic check - if response is too short or just "I don't know", reject
+    // Reject only obviously invalid responses
     if (
-      responseLength < 3 ||
-      wordCount < 2 ||
-      userResponse.toLowerCase().includes("i don't know") ||
-      userResponse.toLowerCase().includes('dunno')
+      responseLength < 2 ||
+      wordCount < 1 ||
+      trimmedResponse === 'no' ||
+      trimmedResponse === 'nothing' ||
+      trimmedResponse === 'idk' ||
+      trimmedResponse.includes("i don't know") ||
+      trimmedResponse.includes('dunno') ||
+      trimmedResponse.includes('not sure') ||
+      trimmedResponse.includes('whatever')
     ) {
       return {
         answered: false,
         reason: 'Response too vague or indicates lack of preference',
         profileUpdates: {},
+        usedFallback: true,
       }
     }
 
-    // Otherwise, accept but with minimal profile updates
+    // Accept everything else as a valid response
+    // Extract basic profile information based on keywords
+    const profileUpdates = this.extractBasicProfileInfo(
+      trimmedResponse,
+      question
+    )
+
     return {
       answered: true,
-      profileUpdates: {},
+      profileUpdates: profileUpdates,
+      usedFallback: true,
     }
   }
 
   /**
-   * Fallback analysis method for when response processor is not available
+   * Extract basic profile information from user response using keyword matching
    */
-  private async analyzeWithFallback(
-    question: string,
-    userResponse: string,
-    mode: 'onboarding' | 'continuous' = 'onboarding'
-  ): Promise<{
-    answered: boolean
-    reason?: string
-    profileUpdates?: any
-    validationErrors?: any[]
-    usedFallback?: boolean
-  }> {
-    console.log('🌸 MamaSan - Using basic fallback analysis')
+  private extractBasicProfileInfo(response: string, question: string): any {
+    const profileUpdates: any = {}
 
-    // Use simple heuristics since we don't have the validation system
-    const heuristicResult = this.attemptHeuristicFallback(userResponse)
+    // Basic interest/service extraction
+    if (question.includes('selfies') || question.includes('videos')) {
+      const interests = []
+      if (response.includes('selfie') || response.includes('photo'))
+        interests.push('photos')
+      if (response.includes('video') || response.includes('call'))
+        interests.push('video-calls')
+      if (response.includes('chat') || response.includes('talk'))
+        interests.push('conversation')
+      if (response.includes('entertain') || response.includes('fun'))
+        interests.push('entertainment')
+      if (response.includes('game') || response.includes('play'))
+        interests.push('gaming')
 
-    return {
-      answered: heuristicResult.answered || false,
-      reason: heuristicResult.reason,
-      profileUpdates: heuristicResult.profileUpdates || {},
-      usedFallback: true,
+      if (interests.length > 0) {
+        profileUpdates.preferences = { serviceTypes: interests }
+      }
     }
+
+    // Basic mood extraction
+    if (question.includes('mood') || question.includes('unwind')) {
+      if (
+        response.includes('relax') ||
+        response.includes('unwind') ||
+        response.includes('calm')
+      ) {
+        profileUpdates.preferences = { moodSeeking: 'calm' }
+      } else if (
+        response.includes('entertain') ||
+        response.includes('fun') ||
+        response.includes('energy')
+      ) {
+        profileUpdates.preferences = { moodSeeking: 'energetic' }
+      }
+    }
+
+    // Basic conversation style
+    if (question.includes('conversation') || question.includes('talk')) {
+      if (response.includes('deep') || response.includes('personal')) {
+        profileUpdates.preferences = { interactionStyle: 'intimate' }
+      } else if (response.includes('fun') || response.includes('playful')) {
+        profileUpdates.preferences = { interactionStyle: 'playful' }
+      }
+    }
+
+    return profileUpdates
   }
 
   /**
@@ -1105,11 +1308,6 @@ Analyze this response and extract any useful matchmaking information.`
     userResponse: string,
     nextQuestion?: string | null
   ): Promise<string> {
-    console.log('🌸 MamaSan - generateTransition START')
-    console.log('🌸 MamaSan - Previous Question:', question)
-    console.log('🌸 MamaSan - User Response:', userResponse)
-    console.log('🌸 MamaSan - Next Question:', nextQuestion || 'none (ending)')
-
     try {
       const systemPrompt = `You are Emi, a flirty mama-san who reacts to user answers and transitions to next questions.
 
@@ -1129,10 +1327,6 @@ React to their answer in your flirty, encouraging style, then ask: "${nextQuesti
 
 React to their answer and let them know you're ready to find them perfect matches.`
 
-      console.log('🌸 MamaSan - System prompt length:', systemPrompt.length)
-      console.log('🌸 MamaSan - User prompt:', prompt)
-      console.log('🌸 MamaSan - Calling AI for transition...')
-
       const aiReply = await callAI([
         {
           role: 'system',
@@ -1141,50 +1335,20 @@ React to their answer and let them know you're ready to find them perfect matche
         { role: 'user', content: prompt },
       ])
 
-      console.log('🌸 MamaSan - AI reply received:', aiReply)
-      console.log('🌸 MamaSan - AI reply length:', aiReply?.length)
-      console.log('🌸 MamaSan - AI reply type:', typeof aiReply)
-
       // Check if the AI refused to respond appropriately
       if (this.isRefusalResponse(aiReply)) {
         console.log('🚨 MamaSan - AI refusal detected, using fallback response')
-        console.log('🚨 MamaSan - Original AI response:', aiReply)
-
-        // Log the refusal for monitoring (could be sent to analytics)
-        console.log('🚨 MamaSan - Logging AI refusal incident:', {
-          question,
-          userResponse: userResponse.substring(0, 100),
-          aiRefusal: aiReply,
-          timestamp: new Date().toISOString(),
-        })
 
         // Use professional fallback
-        const fallbackResponse = this.generateFallbackTransition(
-          userResponse,
-          nextQuestion
-        )
-        console.log('🚨 MamaSan - Using fallback response:', fallbackResponse)
-        return fallbackResponse
+        return this.generateFallbackTransition(userResponse, nextQuestion)
       }
 
-      const trimmedReply = aiReply.trim()
-      console.log('🌸 MamaSan - Returning trimmed reply:', trimmedReply)
-      return trimmedReply
+      return aiReply.trim()
     } catch (error) {
-      console.error('🌸 MamaSan - CRITICAL ERROR generating transition:', error)
-      console.error('🌸 MamaSan - Error type:', typeof error)
-      console.error('🌸 MamaSan - Error constructor:', error?.constructor?.name)
-      console.error('🌸 MamaSan - Error message:', (error as any)?.message)
-      console.error('🌸 MamaSan - Error stack:', (error as any)?.stack)
+      console.error('🌸 MamaSan - Error generating transition:', error)
 
       // Fallback transitions based on question type
-      console.log('🌸 MamaSan - Using error fallback transition')
-      const fallbackResponse = this.generateFallbackTransition(
-        userResponse,
-        nextQuestion
-      )
-      console.log('🌸 MamaSan - Error fallback response:', fallbackResponse)
-      return fallbackResponse
+      return this.generateFallbackTransition(userResponse, nextQuestion)
     }
   }
 

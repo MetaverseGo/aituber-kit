@@ -174,7 +174,7 @@ const handleSpeakAndStateUpdate = (
   const hs = homeStore.getState()
   const emotion = emotionTag.includes('[')
     ? (emotionTag.slice(1, -1).toLowerCase() as EmotionType)
-    : 'neutral'
+    : 'relaxed'
 
   // 発話不要/不可能な文字列だった場合はスキップ
   if (

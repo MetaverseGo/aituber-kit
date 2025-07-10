@@ -158,7 +158,7 @@ export class SpeakQueue {
       if (ss.modelType === 'live2d') {
         await Live2DHandler.resetToIdle()
       } else {
-        await hs.viewer.model?.playEmotion('neutral')
+        await hs.viewer.model?.playEmotion('relaxed')
       }
     }
   }

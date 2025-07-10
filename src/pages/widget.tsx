@@ -421,6 +421,7 @@ const Widget = () => {
   console.log('🔧 Widget initial config:', config)
 
   const modelType = settingsStore((s) => s.modelType)
+  console.log('🔧 Widget modelType:', modelType)
   const backgroundImageUrl = homeStore((s) => s.backgroundImageUrl)
   const chatLog = homeStore((s) => s.chatLog)
 
@@ -1038,7 +1039,10 @@ const Widget = () => {
       urlConfig.backgroundColor = urlParams.get('backgroundColor') || undefined
     }
 
-    setConfig((prev) => ({ ...prev, ...urlConfig }))
+    // Force TTS enabled
+    urlConfig.disableTTS = false
+
+    setConfig((prev) => ({ ...prev, ...urlConfig, disableTTS: false }))
 
     // Apply settings from URL
     if (urlConfig.characterModel) {
@@ -1238,9 +1242,7 @@ const Widget = () => {
             )}
 
             {/* VrmExpressionTester */}
-            {modelType === 'vrm' && config.showVrmExpressionTester && (
-              <VrmExpressionTester />
-            )}
+            {modelType === 'vrm' && <VrmExpressionTester />}
           </div>
 
           {/* Profile Overlay - Show only when explicitly enabled */}

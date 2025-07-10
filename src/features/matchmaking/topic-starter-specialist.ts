@@ -9,28 +9,13 @@ import type { MamaSanSpecialistConfig } from './mama-san-specialist'
 const MIN_TURNS_FOR_NEW_TOPIC = 3
 const PROFILE_QUESTION_COOLDOWN = 4 // Ask a profile question at most once every 4 turns
 
-async function getGroqClient() {
-  const { default: Groq } = await import('groq-sdk')
-  return new Groq({
-    apiKey: process.env.GROQ_API_KEY,
-  })
-}
-
 export class TopicStarterSpecialist {
   private config: MamaSanSpecialistConfig
   private minTurnsPerTopic: number
-  private groq: any // Groq client instance
 
   constructor(config: MamaSanSpecialistConfig = {}) {
     this.config = config
     this.minTurnsPerTopic = config.minTurnsPerTopic || MIN_TURNS_FOR_NEW_TOPIC
-  }
-
-  private async getGroq() {
-    if (!this.groq) {
-      this.groq = await getGroqClient()
-    }
-    return this.groq
   }
 
   setUserId(userId: string): void {
@@ -127,9 +112,12 @@ export class TopicStarterSpecialist {
     userProfile?: any
   ): Promise<string> {
     console.log('💬 Continuing topic:', state.currentTopic)
-    const client = await this.getGroq()
 
-    const systemPrompt = `You are Emi, a friendly mama-san continuing a conversation with a client.
+    try {
+      const response = await callAI([
+        {
+          role: 'system',
+          content: `You are Emi, a friendly mama-san continuing a conversation with a client.
 
 Current Topic: ${state.currentTopic}
 Conversation History (summary): The user has shown interest in this topic for ${state.turnCount} turns. Your goal is to keep the conversation flowing naturally.
@@ -144,18 +132,14 @@ Style:
 
 User's last response: "${lastUserResponse}"
 
-Generate your follow-up question now.`
+Generate your follow-up question now.`,
+        },
+      ])
 
-    try {
-      const completion = await client.chat.completions.create({
-        messages: [{ role: 'system', content: systemPrompt }],
-        model: 'llama3-8b-8192',
-      })
-      const response = completion.choices[0]?.message?.content?.trim()
-      if (!response) {
+      if (!response || !response.trim()) {
         throw new Error('Empty response from AI')
       }
-      return response
+      return response.trim()
     } catch (error) {
       console.error('Error continuing topic:', error)
       return 'oh really? tell me more about that!' // Fallback
@@ -174,20 +158,16 @@ Generate your follow-up question now.`
   }> {
     try {
       console.log('🎨 TopicStarter - Generating new topic')
-      const client = await this.getGroq()
 
-      const profileSummary = this.summarizeUserProfile(userProfile)
-      const topicHistory =
-        state.topicHistory.length > 0
-          ? `Topics already discussed: ${state.topicHistory.join(', ')}.`
-          : 'No topics discussed yet.'
-
-      const systemPrompt = `You are Emi, a mama-san skilled at starting engaging conversations.
+      const response = await callAI([
+        {
+          role: 'system',
+          content: `You are Emi, a mama-san skilled at starting engaging conversations.
 
 Your Task: Generate a new, interesting conversation topic and a natural opening question for a client. The topic should be based on their profile but feel spontaneous.
 
-Client Profile Summary: ${profileSummary}
-${topicHistory}
+Client Profile Summary: ${this.summarizeUserProfile(userProfile)}
+${state.topicHistory.length > 0 ? `Topics already discussed: ${state.topicHistory.join(', ')}.` : 'No topics discussed yet.'}
 
 Style Requirements:
 - The topic should be a short phrase (e.g., "favorite travel memories", "dream jobs").
@@ -200,31 +180,17 @@ JSON Format:
   "question": "string"
 }
 
-Generate the JSON object now.`
+Generate the JSON object now.`,
+        },
+      ])
 
-      try {
-        const completion = await client.chat.completions.create({
-          messages: [{ role: 'system', content: systemPrompt }],
-          model: 'llama3-8b-8192',
-          response_format: { type: 'json_object' },
-        })
-
-        const responseJson = JSON.parse(
-          completion.choices[0]?.message?.content || '{}'
-        )
-        if (!responseJson.topic || !responseJson.question) {
-          throw new Error('Invalid JSON response from AI')
-        }
-        return responseJson
-      } catch (error) {
-        console.error('Error generating new topic:', error)
-        return this.getFallbackTopic()
+      const responseJson = JSON.parse(response || '{}')
+      if (!responseJson.topic || !responseJson.question) {
+        throw new Error('Invalid JSON response from AI')
       }
+      return responseJson
     } catch (error) {
-      console.error(
-        'Error in TopicStarter specialist (likely Groq API issue):',
-        error
-      )
+      console.error('Error generating new topic:', error)
       return this.getFallbackTopic()
     }
   }
