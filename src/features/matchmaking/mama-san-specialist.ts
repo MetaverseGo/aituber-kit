@@ -45,10 +45,10 @@ export interface MamaSanSpecialistConfig {
 }
 
 const DEFAULT_QUESTIONS = [
-  "tell me your type. soft and sweet? bold and cocky? or someone who just gets you? (be honest. i'm not here to judge — i'm here to deliver.)",
+  'what will it be? girls, boys, or anime or something else?',
   'what kind of mood are you in tonight? looking to unwind… or be entertained?',
   'what kind of conversation gets you hooked? deep, dangerous, playful, or something a little more... personal?',
-  "is there a particular experience you're craving tonight? karaoke, games, quiet company, something more intense?",
+  "is there a particular experience you're craving tonight? karaoke, games, quiet company, something more intimate?",
 ]
 
 /**
@@ -224,7 +224,7 @@ ${
   }
 
   getIntro(): string {
-    return "hi! welcome to the lounge. i'm emi, your matchmaker for today. tell me what you're in the mood for and I'll work my magic!"
+    return "hi! i'm emi, your cutie Treets-giver. tell me what type of content you're looking for and i'll hook you up!"
   }
 
   getCurrentQuestion(state: MamaSanSessionState): string {
@@ -1289,7 +1289,7 @@ React to their answer and let them know you're ready to find them perfect matche
   private getGreetingResponse(): string {
     const responses = [
       'hey there! nice to meet you',
-      'hi! welcome to our lounge',
+      "hi! what's your treat?",
       'hello! lovely to see you here',
       'hey! glad you could make it',
       'hi there! ready to find your perfect match?',
