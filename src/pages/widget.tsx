@@ -19,14 +19,19 @@ import {
   handleWidgetChatFn,
   getCurrentWidgetAuthToken,
 } from '@/features/chat/handlers'
+import {
+  playfriendsClient,
+  type ProfileCardData,
+} from '@/lib/playfriendsClient'
 import Image from 'next/image'
 
 /**
  * CHAT_ACTION_CARD_CLICK Handler Documentation
  * ===========================================
  *
- * This widget handles action card clicks and generates profile recommendations
- * using mock host recommendation logic.
+ * This widget handles action card clicks and supports multiple action types:
+ * 1. Profile recommendations using mock host recommendation logic
+ * 2. Response suggestions that send user messages directly to chat
  *
  * ## Input Payload Structure
  *
@@ -36,16 +41,41 @@ import Image from 'next/image'
  * {
  *   type: 'CHAT_ACTION_CARD_CLICK',
  *   data: {
- *     actionId: string,     // ID of the action card
- *     actionType: string,   // Type of action (follow, subscribe, donate, etc.)
- *     actionData?: any,     // Optional additional action data
+ *     actionId?: string,    // ID of the action card (for profile recommendations)
+ *     actionType: string,   // Type of action (send_message, follow, subscribe, etc.)
+ *     actionData?: any,     // Action-specific data
  *     timestamp: number,    // Unix timestamp
  *     userId: string        // ID of the user performing the action
  *   }
  * }
  * ```
  *
- * ### Supported Action IDs:
+ * ## Supported Action Types
+ *
+ * ### 1. send_message Action
+ * For response suggestion buttons that send messages as if the user typed them:
+ *
+ * ```typescript
+ * {
+ *   type: 'CHAT_ACTION_CARD_CLICK',
+ *   data: {
+ *     actionType: 'send_message',
+ *     actionData: {
+ *       message: string,        // The message to send (e.g., "sounds good!")
+ *       messageType?: string    // Optional type (e.g., "suggestion")
+ *     },
+ *     timestamp: number,
+ *     userId: string
+ *   }
+ * }
+ * ```
+ *
+ * This will process the message through the normal chat flow as if the user typed it.
+ *
+ * ### 2. Profile Recommendation Actions
+ * For cards that trigger host profile recommendations, use actionId:
+ *
+ * #### Supported Action IDs:
  * - `"cute-anime"` - Anime and kawaii culture enthusiasts
  * - `"gaming-creators"` - Gaming streamers and content creators
  * - `"vtuber-recs"` - VTuber recommendation specialists
@@ -193,18 +223,94 @@ interface WidgetConfig {
   showProfileOverlay?: boolean
 }
 
-// Mock profile card generator based on action categories
-const generateProfileCards = (
+// Profile card generator using Playfriends API
+const generateProfileCards = async (
   actionId: string
-): Array<{
-  id: string
-  name: string
-  message: string
-  description: string
-  interests: string[]
-  personality: string[]
-  profileImage?: string
-}> => {
+): Promise<ProfileCardData[]> => {
+  console.log('🔥 [Widget] ===== GENERATE PROFILE CARDS START =====')
+  console.log('🔥 [Widget] ActionId received:', actionId)
+
+  try {
+    // Map actionId to search keywords
+    const searchKeywords: Record<string, string> = {
+      'cute-anime': 'anime',
+      'gaming-creators': 'gaming',
+      'vtuber-recs': 'vtuber',
+      'kawaii-content': 'kawaii',
+    }
+
+    const searchQuery = searchKeywords[actionId] || 'anime'
+    console.log('🔥 [Widget] Mapped to search query:', searchQuery)
+    console.log('🔥 [Widget] About to call playfriendsClient.search...')
+
+    // Fetch users from Playfriends API
+    const users = await playfriendsClient.search(searchQuery)
+    console.log(
+      '🔥 [Widget] ✅ Playfriends API SUCCESS! Returned:',
+      users.length,
+      'users'
+    )
+    console.log(
+      '🔥 [Widget] First user sample:',
+      users[0]
+        ? { name: users[0].username, bio: users[0].bio?.substring(0, 50) }
+        : 'No users'
+    )
+
+    if (users.length === 0) {
+      console.log('🔥 [Widget] ❌ No users found, falling back to mock data')
+      const mockCards = getMockProfileCards(actionId)
+      console.log(
+        '🔥 [Widget] Returning',
+        mockCards.length,
+        'mock profile cards'
+      )
+      return mockCards
+    }
+
+    // Transform Playfriends users to profile cards
+    console.log('🔥 [Widget] 🔄 Transforming users to profile cards...')
+    const profileCards = users
+      .slice(0, 10) // Limit to first 10 results
+      .map((user) => {
+        console.log('🔥 [Widget] Transforming user:', user.username)
+        return playfriendsClient.transformToProfileCard(user, actionId)
+      })
+
+    console.log(
+      '🔥 [Widget] ✅ Transformed',
+      profileCards.length,
+      'profile cards'
+    )
+    console.log('🔥 [Widget] Sample profile card:', {
+      name: profileCards[0]?.name,
+      message: profileCards[0]?.message?.substring(0, 50),
+      interests: profileCards[0]?.interests,
+    })
+    console.log('🔥 [Widget] ===== RETURNING REAL API DATA =====')
+    return profileCards
+  } catch (error) {
+    console.error('🔥 [Widget] ❌ CAUGHT ERROR in generateProfileCards:', error)
+    console.error('🔥 [Widget] Error type:', (error as Error).constructor.name)
+    console.error('🔥 [Widget] Error message:', (error as Error).message)
+    console.error('🔥 [Widget] Full error object:', error)
+    console.error(
+      '🔥 [Widget] ===== FALLING BACK TO MOCK DATA DUE TO ERROR ====='
+    )
+
+    // Fallback to mock data on error
+    const mockCards = getMockProfileCards(actionId)
+    console.log(
+      '🔥 [Widget] Returning',
+      mockCards.length,
+      'mock profile cards as fallback'
+    )
+    return mockCards
+  }
+}
+
+// Fallback mock data for when API is unavailable
+const getMockProfileCards = (actionId: string): ProfileCardData[] => {
   // Get the base URL for the widget
   const getBaseUrl = () => {
     if (typeof window !== 'undefined') {
@@ -215,18 +321,7 @@ const generateProfileCards = (
 
   const baseUrl = getBaseUrl()
 
-  const profiles: Record<
-    string,
-    Array<{
-      id: string
-      name: string
-      message: string
-      description: string
-      interests: string[]
-      personality: string[]
-      profileImage?: string
-    }>
-  > = {
+  const profiles: Record<string, ProfileCardData[]> = {
     'cute-anime': [
       {
         id: 'seira-001',
@@ -238,28 +333,6 @@ const generateProfileCards = (
         interests: ['anime', 'kawaii', 'magical-girls', 'art'],
         personality: ['gentle', 'sweet', 'creative'],
         profileImage: `${baseUrl}/images/mockdata/seira.png`,
-      },
-      {
-        id: 'kiwi-002',
-        name: 'Kiwi',
-        message:
-          'Kyaa~! Another anime lover! 🥝 I just finished watching the cutest romance anime - want me to tell you about it? No spoilers, promise! (*´∀｀*)',
-        description:
-          'Bubbly anime fan with infectious enthusiasm for romance and comedy series',
-        interests: ['anime', 'romance', 'comedy', 'music'],
-        personality: ['energetic', 'bubbly', 'enthusiastic'],
-        profileImage: `${baseUrl}/images/mockdata/kiwi.png`,
-      },
-      {
-        id: 'emi-003',
-        name: 'Emi',
-        message:
-          "Oh! Someone with great taste in anime! ฅ(♡ω♡*ฅ) I collect anime figures and love cosplay - maybe we can geek out together? What's your favorite series?",
-        description:
-          'Anime collector and cosplayer who loves sharing her passion for Japanese culture',
-        interests: ['anime', 'cosplay', 'collecting', 'japanese-culture'],
-        personality: ['passionate', 'creative', 'friendly'],
-        profileImage: `${baseUrl}/images/mockdata/emi.png`,
       },
     ],
     'gaming-creators': [
@@ -274,67 +347,18 @@ const generateProfileCards = (
         personality: ['competitive', 'confident', 'strategic'],
         profileImage: `${baseUrl}/images/mockdata/eris.png`,
       },
-      {
-        id: 'tang-002',
-        name: 'Tang',
-        message:
-          'Gaming creators unite! 🚀 I do game reviews and speedruns - just set a new personal record yesterday! What games are you creating content for?',
-        description:
-          'Gaming content creator specializing in reviews and speedrunning',
-        interests: ['gaming', 'speedrunning', 'content-creation', 'reviews'],
-        personality: ['determined', 'analytical', 'energetic'],
-        profileImage: `${baseUrl}/images/mockdata/tang.png`,
-      },
-      {
-        id: 'sab-003',
-        name: 'Sab',
-        message:
-          "Interesting... another creator in the gaming space. 🎯 I focus on indie games and hidden gems. There's something fascinating about discovering games before they become mainstream...",
-        description:
-          'Indie game specialist who discovers and showcases underground gaming gems',
-        interests: [
-          'indie-games',
-          'game-discovery',
-          'storytelling',
-          'mysteries',
-        ],
-        personality: ['mysterious', 'analytical', 'insightful'],
-        profileImage: `${baseUrl}/images/mockdata/sab.png`,
-      },
     ],
     'vtuber-recs': [
       {
         id: 'kiwi-vt-001',
         name: 'Kiwi',
         message:
-          'Ooh, VTuber recommendations! (ﾉ◕ヮ◕)ﾉ*:･ﾟ✧ I watch so many! From cozy chatting streams to epic gaming collabs - what kind of content do you like? I can recommend the perfect VTubers for you!',
+          'Ooh, VTuber recommendations! Want to discover amazing creators? I know tons of VTubers with different vibes - what kind of content do you like? I can recommend the perfect ones for you!',
         description:
           'VTuber enthusiast with encyclopedic knowledge of streamers and content styles',
         interests: ['vtubers', 'streaming', 'entertainment', 'community'],
         personality: ['enthusiastic', 'knowledgeable', 'helpful'],
         profileImage: `${baseUrl}/images/mockdata/kiwi.png`,
-      },
-      {
-        id: 'emi-vt-002',
-        name: 'Emi',
-        message:
-          "VTuber recs? YES! ✨ I follow so many amazing creators - some focus on singing, others on gaming, and some just have the most comfy chatting streams ever. What's your vibe?",
-        description:
-          'VTuber community member who loves supporting diverse creators and content',
-        interests: ['vtubers', 'music', 'gaming', 'community-support'],
-        personality: ['supportive', 'diverse-interests', 'community-minded'],
-        profileImage: `${baseUrl}/images/mockdata/emi.png`,
-      },
-      {
-        id: 'seira-vt-003',
-        name: 'Seira',
-        message:
-          'VTuber recommendations! 🌸 I particularly enjoy the artistic and creative streamers - drawing streams are so relaxing to watch. Do you prefer high-energy or chill content?',
-        description:
-          'Art-focused VTuber fan who appreciates creative and aesthetic streaming content',
-        interests: ['vtubers', 'art', 'creativity', 'aesthetic'],
-        personality: ['artistic', 'calm', 'aesthetic-minded'],
-        profileImage: `${baseUrl}/images/mockdata/seira.png`,
       },
     ],
     'kawaii-content': [
@@ -342,34 +366,12 @@ const generateProfileCards = (
         id: 'seira-kawaii-001',
         name: 'Seira',
         message:
-          'Kawaii content! ♡(˃͈ દ ˂͈ ༶ ) You have excellent taste! I love everything kawaii - from fashion to room decor to the cutest accessories. Want to share kawaii finds together?',
+          'Kawaii content! (^_^) You have excellent taste! I love everything kawaii - from fashion to room decor to the cutest accessories. Want to share kawaii finds together?',
         description:
           'Kawaii culture enthusiast with a passion for cute fashion and lifestyle',
         interests: ['kawaii', 'fashion', 'lifestyle', 'decor'],
         personality: ['cute', 'stylish', 'trend-aware'],
         profileImage: `${baseUrl}/images/mockdata/seira.png`,
-      },
-      {
-        id: 'emi-kawaii-002',
-        name: 'Emi',
-        message:
-          'Kawaii content lover! (´｡• ᵕ •｡`) ♡ I collect the most adorable things - plushies, stationery, accessories! My room is like a kawaii wonderland. What kawaii stuff do you love most?',
-        description:
-          'Kawaii collector who creates adorable spaces and loves cute merchandise',
-        interests: ['kawaii', 'collecting', 'plushies', 'stationery'],
-        personality: ['collector', 'adorable', 'organized'],
-        profileImage: `${baseUrl}/images/mockdata/emi.png`,
-      },
-      {
-        id: 'kiwi-kawaii-003',
-        name: 'Kiwi',
-        message:
-          'Kawaii squad! ヾ(＾-＾)ノ I make kawaii content and love sharing the cutest discoveries! From tiny desserts to adorable outfits - kawaii makes everything better! Want to kawaii-fy your day together?',
-        description:
-          'Kawaii content creator who spreads joy through cute discoveries and lifestyle tips',
-        interests: ['kawaii', 'content-creation', 'lifestyle', 'desserts'],
-        personality: ['creative', 'joyful', 'inspiring'],
-        profileImage: `${baseUrl}/images/mockdata/kiwi.png`,
       },
     ],
   }
@@ -741,42 +743,131 @@ const Widget = () => {
         console.log('🔥 [Widget]   timestamp:', timestamp)
         console.log('🔥 [Widget]   userId:', userId)
 
-        if (actionId && typeof actionId === 'string') {
+        // Handle send_message action type
+        if (actionType === 'send_message') {
+          console.log('🔥 [Widget] ✅ Send message action detected!')
+          console.log('🔥 [Widget] Action data:', actionData)
+
+          // Extract message from actionData
+          const messageToSend =
+            actionData?.message || actionData?.text || actionData?.content
+          console.log('🔥 [Widget] Extracted message:', messageToSend)
+
+          if (messageToSend && typeof messageToSend === 'string') {
+            console.log('🔥 [Widget] ✅ Message validation passed!')
+
+            // Check if we have an auth token before processing
+            const currentToken = getCurrentWidgetAuthToken()
+            console.log('🔥 [Widget] Auth token check:')
+            console.log('🔥 [Widget]   hasToken:', !!currentToken)
+
+            if (!currentToken) {
+              console.error(
+                '🔥 [Widget] ❌ No auth token - cannot process message'
+              )
+              window.parent.postMessage(
+                { type: 'WIDGET_ERROR', reason: 'no_auth_token' },
+                '*'
+              )
+              return
+            }
+
+            // Process through the widget chat handler (same as regular user messages)
+            console.log(
+              '🔥 [Widget] ✅ Auth check passed - calling widget chat handler...'
+            )
+            console.log(
+              '🔥 [Widget] About to call handleWidgetChatFn() with message:',
+              messageToSend
+            )
+
+            const widgetChatHandler = handleWidgetChatFn()
+            console.log(
+              '🔥 [Widget] handleWidgetChatFn() returned:',
+              typeof widgetChatHandler
+            )
+
+            console.log('🔥 [Widget] Calling widgetChatHandler with message...')
+            widgetChatHandler(messageToSend).catch((error) => {
+              console.error('🔥 [Widget] ❌ Chat handler error:', error)
+              console.error('🔥 [Widget] ❌ Error stack:', error.stack)
+              window.parent.postMessage(
+                {
+                  type: 'WIDGET_ERROR',
+                  reason: 'chat_handler_error',
+                  error: String(error),
+                },
+                '*'
+              )
+            })
+            console.log('🔥 [Widget] widgetChatHandler call completed (async)')
+          } else {
+            console.error('🔥 [Widget] ❌ Message validation failed!')
+            console.error('🔥 [Widget] Invalid message data:', {
+              messageToSend: typeof messageToSend,
+              messageValue: messageToSend,
+              hasActionData: !!actionData,
+              actionDataKeys: actionData ? Object.keys(actionData) : [],
+            })
+          }
+        } else if (actionId && typeof actionId === 'string') {
           console.log('🔥 [Widget] ✅ ActionId validation passed!')
 
-          // Generate profile cards based on actionId
-          const profileCards = generateProfileCards(actionId)
-          console.log(
-            '🔥 [Widget] Generated profile cards:',
-            profileCards.length
-          )
+          // Generate profile cards based on actionId (async)
+          generateProfileCards(actionId)
+            .then((profileCards) => {
+              console.log(
+                '🔥 [Widget] Generated profile cards:',
+                profileCards.length
+              )
 
-          // Select one random profile card to send
-          const selectedProfile =
-            profileCards[Math.floor(Math.random() * profileCards.length)]
-          console.log(
-            '🔥 [Widget] Selected profile card:',
-            selectedProfile.name
-          )
+              if (profileCards.length === 0) {
+                console.error('🔥 [Widget] No profile cards generated')
+                return
+              }
 
-          // Send single CHAT_MESSAGE_RECEIVE message
-          window.parent.postMessage(
-            {
-              type: 'CHAT_MESSAGE_RECEIVE',
-              data: {
-                role: 'assistant',
-                content: selectedProfile.message,
-                timestamp: new Date().toISOString(),
-                metadata: {
-                  profileCard: true,
-                  profileData: selectedProfile,
+              // Select one random profile card to send
+              const selectedProfile =
+                profileCards[Math.floor(Math.random() * profileCards.length)]
+              console.log(
+                '🔥 [Widget] Selected profile card:',
+                selectedProfile.name
+              )
+
+              // Send single CHAT_MESSAGE_RECEIVE message
+              window.parent.postMessage(
+                {
+                  type: 'CHAT_MESSAGE_RECEIVE',
+                  data: {
+                    role: 'assistant',
+                    content: selectedProfile.message,
+                    timestamp: new Date().toISOString(),
+                    metadata: {
+                      profileCard: true,
+                      profileData: selectedProfile,
+                    },
+                  },
                 },
-              },
-            },
-            '*'
-          )
+                '*'
+              )
 
-          console.log('🔥 [Widget] Profile card sent successfully')
+              console.log('🔥 [Widget] Profile card sent successfully')
+            })
+            .catch((error) => {
+              console.error(
+                '🔥 [Widget] ❌ Error generating profile cards:',
+                error
+              )
+              // Could send an error message to parent here if needed
+              window.parent.postMessage(
+                {
+                  type: 'WIDGET_ERROR',
+                  reason: 'profile_generation_error',
+                  error: String(error),
+                },
+                '*'
+              )
+            })
         } else {
           console.error('🔥 [Widget] ❌ ActionId validation failed!')
           console.error('🔥 [Widget] Invalid CHAT_ACTION_CARD_CLICK data:', {

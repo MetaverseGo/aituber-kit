@@ -549,8 +549,10 @@ export class MatchmakingOrchestrator {
         console.log(
           '🎯 Orchestrator - Generating recommendations after question answered...'
         )
+        const currentQ = this.mamaSan.getCurrentQuestion(this.mamaSanState)
         const recommendations = await this.mamaSan.getRecommendations(
-          this.mamaSanState
+          this.mamaSanState,
+          currentQ
         )
 
         const result = {
@@ -637,7 +639,8 @@ export class MatchmakingOrchestrator {
           '🎯 Orchestrator - Generating final comprehensive recommendations...'
         )
         const finalRecommendations = await this.mamaSan.getRecommendations(
-          this.mamaSanState
+          this.mamaSanState,
+          continuousQuestion
         )
 
         const result = {
@@ -1484,8 +1487,10 @@ export class MatchmakingOrchestrator {
       )
 
       // Generate recommendations for continuous mode
-      const recommendations =
-        await this.mamaSan.getRecommendations(mamasanState)
+      const recommendations = await this.mamaSan.getRecommendations(
+        mamasanState,
+        continuousQuestion
+      )
 
       return {
         message: continuousQuestion,
@@ -1606,7 +1611,11 @@ export class MatchmakingOrchestrator {
     }
 
     // Generate recommendations after each answered question
-    const recommendations = await this.mamaSan.getRecommendations(updatedState)
+    const currentQ = this.mamaSan.getCurrentQuestion(updatedState)
+    const recommendations = await this.mamaSan.getRecommendations(
+      updatedState,
+      currentQ
+    )
 
     // Check if onboarding is complete (use configured question count)
     if (!this.mamaSan.isOnboardingComplete(updatedState)) {

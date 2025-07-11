@@ -195,6 +195,77 @@ Generate the JSON object now.`,
     }
   }
 
+  /**
+   * Generate 3 short response suggestions for a given question or topic
+   */
+  async generateResponseSuggestions(
+    question: string,
+    topic?: string,
+    userProfile?: any
+  ): Promise<string[]> {
+    console.log('💭 TopicStarter - Generating response suggestions for:', {
+      question: question.substring(0, 50) + '...',
+      topic,
+      hasProfile: !!userProfile,
+    })
+
+    try {
+      const systemPrompt = `You are a helpful assistant generating short, natural response suggestions for a user who is chatting with Emi, a friendly mama-san.
+
+Current question/topic context: "${question}"
+${topic ? `Topic being discussed: ${topic}` : ''}
+${userProfile ? `User profile context: ${this.summarizeUserProfile(userProfile)}` : 'No user profile available.'}
+
+Your task: Generate exactly 3 short, natural response options that a user might want to say in reply to this question. Each response should be:
+- 2-6 words maximum
+- Natural and conversational
+- Different from each other (variety in tone/approach)
+- Appropriate for casual conversation with a friendly AI
+
+Examples of good responses:
+- "love that idea!"
+- "not really my thing"
+- "sounds interesting"
+- "tell me more"
+- "that's perfect"
+- "something different maybe"
+
+Return ONLY a valid JSON array of exactly 3 strings, nothing else.
+
+Format: ["response1", "response2", "response3"]`
+
+      const response = await callAI([
+        {
+          role: 'system',
+          content: systemPrompt,
+        },
+      ])
+
+      // Parse the JSON response
+      const suggestions = JSON.parse(response || '[]')
+
+      if (Array.isArray(suggestions) && suggestions.length === 3) {
+        console.log(
+          '✅ TopicStarter - Generated response suggestions:',
+          suggestions
+        )
+        return suggestions
+      } else {
+        throw new Error('Invalid response format from AI')
+      }
+    } catch (error) {
+      console.error(
+        '❌ TopicStarter - Error generating response suggestions:',
+        error
+      )
+
+      // Return fallback suggestions
+      const fallbacks = ['sounds good!', 'not really', 'tell me more']
+      console.log('✅ TopicStarter - Using fallback suggestions:', fallbacks)
+      return fallbacks
+    }
+  }
+
   private getFallbackTopic(): { topic: string; question: string } {
     const fallbacks = [
       {

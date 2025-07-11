@@ -1535,10 +1535,13 @@ React to their answer and let them know you're ready to find them perfect matche
   }
 
   /**
-   * Generate host recommendations as action cards
-   * Analyzes user's answers to generate dynamic recommendations that change as profile builds
+   * Generate response suggestions as action cards
+   * Provides quick response options for users to reply to Emi's questions/messages
    */
-  async getRecommendations(state: MamaSanSessionState): Promise<
+  async getRecommendations(
+    state: MamaSanSessionState,
+    currentQuestion?: string
+  ): Promise<
     Array<{
       id: string
       title: string
@@ -1550,34 +1553,90 @@ React to their answer and let them know you're ready to find them perfect matche
       icon?: string
     }>
   > {
-    console.log('🎯 MamaSan - Generating dynamic recommendations for state:', {
+    console.log('🎯 MamaSan - Generating response suggestions for state:', {
       currentQuestion: state.currentQuestion,
       answersLength: state.answers.length,
-      answers: state.answers.slice(0, 3), // Log first 3 answers for debugging
-      searchQuery: this.buildSearchQuery(state),
+      isInContinuous: this.isInContinuousMode(state),
+      providedQuestion: currentQuestion?.substring(0, 50) + '...',
     })
 
-    // Analyze user preferences from their answers
-    const preferences = this.analyzeUserPreferences(state)
-    console.log('🎯 MamaSan - Analyzed preferences:', preferences)
+    // Determine what question/message we're responding to
+    let questionToAnswer = currentQuestion
+    let currentTopic: string | undefined
 
-    // Generate dynamic recommendations based on preferences
-    const recommendations = await this.generateDynamicRecommendations(
-      preferences,
-      state
-    )
+    if (!questionToAnswer) {
+      if (this.isInContinuousMode(state)) {
+        // In continuous mode, get the last question from topic conversation
+        questionToAnswer =
+          state.topicConversation?.lastQuestion || 'What are your thoughts?'
+        currentTopic = state.topicConversation?.currentTopic || undefined
+      } else {
+        // In onboarding mode, get the current question
+        questionToAnswer = this.getCurrentQuestion(state)
+        currentTopic = 'onboarding'
+      }
+    }
 
-    console.log(
-      '🎯 MamaSan - Generated recommendations:',
-      recommendations.map((r) => ({
-        id: r.id,
-        title: r.title,
-        tags: r.data?.tags,
-        priority: r.priority,
+    console.log('🎯 MamaSan - Generating suggestions for:', {
+      question: questionToAnswer.substring(0, 50) + '...',
+      topic: currentTopic,
+      mode: this.isInContinuousMode(state) ? 'continuous' : 'onboarding',
+    })
+
+    // Fetch user profile for better context (if available)
+    let userProfile = null
+    if (this.config.userId && typeof window === 'undefined') {
+      try {
+        const { connectMongoDB, MatchProfile } = await getMongoDBDependencies()
+        await connectMongoDB()
+        const profile = await MatchProfile.findOne({ uid: this.config.userId })
+        if (profile) {
+          userProfile = profile.toObject()
+        }
+      } catch (error) {
+        console.error('🎯 Error fetching user profile for suggestions:', error)
+        // Continue without profile
+      }
+    }
+
+    // Generate response suggestions using TopicStarter
+    try {
+      const suggestions = await this.topicStarter.generateResponseSuggestions(
+        questionToAnswer,
+        currentTopic,
+        userProfile
+      )
+
+      // Convert suggestions to action cards
+      const recommendations = suggestions.map((suggestion, index) => ({
+        id: `response-${index + 1}`,
+        title: suggestion,
+        description: `Quick response option`,
+        action: 'send_message',
+        data: {
+          message: suggestion,
+          messageType: 'suggestion',
+        },
+        priority: 100 - index * 5, // Higher priority for first suggestions
+        isVisible: true,
+        icon: this.getResponseIcon(index),
       }))
-    )
 
-    return recommendations
+      console.log(
+        '🎯 MamaSan - Generated response suggestions:',
+        recommendations.map((r) => ({ id: r.id, title: r.title }))
+      )
+
+      return recommendations
+    } catch (error) {
+      console.error(
+        '🎯 MamaSan - Error generating response suggestions:',
+        error
+      )
+
+      // Return fallback suggestions
+      return this.getFallbackResponseSuggestions()
+    }
   }
 
   /**
@@ -1979,7 +2038,7 @@ React to their answer and let them know you're ready to find them perfect matche
       }
 
       // Remove duplicate tags and limit to top 2
-      const uniqueTags = [...new Set(matchingTags)].slice(0, 2)
+      const uniqueTags = Array.from(new Set(matchingTags)).slice(0, 2)
 
       return {
         hostData,
@@ -2197,6 +2256,44 @@ React to their answer and let them know you're ready to find them perfect matche
       return 'palette'
 
     return 'user' // Default icon
+  }
+
+  /**
+   * Get an appropriate icon for response suggestions
+   */
+  private getResponseIcon(index: number): string {
+    const icons = ['chat', 'heart', 'user']
+    return icons[index] || 'chat'
+  }
+
+  /**
+   * Generate fallback response suggestions when AI fails
+   */
+  private getFallbackResponseSuggestions(): Array<{
+    id: string
+    title: string
+    description?: string
+    action: string
+    data?: any
+    priority: number
+    isVisible?: boolean
+    icon?: string
+  }> {
+    const fallbackSuggestions = ['sounds good!', 'not really', 'tell me more']
+
+    return fallbackSuggestions.map((suggestion, index) => ({
+      id: `fallback-response-${index + 1}`,
+      title: suggestion,
+      description: 'Quick response option',
+      action: 'send_message',
+      data: {
+        message: suggestion,
+        messageType: 'suggestion',
+      },
+      priority: 90 - index * 5,
+      isVisible: true,
+      icon: this.getResponseIcon(index),
+    }))
   }
 
   buildSearchQuery(state: MamaSanSessionState): string {
