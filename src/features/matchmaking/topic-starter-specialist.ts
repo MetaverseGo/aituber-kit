@@ -216,19 +216,21 @@ Current question/topic context: "${question}"
 ${topic ? `Topic being discussed: ${topic}` : ''}
 ${userProfile ? `User profile context: ${this.summarizeUserProfile(userProfile)}` : 'No user profile available.'}
 
-Your task: Generate exactly 3 short, natural response options that a user might want to say in reply to this question. Each response should be:
+Your task: Generate exactly 3 short, natural response options that directly answer or engage with the specific question being asked. Each response should be:
 - 2-6 words maximum
-- Natural and conversational
-- Different from each other (variety in tone/approach)
-- Appropriate for casual conversation with a friendly AI
+- Directly relevant to the question topic
+- Different from each other (variety in approach/content)
+- Natural conversational answers, not just reactions
 
-Examples of good responses:
-- "love that idea!"
-- "not really my thing"
-- "sounds interesting"
-- "tell me more"
-- "that's perfect"
-- "something different maybe"
+IMPORTANT: Generate actual answers to the question, not generic reactions.
+
+Examples based on question type:
+- For travel questions: "Japan sounds amazing", "love beach destinations", "somewhere with mountains"
+- For food questions: "pizza always wins", "sushi is perfect", "love trying new things"
+- For hobby questions: "gaming is life", "art keeps me sane", "music fills everything"
+- For personality questions: "confident and bold", "gentle and caring", "funny and playful"
+
+Analyze the question and generate 3 specific, relevant answers that someone would naturally give.
 
 Return ONLY a valid JSON array of exactly 3 strings, nothing else.
 
