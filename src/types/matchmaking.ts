@@ -315,6 +315,8 @@ export interface MatchProfile {
 
   profileHistory: any[]
 
+  onboardingChoice?: string // "anime", "boy", "girl", or undefined/null
+
   createdAt?: Date
   updatedAt?: Date
 }

@@ -513,6 +513,12 @@ const MatchProfileSchema = new Schema<MatchProfileDocument>(
     },
 
     profileHistory: [Schema.Types.Mixed],
+
+    onboardingChoice: {
+      type: String,
+      enum: ['anime', 'boy', 'girl'],
+      default: undefined,
+    },
   },
   {
     timestamps: true,

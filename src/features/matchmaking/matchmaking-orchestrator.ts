@@ -971,6 +971,152 @@ export class MatchmakingOrchestrator {
         firstQ: firstQ.substring(0, 50),
       })
 
+      // Fetch user profile to get onboardingChoice
+      let onboardingChoice: string | undefined = undefined
+      try {
+        const userProfile = await this.fetchUserProfile()
+        onboardingChoice = userProfile?.onboardingChoice
+      } catch (e) {
+        console.warn('Could not fetch user profile for onboardingChoice', e)
+      }
+
+      // Hard-coded recommendations based on onboardingChoice
+      let recommendations: Array<any> = []
+      if (onboardingChoice === 'anime') {
+        recommendations = [
+          {
+            id: 'anime-1',
+            title: 'Anime Cosplay Chat',
+            description: 'Find a host who loves anime cosplay and roleplay.',
+            action: 'search',
+            data: { tag: 'anime cosplay' },
+            priority: 100,
+            isVisible: true,
+            icon: '🎭',
+          },
+          {
+            id: 'anime-2',
+            title: 'Waifu Voice Calls',
+            description: 'Connect with a host who can do cute anime voices.',
+            action: 'search',
+            data: { tag: 'anime voice' },
+            priority: 95,
+            isVisible: true,
+            icon: '🎤',
+          },
+          {
+            id: 'anime-3',
+            title: 'Watch Anime Together',
+            description: 'Join a host for a virtual anime watch party.',
+            action: 'search',
+            data: { tag: 'anime watch party' },
+            priority: 90,
+            isVisible: true,
+            icon: '📺',
+          },
+        ]
+      } else if (onboardingChoice === 'boy') {
+        recommendations = [
+          {
+            id: 'boy-1',
+            title: 'Chill with a Bro',
+            description: 'Find a laid-back male host for games or chat.',
+            action: 'search',
+            data: { tag: 'male host' },
+            priority: 100,
+            isVisible: true,
+            icon: '🧑',
+          },
+          {
+            id: 'boy-2',
+            title: 'Gaming with Guys',
+            description: 'Join a multiplayer game session with a male creator.',
+            action: 'search',
+            data: { tag: 'gaming boys' },
+            priority: 95,
+            isVisible: true,
+            icon: '🎮',
+          },
+          {
+            id: 'boy-3',
+            title: 'Ask for Advice',
+            description: 'Get a male perspective on life, dating, or anything.',
+            action: 'search',
+            data: { tag: 'advice boys' },
+            priority: 90,
+            isVisible: true,
+            icon: '💬',
+          },
+        ]
+      } else if (onboardingChoice === 'girl') {
+        recommendations = [
+          {
+            id: 'girl-1',
+            title: 'Girl Talk',
+            description: 'Chat with a female host about anything you like.',
+            action: 'search',
+            data: { tag: 'female host' },
+            priority: 100,
+            isVisible: true,
+            icon: '👩',
+          },
+          {
+            id: 'girl-2',
+            title: 'Makeup & Fashion',
+            description: 'Get tips or do a virtual makeover with a creator.',
+            action: 'search',
+            data: { tag: 'makeup fashion' },
+            priority: 95,
+            isVisible: true,
+            icon: '💄',
+          },
+          {
+            id: 'girl-3',
+            title: 'Karaoke Party',
+            description: 'Sing your heart out with a fun female host.',
+            action: 'search',
+            data: { tag: 'karaoke girls' },
+            priority: 90,
+            isVisible: true,
+            icon: '🎤',
+          },
+        ]
+      } else {
+        // Default: don't know gender/content preference
+        recommendations = [
+          {
+            id: 'default-1',
+            title: 'Surprise Me!',
+            description: 'Let Emi pick a fun host for you based on your mood.',
+            action: 'search',
+            data: { tag: 'surprise' },
+            priority: 100,
+            isVisible: true,
+            icon: '✨',
+          },
+          {
+            id: 'default-2',
+            title: 'Browse All Creators',
+            description: 'See everyone available right now and pick your vibe.',
+            action: 'search',
+            data: { tag: 'all creators' },
+            priority: 95,
+            isVisible: true,
+            icon: '🌐',
+          },
+          {
+            id: 'default-3',
+            title: 'Tell Me What You Like',
+            description: 'Share your interests and Emi will recommend someone.',
+            action: 'input',
+            data: {},
+            priority: 90,
+            isVisible: true,
+            icon: '📝',
+          },
+        ]
+      }
+
       return {
         message: intro + ' ' + firstQ,
         isComplete: false,
@@ -981,6 +1127,9 @@ export class MatchmakingOrchestrator {
           isComplete: false,
         },
         profileUpdates: {},
+        data: {
+          recommendations,
+        },
       }
     }
 
