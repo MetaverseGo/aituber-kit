@@ -13,69 +13,116 @@ import { createOpenRouter } from '@openrouter/ai-sdk-provider'
 import { streamText, generateText, CoreMessage } from 'ai'
 import { VercelAIService } from '@/features/constants/settings'
 
+/**
+ * Create a custom fetch function that handles encoding issues in production
+ * Prevents RequestContentLengthMismatchError by ensuring proper UTF-8 encoding
+ */
+function createEncodingSafeFetch(providerName: string) {
+  return (input: RequestInfo | URL, init?: RequestInit) => {
+    // Ensure proper headers with explicit charset
+    const headers = {
+      ...init?.headers,
+      'Content-Type': 'application/json; charset=utf-8',
+      Accept: 'application/json',
+    }
+
+    // Sanitize request body to prevent encoding mismatches
+    let body = init?.body
+    if (body && typeof body === 'string') {
+      try {
+        const parsed = JSON.parse(body)
+        // Re-stringify to ensure proper encoding and remove problematic characters
+        const sanitized = JSON.stringify(parsed, null, 0)
+          .replace(/[\u0000-\u001F\u007F]/g, '') // Remove control characters
+          .replace(/[\u200B-\u200F\uFEFF]/g, '') // Remove zero-width characters
+
+        body = sanitized
+      } catch (e) {
+        console.warn(
+          `🤖 ${providerName} - Could not parse request body for sanitization:`,
+          e
+        )
+      }
+    }
+
+    return fetch(input, {
+      ...init,
+      headers,
+      body,
+    })
+  }
+}
+
 type AIServiceConfig = Record<VercelAIService, (params: any) => any>
 
 /**
  * Vercel AI SDKを使用したAIサービス設定
  */
 export const aiServiceConfig: AIServiceConfig = {
-  openai: ({ apiKey }) => createOpenAI({ apiKey }),
+  openai: ({ apiKey }) =>
+    createOpenAI({
+      apiKey,
+      fetch: createEncodingSafeFetch('OpenAI'),
+    }),
   anthropic: ({ apiKey }) =>
     createAnthropic({
       apiKey,
-      // Add specific configuration to prevent encoding issues
-      fetch: (input: RequestInfo | URL, init?: RequestInit) => {
-        // Ensure proper headers for Anthropic API
-        const headers = {
-          ...init?.headers,
-          'Content-Type': 'application/json; charset=utf-8',
-          Accept: 'application/json',
-        }
-
-        // Sanitize request body if it exists
-        let body = init?.body
-        if (body && typeof body === 'string') {
-          try {
-            const parsed = JSON.parse(body)
-            // Re-stringify to ensure proper encoding
-            body = JSON.stringify(parsed, null, 0)
-          } catch (e) {
-            console.warn(
-              '🤖 Anthropic - Could not parse request body for sanitization'
-            )
-          }
-        }
-
-        return fetch(input, {
-          ...init,
-          headers,
-          body,
-        })
-      },
+      fetch: createEncodingSafeFetch('Anthropic'),
     }),
-  google: ({ apiKey }) => createGoogleGenerativeAI({ apiKey }),
+  google: ({ apiKey }) =>
+    createGoogleGenerativeAI({
+      apiKey,
+      fetch: createEncodingSafeFetch('Google'),
+    }),
   azure: ({ resourceName, apiKey }) =>
     createAzure({
       resourceName,
       apiKey,
+      fetch: createEncodingSafeFetch('Azure'),
     }),
-  xai: ({ apiKey }) => createXai({ apiKey: process.env.XAI_API_KEY || apiKey }), // Uses XAI_API_KEY from env
+  xai: ({ apiKey }) =>
+    createXai({
+      apiKey: process.env.XAI_API_KEY || apiKey,
+      fetch: createEncodingSafeFetch('XAI'),
+    }),
   groq: ({ apiKey }) =>
     createOpenAI({
       baseURL: 'https://api.groq.com/openai/v1',
       apiKey,
+      fetch: createEncodingSafeFetch('Groq'),
     }),
-  cohere: ({ apiKey }) => createCohere({ apiKey }),
-  mistralai: ({ apiKey }) => createMistral({ apiKey }),
+  cohere: ({ apiKey }) =>
+    createCohere({
+      apiKey,
+      fetch: createEncodingSafeFetch('Cohere'),
+    }),
+  mistralai: ({ apiKey }) =>
+    createMistral({
+      apiKey,
+      fetch: createEncodingSafeFetch('Mistral'),
+    }),
   perplexity: ({ apiKey }) =>
-    createOpenAI({ baseURL: 'https://api.perplexity.ai/', apiKey }),
+    createOpenAI({
+      baseURL: 'https://api.perplexity.ai/',
+      apiKey,
+      fetch: createEncodingSafeFetch('Perplexity'),
+    }),
   fireworks: ({ apiKey }) =>
     createOpenAI({
       baseURL: 'https://api.fireworks.ai/inference/v1',
       apiKey,
+      fetch: createEncodingSafeFetch('Fireworks'),
     }),
-  deepseek: ({ apiKey }) => createDeepSeek({ apiKey }),
-  openrouter: ({ apiKey }) => createOpenRouter({ apiKey }),
+  deepseek: ({ apiKey }) =>
+    createDeepSeek({
+      apiKey,
+      fetch: createEncodingSafeFetch('DeepSeek'),
+    }),
+  openrouter: ({ apiKey }) =>
+    createOpenRouter({
+      apiKey,
+      fetch: createEncodingSafeFetch('OpenRouter'),
+    }),
   lmstudio: ({ baseURL }) =>
     createOpenAICompatible({ name: 'lmstudio', baseURL }),
   ollama: ({ baseURL }) => createOllama({ baseURL }),
