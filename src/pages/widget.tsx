@@ -9,6 +9,10 @@ import PersonalityPanel from '@/components/PersonalityPanel'
 
 import VrmExpressionTester from '@/components/ui/VrmExpressionTester'
 import ProfileOverlay from '@/components/ui/ProfileOverlay'
+import PngEmotionDisplay from '@/components/ui/PngEmotionDisplay'
+import VidBackgroundDisplay from '@/components/ui/VidBackgroundDisplay'
+import { useEmotionImage } from '@/hooks/useEmotionImage'
+import { useVideoSource } from '@/hooks/useVideoSource'
 
 import homeStore from '@/features/stores/home'
 import settingsStore from '@/features/stores/settings'
@@ -386,6 +390,15 @@ const getMockProfileCards = (actionId: string): ProfileCardData[] => {
   return profiles[actionId] || profiles['cute-anime'] // Default fallback
 }
 
+const getModelType = () => {
+  // Force 'vid' mode for testing
+  return 'vid'
+  // If you want to use the env variable:
+  // return process.env.NEXT_PUBLIC_MODEL_TYPE || 'vrm'
+}
+
+const modelType = getModelType()
+
 const Widget = () => {
   console.log('🔧 Widget component mounting...')
 
@@ -439,7 +452,6 @@ const Widget = () => {
   const [modelLoaded, setModelLoaded] = useState(false)
   const [showEmiScreen, setShowEmiScreen] = useState(true)
   const [fadeOut, setFadeOut] = useState(false)
-  const modelType = settingsStore((s) => s.modelType)
 
   // Model loading detection
   useEffect(() => {
@@ -480,7 +492,7 @@ const Widget = () => {
     return () => {
       if (interval) clearInterval(interval)
     }
-  }, [modelLoaded, authChecked, isAuthenticated, modelType])
+  }, [modelLoaded, authChecked, isAuthenticated])
 
   // Fade out Emi screen after model loads
   useEffect(() => {
@@ -548,50 +560,61 @@ const Widget = () => {
   }, [
     isAuthenticated,
     authChecked,
-    config.postMessages,
     sendChatHistoryToParent,
+    config.postMessages,
   ])
+
+  // PNG mode integration
+  const [emotionImage, setEmotion, emotion] = useEmotionImage('neutral')
+  // VID mode integration
+  const [videoSrc, setVideoSrc, videoLabel] = useVideoSource(
+    '/vids/emigg/neutral.mp4',
+    'neutral'
+  )
+
+  // Add this handler function inside the Widget component:
+  const handleMatchmakingResponse = useCallback(
+    (data: any) => {
+      console.log('🎭 [Widget] handleMatchmakingResponse called with:', {
+        data,
+        hasData: !!data,
+        emotion: data?.emotion,
+        modelType,
+      })
+
+      if (!data) {
+        console.log('🎭 [Widget] No data provided to handleMatchmakingResponse')
+        return
+      }
+
+      if (modelType === 'png' && data.emotion) {
+        console.log('🎭 [Widget] PNG mode - setting emotion:', data.emotion)
+        setEmotion(data.emotion)
+      } else if (modelType === 'vid' && data.emotion) {
+        console.log(
+          '🎭 [Widget] VID mode - setting video:',
+          `/vids/emigg/${data.emotion}.mp4`
+        )
+        setVideoSrc(`/vids/emigg/${data.emotion}.mp4`, data.emotion)
+      } else {
+        console.log(
+          '🎭 [Widget] No emotion handling - modelType:',
+          modelType,
+          'emotion:',
+          data.emotion
+        )
+      }
+    },
+    [setEmotion, setVideoSrc]
+  )
 
   // Listen for all widget events (auth, chat, config, etc.)
   useEffect(() => {
     const effectId = Math.random().toString(36).substr(2, 9)
     console.log(`🔧 Widget message listener useEffect #${effectId} running...`)
-    console.log('🔧 Widget useEffect dependencies:')
-    console.log('🔧   config.postMessages:', config.postMessages)
-    console.log('🔧   isAuthenticated:', isAuthenticated)
-    console.log('🔧   authChecked:', authChecked)
-    console.log('🔧   authError:', authError)
-    console.log('🔧 Widget ready to receive messages!')
 
     function handleAllMessages(event: MessageEvent) {
-      // LOG EVERY SINGLE MESSAGE - even if malformed
-      console.log('🔥 [Widget] === INCOMING MESSAGE ===')
-      console.log('🔥 [Widget] Event object:', event)
-      console.log('🔥 [Widget] Raw event data:', event.data)
-      console.log('🔥 [Widget] Event origin:', event.origin)
-      console.log('🔥 [Widget] Event source:', event.source)
-      console.log('🔥 [Widget] Window location:', window.location.href)
-      console.log('🔥 [Widget] Message type:', event.data?.type)
-      console.log('🔥 [Widget] Origin comparison:', {
-        eventOrigin: event.origin,
-        expectedOrigin: 'http://localhost:3000',
-        matches: event.origin === 'http://localhost:3000',
-      })
-      console.log('🔥 [Widget] Has data:', !!event.data)
-      console.log(
-        '🔥 [Widget] Data keys:',
-        event.data ? Object.keys(event.data) : []
-      )
-      console.log(
-        '🔥 [Widget] Current config.postMessages:',
-        config.postMessages
-      )
-      console.log('🔥 [Widget] Current isAuthenticated:', isAuthenticated)
-      console.log('🔥 [Widget] Current authChecked:', authChecked)
-      console.log('🔥 [Widget] === END MESSAGE HEADER ===')
-
       if (!event.data) {
-        console.log('🔥 [Widget] EARLY RETURN: No event data')
         return
       }
 
@@ -606,10 +629,6 @@ const Widget = () => {
 
       // Only handle other message types if postMessages is enabled
       if (!config.postMessages) {
-        console.log(
-          '🔥 [Widget] EARLY RETURN: PostMessage disabled, ignoring non-auth message:',
-          event.data.type
-        )
         return
       }
 
@@ -637,43 +656,14 @@ const Widget = () => {
       // Handle CHAT_MESSAGE_SEND
       if (event.data.type === 'CHAT_MESSAGE_SEND') {
         console.log('🔥 [Widget] === PROCESSING CHAT_MESSAGE_SEND ===')
-        console.log('🔥 [Widget] 🎯 SUCCESS: Found CHAT_MESSAGE_SEND!')
-        console.log('🔥 [Widget] Raw event.data:', event.data)
-        console.log('🔥 [Widget] Raw event.data.data:', event.data.data)
 
         const { content, media, timestamp, userId } = event.data.data || {}
-        console.log('🔥 [Widget] Extracted values:')
-        console.log('🔥 [Widget]   content:', content)
-        console.log('🔥 [Widget]   content type:', typeof content)
-        console.log(
-          '🔥 [Widget]   content length:',
-          content ? content.length : 'N/A'
-        )
-        console.log('🔥 [Widget]   media:', media)
-        console.log('🔥 [Widget]   timestamp:', timestamp)
-        console.log('🔥 [Widget]   userId:', userId)
 
         if (content && typeof content === 'string') {
           console.log('🔥 [Widget] ✅ Content validation passed!')
-          console.log('🔥 [Widget] Valid CHAT_MESSAGE_SEND data:', {
-            content: content.substring(0, 50) + '...',
-            media,
-            timestamp,
-            userId,
-          })
 
           // Check if we have an auth token before processing
           const currentToken = getCurrentWidgetAuthToken()
-          console.log('🔥 [Widget] Auth token check:')
-          console.log('🔥 [Widget]   hasToken:', !!currentToken)
-          console.log(
-            '🔥 [Widget]   tokenLength:',
-            currentToken ? currentToken.length : 0
-          )
-          console.log(
-            '🔥 [Widget]   tokenStart:',
-            currentToken ? currentToken.substring(0, 20) + '...' : 'none'
-          )
 
           if (!currentToken) {
             console.error(
@@ -690,21 +680,10 @@ const Widget = () => {
           console.log(
             '🔥 [Widget] ✅ Auth check passed - calling widget chat handler...'
           )
-          console.log(
-            '🔥 [Widget] About to call handleWidgetChatFn() with content:',
-            content.substring(0, 100) + '...'
-          )
 
           const widgetChatHandler = handleWidgetChatFn()
-          console.log(
-            '🔥 [Widget] handleWidgetChatFn() returned:',
-            typeof widgetChatHandler
-          )
-
-          console.log('🔥 [Widget] Calling widgetChatHandler with content...')
           widgetChatHandler(content).catch((error) => {
             console.error('🔥 [Widget] ❌ Chat handler error:', error)
-            console.error('🔥 [Widget] ❌ Error stack:', error.stack)
             window.parent.postMessage(
               {
                 type: 'WIDGET_ERROR',
@@ -714,17 +693,9 @@ const Widget = () => {
               '*'
             )
           })
-          console.log('🔥 [Widget] widgetChatHandler call completed (async)')
         } else {
           console.error('🔥 [Widget] ❌ Content validation failed!')
-          console.error('🔥 [Widget] Invalid CHAT_MESSAGE_SEND data:', {
-            content: typeof content,
-            contentValue: content,
-            hasData: !!event.data.data,
-            dataKeys: event.data.data ? Object.keys(event.data.data) : [],
-          })
         }
-        console.log('🔥 [Widget] === END CHAT_MESSAGE_SEND PROCESSING ===')
         return
       }
 
@@ -735,38 +706,47 @@ const Widget = () => {
         return
       }
 
+      // Handle WIDGET_EMOTION_UPDATE
+      if (event.data.type === 'WIDGET_EMOTION_UPDATE') {
+        console.log('🎭 [Widget] Processing WIDGET_EMOTION_UPDATE event')
+        console.log('🎭 [Widget] Emotion data:', event.data.data)
+
+        const emotion = event.data.data?.emotion
+        if (emotion) {
+          console.log(
+            '🎭 [Widget] Calling handleMatchmakingResponse with emotion:',
+            emotion
+          )
+          console.log('🎭 [Widget] Current modelType:', modelType)
+          handleMatchmakingResponse({ emotion })
+        } else {
+          console.log(
+            '🎭 [Widget] No emotion found in WIDGET_EMOTION_UPDATE event'
+          )
+        }
+        return
+      }
+
       // Handle CHAT_ACTION_CARD_CLICK
       if (event.data.type === 'CHAT_ACTION_CARD_CLICK') {
         console.log('🔥 [Widget] === PROCESSING CHAT_ACTION_CARD_CLICK ===')
-        console.log('🔥 [Widget] Raw event.data:', event.data)
-        console.log('🔥 [Widget] Raw event.data.data:', event.data.data)
 
         const { actionId, actionType, actionData, timestamp, userId } =
           event.data.data || {}
-        console.log('🔥 [Widget] Extracted values:')
-        console.log('🔥 [Widget]   actionId:', actionId)
-        console.log('🔥 [Widget]   actionType:', actionType)
-        console.log('🔥 [Widget]   actionData:', actionData)
-        console.log('🔥 [Widget]   timestamp:', timestamp)
-        console.log('🔥 [Widget]   userId:', userId)
 
         // Handle send_message action type
         if (actionType === 'send_message') {
           console.log('🔥 [Widget] ✅ Send message action detected!')
-          console.log('🔥 [Widget] Action data:', actionData)
 
           // Extract message from actionData
           const messageToSend =
             actionData?.message || actionData?.text || actionData?.content
-          console.log('🔥 [Widget] Extracted message:', messageToSend)
 
           if (messageToSend && typeof messageToSend === 'string') {
             console.log('🔥 [Widget] ✅ Message validation passed!')
 
             // Check if we have an auth token before processing
             const currentToken = getCurrentWidgetAuthToken()
-            console.log('🔥 [Widget] Auth token check:')
-            console.log('🔥 [Widget]   hasToken:', !!currentToken)
 
             if (!currentToken) {
               console.error(
@@ -783,21 +763,10 @@ const Widget = () => {
             console.log(
               '🔥 [Widget] ✅ Auth check passed - calling widget chat handler...'
             )
-            console.log(
-              '🔥 [Widget] About to call handleWidgetChatFn() with message:',
-              messageToSend
-            )
 
             const widgetChatHandler = handleWidgetChatFn()
-            console.log(
-              '🔥 [Widget] handleWidgetChatFn() returned:',
-              typeof widgetChatHandler
-            )
-
-            console.log('🔥 [Widget] Calling widgetChatHandler with message...')
             widgetChatHandler(messageToSend).catch((error) => {
               console.error('🔥 [Widget] ❌ Chat handler error:', error)
-              console.error('🔥 [Widget] ❌ Error stack:', error.stack)
               window.parent.postMessage(
                 {
                   type: 'WIDGET_ERROR',
@@ -807,15 +776,8 @@ const Widget = () => {
                 '*'
               )
             })
-            console.log('🔥 [Widget] widgetChatHandler call completed (async)')
           } else {
             console.error('🔥 [Widget] ❌ Message validation failed!')
-            console.error('🔥 [Widget] Invalid message data:', {
-              messageToSend: typeof messageToSend,
-              messageValue: messageToSend,
-              hasActionData: !!actionData,
-              actionDataKeys: actionData ? Object.keys(actionData) : [],
-            })
           }
         } else if (actionId && typeof actionId === 'string') {
           console.log('🔥 [Widget] ✅ ActionId validation passed!')
@@ -865,7 +827,6 @@ const Widget = () => {
                 '🔥 [Widget] ❌ Error generating profile cards:',
                 error
               )
-              // Could send an error message to parent here if needed
               window.parent.postMessage(
                 {
                   type: 'WIDGET_ERROR',
@@ -877,14 +838,7 @@ const Widget = () => {
             })
         } else {
           console.error('🔥 [Widget] ❌ ActionId validation failed!')
-          console.error('🔥 [Widget] Invalid CHAT_ACTION_CARD_CLICK data:', {
-            actionId: typeof actionId,
-            actionIdValue: actionId,
-            hasData: !!event.data.data,
-            dataKeys: event.data.data ? Object.keys(event.data.data) : [],
-          })
         }
-        console.log('🔥 [Widget] === END CHAT_ACTION_CARD_CLICK PROCESSING ===')
         return
       }
 
@@ -893,8 +847,6 @@ const Widget = () => {
         console.log(
           '🔥 [Widget] === PROCESSING ACTUAL PARENT MESSAGE FORMAT ==='
         )
-        console.log('🔥 [Widget] Raw event.data:', event.data)
-        console.log('🔥 [Widget] Raw event.data.message:', event.data.message)
 
         // Try to extract content from the message object
         const messageObj = event.data.message
@@ -932,24 +884,11 @@ const Widget = () => {
             messageObj.data
         }
 
-        console.log('🔥 [Widget] Extracted content:', content)
-        console.log('🔥 [Widget] Content type:', typeof content)
-
         if (content && typeof content === 'string') {
           console.log('🔥 [Widget] ✅ Content validation passed!')
 
           // Check if we have an auth token before processing
           const currentToken = getCurrentWidgetAuthToken()
-          console.log('🔥 [Widget] Auth token check:')
-          console.log('🔥 [Widget]   hasToken:', !!currentToken)
-          console.log(
-            '🔥 [Widget]   tokenLength:',
-            currentToken ? currentToken.length : 0
-          )
-          console.log(
-            '🔥 [Widget]   tokenStart:',
-            currentToken ? currentToken.substring(0, 20) + '...' : 'none'
-          )
 
           if (!currentToken) {
             console.error(
@@ -966,21 +905,10 @@ const Widget = () => {
           console.log(
             '🔥 [Widget] ✅ Auth check passed - calling widget chat handler...'
           )
-          console.log(
-            '🔥 [Widget] About to call handleWidgetChatFn() with content:',
-            content.substring(0, 100) + '...'
-          )
 
           const widgetChatHandler = handleWidgetChatFn()
-          console.log(
-            '🔥 [Widget] handleWidgetChatFn() returned:',
-            typeof widgetChatHandler
-          )
-
-          console.log('🔥 [Widget] Calling widgetChatHandler with content...')
           widgetChatHandler(content).catch((error) => {
             console.error('🔥 [Widget] ❌ Chat handler error:', error)
-            console.error('🔥 [Widget] ❌ Error stack:', error.stack)
             window.parent.postMessage(
               {
                 type: 'WIDGET_ERROR',
@@ -990,75 +918,22 @@ const Widget = () => {
               '*'
             )
           })
-          console.log('🔥 [Widget] widgetChatHandler call completed (async)')
         } else {
           console.error('🔥 [Widget] ❌ Content validation failed!')
-          console.error(
-            '🔥 [Widget] Could not extract valid content from message:',
-            {
-              messageType: typeof messageObj,
-              messageKeys:
-                messageObj && typeof messageObj === 'object'
-                  ? Object.keys(messageObj)
-                  : [],
-              messageValue: messageObj,
-              extractedContent: content,
-              contentType: typeof content,
-            }
-          )
         }
-        console.log('🔥 [Widget] === END ACTUAL PARENT MESSAGE PROCESSING ===')
         return
       }
 
       // Handle unknown message types
       console.log('[Widget] Unhandled message type:', event.data.type)
-      console.log('[Widget] Full unhandled event:', event.data)
-
-      // Track all message types we're receiving
-      const messageTypes = (window as any).receivedMessageTypes || []
-      const messageType = event.data?.type || 'no-type'
-      if (!messageTypes.includes(messageType)) {
-        messageTypes.push(messageType)
-        ;(window as any).receivedMessageTypes = messageTypes
-        console.log(
-          '[Widget] 📊 All message types received so far:',
-          messageTypes
-        )
-      }
     }
 
-    console.log('🔧 Widget adding message listener...')
-    console.log('🔧 Widget listener context:')
-    console.log('🔧   config.postMessages:', config.postMessages)
-    console.log('🔧   isAuthenticated:', isAuthenticated)
-    console.log('🔧   authChecked:', authChecked)
-    console.log('🔧   authError:', authError)
-    console.log('🔧   window object:', !!window)
-    console.log(
-      '🔧   addEventListener available:',
-      typeof window.addEventListener
-    )
-
-    // Test the message listener immediately
-    const testListener = (event: MessageEvent) => {
-      console.log('🔧 TEST LISTENER: Message received!', event.data)
-    }
-
-    window.addEventListener('message', testListener)
     window.addEventListener('message', handleAllMessages)
     console.log('🔧 Widget message listener added successfully')
-
-    // Send a test message to ourselves
-    setTimeout(() => {
-      console.log('🔧 Widget sending test message to self...')
-      window.postMessage({ type: 'WIDGET_SELF_TEST', test: true }, '*')
-    }, 1000)
 
     // Notify parent that widget is ready
     console.log('🔧 Widget sending WIDGET_READY to parent...')
     window.parent.postMessage({ type: 'WIDGET_READY' }, '*')
-    console.log('🔧 Widget WIDGET_READY sent successfully')
 
     // Auth timeout
     const timeout = setTimeout(() => {
@@ -1073,30 +948,24 @@ const Widget = () => {
 
     return () => {
       console.log('🔧 Widget removing message listener...')
-      console.log('🔧 Cleanup reason - dependencies changed:', {
-        postMessages: config.postMessages,
-        isAuthenticated: isAuthenticated,
-      })
-      window.removeEventListener('message', testListener)
       window.removeEventListener('message', handleAllMessages)
       clearTimeout(timeout)
-      console.log('🔧 Widget message listener removed')
     }
-  }, [config.postMessages, isAuthenticated, authChecked, authError])
+  }, [config.postMessages, isAuthenticated, handleMatchmakingResponse])
 
-  // Debug: Status logger to show current widget state
-  useEffect(() => {
-    const statusLogger = setInterval(() => {
-      console.log('🔧 Widget Status Check:')
-      console.log('🔧   postMessages enabled:', config.postMessages)
-      console.log('🔧   authenticated:', isAuthenticated)
-      console.log('🔧   authChecked:', authChecked)
-      console.log('🔧   authError:', authError)
-      console.log('🔧   current token:', !!getCurrentWidgetAuthToken())
-    }, 10000) // Every 10 seconds
+  // Debug: Status logger to show current widget state (disabled to prevent remounting)
+  // useEffect(() => {
+  //   const statusLogger = setInterval(() => {
+  //     console.log('🔧 Widget Status Check:')
+  //     console.log('🔧   postMessages enabled:', config.postMessages)
+  //     console.log('🔧   authenticated:', isAuthenticated)
+  //     console.log('🔧   authChecked:', authChecked)
+  //     console.log('🔧   authError:', authError)
+  //     console.log('🔧   current token:', !!getCurrentWidgetAuthToken())
+  //   }, 10000) // Every 10 seconds
 
-    return () => clearInterval(statusLogger)
-  }, [config.postMessages, isAuthenticated, authChecked, authError])
+  //   return () => clearInterval(statusLogger)
+  // }, [config.postMessages, isAuthenticated, authChecked, authError])
 
   // Clear all persisted state if not authenticated
   useEffect(() => {
@@ -1243,8 +1112,7 @@ const Widget = () => {
     if (urlConfig.model) {
       settingsStore.setState({ selectAIModel: urlConfig.model })
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [config])
 
   // Send chat updates to parent
   useEffect(() => {
@@ -1352,14 +1220,32 @@ const Widget = () => {
       console.log(
         '🎪 Widget - Found existing chat history, sending to parent...'
       )
-      sendChatHistoryToParent()
+      // Call sendChatHistoryToParent directly without dependency
+      if (config.postMessages) {
+        const currentChatLog = homeStore.getState().chatLog
+        if (currentChatLog.length > 0) {
+          const recentMessages = currentChatLog.slice(-2).map((msg) => ({
+            role: msg.role,
+            content: msg.content,
+            timestamp: msg.timestamp,
+          }))
+          window.parent.postMessage(
+            {
+              type: 'WIDGET_CHAT_HISTORY',
+              messages: recentMessages,
+              totalMessages: currentChatLog.length,
+            },
+            '*'
+          )
+        }
+      }
     }
-  }, [
-    isAuthenticated,
-    authChecked,
-    config.postMessages,
-    sendChatHistoryToParent,
-  ])
+  }, [isAuthenticated, authChecked, config.postMessages])
+
+  // Make the handler available globally for the chat handler
+  useEffect(() => {
+    ;(window as any).handleMatchmakingResponse = handleMatchmakingResponse
+  }, [handleMatchmakingResponse])
 
   const getThemeClasses = () => {
     if (config.backgroundColor) return ''
@@ -1398,33 +1284,17 @@ const Widget = () => {
 
   return (
     <>
-      {/* Always render the main widget/model area */}
-      <div className="relative w-full h-full">
-        {/* Emi overlay: only overlays when not loaded/authenticated */}
-        {(showEmiScreen ||
-          !authChecked ||
-          !isAuthenticated ||
-          !modelLoaded) && (
+      {/* PNG mode: overlay with emotion-based PNG */}
+      {modelType === 'png' && (
+        <PngEmotionDisplay emotionImage={emotionImage} emotionLabel={emotion} />
+      )}
+      {/* VID mode: fullscreen video background with overlay */}
+      {modelType === 'vid' && (
+        <VidBackgroundDisplay videoSrc={videoSrc}>
           <div
-            className={`fixed inset-0 flex flex-col items-center justify-center w-screen h-screen transition-opacity duration-700 ${
-              fadeOut ? 'opacity-0 pointer-events-none' : 'opacity-100'
-            }`}
-            style={{
-              backgroundColor: '#18181b',
-              zIndex: 9999,
-              marginTop: '-100px', // Move overlay up by 100px
-            }}
+            className="flex flex-col items-center justify-center"
+            style={{ marginTop: '-150px' }} // Move content up by 150px like PNG mode
           >
-            <Image
-              src="/emi_gif.gif"
-              alt="Emi's avatar"
-              width={160}
-              height={160}
-              className="w-40 h-40 rounded-full border-4 border-pink-400 shadow-lg mb-6 object-cover bg-black"
-              style={{ boxShadow: '0 4px 24px #18181b' }}
-              priority
-              unoptimized
-            />
             <span
               className="text-pink-500 font-bold text-2xl mb-2"
               style={{ textShadow: '0 2px 8px #18181b, 0 0 2px #000' }}
@@ -1438,63 +1308,113 @@ const Widget = () => {
               Ask me for amazing creators and content
             </span>
           </div>
-        )}
-        {/* Main widget content (was previously inside the else) */}
-        {/* Matchmaking Progress Bar */}
-        <MatchmakingProgress forceHidden={true} />
-        <PersonalityPanel />
+        </VidBackgroundDisplay>
+      )}
+      {/* Existing widget/model area for other modes */}
+      {modelType !== 'png' && modelType !== 'vid' && (
+        <div className="relative w-full h-full">
+          {/* Always render the main widget/model area */}
+          <div className="relative w-full h-full">
+            {/* Emi overlay: only overlays when not loaded/authenticated */}
+            {(showEmiScreen ||
+              !authChecked ||
+              !isAuthenticated ||
+              !modelLoaded) && (
+              <div
+                className={`fixed inset-0 flex flex-col items-center justify-center w-screen h-screen transition-opacity duration-700 ${
+                  fadeOut ? 'opacity-0 pointer-events-none' : 'opacity-100'
+                }`}
+                style={{
+                  backgroundColor: '#18181b',
+                  zIndex: 9999,
+                  marginTop: '-100px', // Move overlay up by 100px
+                }}
+              >
+                <Image
+                  src="/emi_gif.gif"
+                  alt="Emi's avatar"
+                  width={160}
+                  height={160}
+                  className="w-40 h-40 rounded-full border-4 border-pink-400 shadow-lg mb-6 object-cover bg-black"
+                  style={{ boxShadow: '0 4px 24px #18181b' }}
+                  priority
+                  unoptimized
+                />
+                <span
+                  className="text-pink-500 font-bold text-2xl mb-2"
+                  style={{ textShadow: '0 2px 8px #18181b, 0 0 2px #000' }}
+                >
+                  Hey there! I&apos;m Emi
+                </span>
+                <span
+                  className="text-white text-lg"
+                  style={{ textShadow: '0 2px 8px #18181b, 0 0 2px #000' }}
+                >
+                  Ask me for amazing creators and content
+                </span>
+              </div>
+            )}
+            {/* Main widget content (was previously inside the else) */}
+            {/* Matchmaking Progress Bar */}
+            <MatchmakingProgress forceHidden={true} />
+            <PersonalityPanel />
 
-        {/* Main content */}
-        <div className="absolute inset-0">
-          {/* Character Display */}
-          {config.showCharacter && (
-            <div
-              className="absolute top-0 left-0 bottom-0 right-0 pointer-events-none z-0"
-              style={{ paddingBottom: config.showInput ? '80px' : '0' }}
-              key={`character-${isPersonalityCompleted}`}
-            >
-              {modelType === 'vrm' ? <VrmViewer /> : <Live2DViewer />}
+            {/* Main content */}
+            <div className="absolute inset-0">
+              {/* Character Display */}
+              {config.showCharacter && (
+                <div
+                  className="absolute top-0 left-0 bottom-0 right-0 pointer-events-none z-0"
+                  style={{ paddingBottom: config.showInput ? '80px' : '0' }}
+                  key={`character-${isPersonalityCompleted}`}
+                >
+                  {modelType === 'vrm' ? <VrmViewer /> : <Live2DViewer />}
+                </div>
+              )}
+
+              {/* VrmExpressionTester */}
+              {modelType === 'vrm' && config.showVrmExpressionTester && (
+                <VrmExpressionTester />
+              )}
             </div>
-          )}
 
-          {/* VrmExpressionTester */}
-          {modelType === 'vrm' && config.showVrmExpressionTester && (
-            <VrmExpressionTester />
-          )}
+            {/* Profile Overlay - Show only when explicitly enabled */}
+            {config.showProfileOverlay && <ProfileOverlay />}
+
+            {/* Fullscreen Button */}
+            {config.allowFullscreen && (
+              <button
+                onClick={() => {
+                  if (config.postMessages) {
+                    window.parent.postMessage(
+                      { type: 'TOGGLE_FULLSCREEN' },
+                      '*'
+                    )
+                  }
+                }}
+                className="absolute top-2 right-2 p-2 bg-white/80 hover:bg-white rounded-full shadow-lg z-30"
+                title="Toggle Fullscreen"
+              >
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"
+                  />
+                </svg>
+              </button>
+            )}
+
+            <Toasts />
+          </div>
         </div>
-
-        {/* Profile Overlay - Show only when explicitly enabled */}
-        {config.showProfileOverlay && <ProfileOverlay />}
-
-        {/* Fullscreen Button */}
-        {config.allowFullscreen && (
-          <button
-            onClick={() => {
-              if (config.postMessages) {
-                window.parent.postMessage({ type: 'TOGGLE_FULLSCREEN' }, '*')
-              }
-            }}
-            className="absolute top-2 right-2 p-2 bg-white/80 hover:bg-white rounded-full shadow-lg z-30"
-            title="Toggle Fullscreen"
-          >
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"
-              />
-            </svg>
-          </button>
-        )}
-
-        <Toasts />
-      </div>
+      )}
     </>
   )
 }

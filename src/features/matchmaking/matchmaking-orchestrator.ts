@@ -1152,6 +1152,7 @@ export class MatchmakingOrchestrator {
         message: continuousQuestion,
         suggestions,
         searchQuery,
+        emotion,
       } = await this.mamaSan.generateContinuousQuestion(
         userProfile,
         mamasanState,
@@ -1162,6 +1163,17 @@ export class MatchmakingOrchestrator {
         suggestions,
         searchQuery
       )
+
+      console.log('🎭 ORCHESTRATOR - Early continuous path emotion:', {
+        emotion: emotion,
+        emotionType: typeof emotion,
+        hasEmotion: !!emotion,
+        fullDataObject: {
+          emotion,
+          mode: 'continuous',
+          onboardingComplete: true,
+        },
+      })
 
       return {
         message: continuousQuestion,
@@ -1178,6 +1190,7 @@ export class MatchmakingOrchestrator {
           onboardingComplete: true,
           topicConversation: mamasanState.topicConversation,
           recommendations: recommendations,
+          emotion: emotion,
         },
       }
     }
@@ -1192,12 +1205,22 @@ export class MatchmakingOrchestrator {
         mamasanState,
         message
       )
+
+      console.log('🎭 ORCHESTRATOR - Not answered path emotion:', {
+        emotion: 'neutral',
+        emotionType: 'string',
+        reason: 'User did not answer properly',
+      })
+
       return {
         message: transitionResponse,
         isComplete: false,
         step: `mamasan_${mamasanState.currentQuestion}`,
         updatedState: { ...mamasanState },
         profileUpdates: {},
+        data: {
+          emotion: 'neutral',
+        },
       }
     }
 
@@ -1227,6 +1250,16 @@ export class MatchmakingOrchestrator {
         mamasanState, // Use the previous state to get current question
         message
       )
+
+      // For onboarding mode, use default emotion (since getResponseWithTransition returns string)
+      const emotion = 'neutral' // Default emotion for onboarding
+
+      console.log('🎭 ORCHESTRATOR - Onboarding path emotion:', {
+        emotion: emotion,
+        emotionType: typeof emotion,
+        transitionResponseType: typeof transitionResponse,
+      })
+
       return {
         message: transitionResponse,
         isComplete: false,
@@ -1235,6 +1268,7 @@ export class MatchmakingOrchestrator {
         profileUpdates,
         data: {
           recommendations: recommendations,
+          emotion: emotion,
         },
       }
     } else {
@@ -1246,11 +1280,18 @@ export class MatchmakingOrchestrator {
         message: continuousMessage,
         suggestions,
         searchQuery,
+        emotion,
       } = await this.mamaSan.generateContinuousQuestion(
         userProfile,
         updatedState,
         message // Pass user's last answer for context
       )
+
+      console.log('🎭 ORCHESTRATOR - Emotion received from MamaSan:', {
+        emotion: emotion,
+        emotionType: typeof emotion,
+        hasEmotion: !!emotion,
+      })
 
       const recommendations = this.createCombinedRecommendations(
         suggestions,
@@ -1261,6 +1302,27 @@ export class MatchmakingOrchestrator {
         ...updatedState,
         isComplete: false, // Ensure session stays active
       }
+
+      console.log('🎭 ORCHESTRATOR - Returning data with emotion:', {
+        emotion: emotion,
+        dataEmotion: emotion,
+        fullDataObject: {
+          emotion,
+          mode: 'continuous',
+          onboardingComplete: true,
+        },
+        returnObject: {
+          mamasan: {
+            searchQuery: this.mamaSan.buildSearchQuery(finalUpdatedState),
+            answers: finalUpdatedState.answers,
+          },
+          mode: 'continuous',
+          onboardingComplete: true,
+          topicConversation: finalUpdatedState.topicConversation,
+          recommendations: recommendations,
+          emotion,
+        },
+      })
 
       return {
         message: continuousMessage,
@@ -1277,6 +1339,7 @@ export class MatchmakingOrchestrator {
           onboardingComplete: true,
           topicConversation: finalUpdatedState.topicConversation,
           recommendations: recommendations,
+          emotion,
         },
       }
     }

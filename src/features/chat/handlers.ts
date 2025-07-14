@@ -1111,6 +1111,15 @@ export const handleWidgetChatFn = () => async (text: string) => {
       step: data.step,
       hasData: !!data.data,
       hasRecommendations: !!data.data?.recommendations,
+      emotion: data.data?.emotion,
+      emotionType: typeof data.data?.emotion,
+    })
+
+    console.log('🎭 CHAT HANDLER - Full data object:', {
+      dataKeys: data.data ? Object.keys(data.data) : [],
+      emotion: data.data?.emotion,
+      emotionExists: 'emotion' in (data.data || {}),
+      fullDataObject: data.data,
     })
 
     // Add assistant message to chat log
@@ -1119,6 +1128,49 @@ export const handleWidgetChatFn = () => async (text: string) => {
       content: data.message,
       timestamp: new Date().toISOString(),
     })
+
+    // Handle emotion data directly for PNG/VID mode emotion switching
+    if (data.data?.emotion) {
+      console.log(
+        '🎭 Widget Chat - Processing emotion directly:',
+        data.data.emotion
+      )
+
+      // Call the global emotion handler function
+      try {
+        const handleMatchmakingResponse = (window as any)
+          .handleMatchmakingResponse
+        if (handleMatchmakingResponse) {
+          handleMatchmakingResponse({ emotion: data.data.emotion })
+          console.log('🎭 Widget Chat - Emotion processed successfully')
+        } else {
+          console.log(
+            '🎭 Widget Chat - handleMatchmakingResponse not available'
+          )
+        }
+      } catch (error) {
+        console.error('🎭 Widget Chat - Error processing emotion:', error)
+      }
+
+      // Also send to parent for any external listeners
+      window.parent.postMessage(
+        {
+          type: 'WIDGET_EMOTION_UPDATE',
+          data: {
+            emotion: data.data.emotion,
+          },
+        },
+        '*'
+      )
+    } else {
+      console.log('🎭 Widget Chat - NO EMOTION FOUND:', {
+        hasData: !!data.data,
+        dataKeys: data.data ? Object.keys(data.data) : [],
+        emotionValue: data.data?.emotion,
+        emotionType: typeof data.data?.emotion,
+        dataObject: data.data,
+      })
+    }
 
     // Send recommendations to parent if available
     if (data.data?.recommendations && data.data.recommendations.length > 0) {

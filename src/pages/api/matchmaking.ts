@@ -105,6 +105,14 @@ export default async function handler(
 
     await profile.save()
 
+    console.log('🎭 [Matchmaking API] Response data:', {
+      hasData: !!result.data,
+      dataKeys: result.data ? Object.keys(result.data) : [],
+      emotion: result.data?.emotion,
+      emotionType: typeof result.data?.emotion,
+      fullDataObject: result.data,
+    })
+
     return res.status(200).json({
       message: result.message,
       isComplete: result.isComplete,

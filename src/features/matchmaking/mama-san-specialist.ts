@@ -390,6 +390,7 @@ ${
     message: string
     suggestions: string[]
     searchQuery?: string
+    emotion: 'angry' | 'happy' | 'neutral' | 'relaxed' | 'sad' | 'surprised'
   }> {
     console.log('🔄 CONTINUOUS QUESTION GENERATION START:')
     console.log('  User profile available:', !!userProfile)
@@ -2457,6 +2458,7 @@ React to their answer and let them know you're ready to find them perfect matche
     message: string
     suggestions: string[]
     searchQuery?: string
+    emotion: 'angry' | 'happy' | 'neutral' | 'relaxed' | 'sad' | 'surprised'
   }> {
     console.log('🎯 COMBINED RESPONSE GENERATION:', {
       scenario: context.scenario,
@@ -2501,11 +2503,13 @@ Your response should:
 {
   "message": "your casual acknowledgment + follow-up question",
   "suggestions": ["user response option 1", "user response option 2", "user response option 3"],
-  "searchQuery": "1-3 word search term related to the topic"
+  "searchQuery": "1 word search term",
+  "emotion": "one of: angry, happy, neutral, relaxed, sad, surprised"
 }
 
 The suggestions should be what the USER would naturally say in response to your question/message, not what you (Emi) would say next.
-The searchQuery should be a short 1-2 word term that users could search for to find content related to this topic.`
+The searchQuery should be a 1 word term that users could search for to find creator profiles related to this topic.
+The emotion field must be one of: angry, happy, neutral, relaxed, sad, surprised. Choose the emotion that best matches the assistant's response tone.`
         break
 
       case 'topic_transition':
@@ -2528,11 +2532,13 @@ Your response should:
 {
   "message": "acknowledge previous + smooth transition to new topic + question",
   "suggestions": ["user response option 1", "user response option 2", "user response option 3"],
-  "searchQuery": "1-3 word search term related to the new topic"
+  "searchQuery": "1 word search term related to the new topic",
+  "emotion": "one of: angry, happy, neutral, relaxed, sad, surprised"
 }
 
 The suggestions should be what the USER would naturally say in response to your new topic question, not what you (Emi) would say next.
-The searchQuery should be a short 1-2 word term that users could search for to find content related to the new topic.`
+The searchQuery should be a 1 word term that users could search for to find creator profiles related to the new topic.
+The emotion field must be one of: angry, happy, neutral, relaxed, sad, surprised. Choose the emotion that best matches the assistant's response tone.`
         break
 
       case 'acknowledge_response':
@@ -2555,11 +2561,13 @@ Your response should:
 {
   "message": "casual acknowledgment + new topic introduction + question",
   "suggestions": ["user response option 1", "user response option 2", "user response option 3"],
-  "searchQuery": "1-3 word search term related to the topic"
+  "searchQuery": "1 word search term",
+  "emotion": "one of: angry, happy, neutral, relaxed, sad, surprised"
 }
 
 The suggestions should be what the USER would naturally say in response to your new topic question, not what you (Emi) would say next.
-The searchQuery should be a short 1-2 word term that users could search for to find content related to the topic.`
+The searchQuery should be a 1 word term that users could search for to find creator profiles related to the topic.
+The emotion field must be one of: angry, happy, neutral, relaxed, sad, surprised. Choose the emotion that best matches the assistant's response tone.`
         break
 
       case 'profile_question':
@@ -2582,11 +2590,13 @@ Your response should:
 {
   "message": "${context.lastUserResponse ? 'brief acknowledgment + ' : ''}casual profile question",
   "suggestions": ["user response option 1", "user response option 2", "user response option 3"],
-  "searchQuery": "1-3 word search term related to the question topic"
+  "searchQuery": "1 word search term related to the question topic",
+  "emotion": "one of: angry, happy, neutral, relaxed, sad, surprised"
 }
 
 The suggestions should be what the USER would naturally say in response to your profile question, not what you (Emi) would say next.
-The searchQuery should be a short 1-2 word term that users could search for to find content related to the question topic.`
+The searchQuery should be a 1 word term that users could search for to find creator profiles related to the question topic.
+The emotion field must be one of: angry, happy, neutral, relaxed, sad, surprised. Choose the emotion that best matches the assistant's response tone.`
         break
 
       case 'new_topic':
@@ -2609,11 +2619,13 @@ Your response should:
 {
   "message": "${context.lastUserResponse ? 'brief acknowledgment + ' : ''}new topic introduction + engaging question",
   "suggestions": ["user response option 1", "user response option 2", "user response option 3"],
-  "searchQuery": "1-3 word search term related to the topic"
+  "searchQuery": "1 word search term",
+  "emotion": "one of: angry, happy, neutral, relaxed, sad, surprised"
 }
 
 The suggestions should be what the USER would naturally say in response to your topic question, not what you (Emi) would say next.
-The searchQuery should be a short 1-2 word term that users could search for to find content related to the topic.`
+The searchQuery should be a 1 word term that users could search for to find creator profiles related to the topic.
+The emotion field must be one of: angry, happy, neutral, relaxed, sad, surprised. Choose the emotion that best matches the assistant's response tone.`
         break
 
       default:
@@ -2629,10 +2641,21 @@ The searchQuery should be a short 1-2 word term that users could search for to f
       const response = await callAI(messages)
       const parsed = JSON.parse(response)
 
+      const allowedEmotions = [
+        'angry',
+        'happy',
+        'neutral',
+        'relaxed',
+        'sad',
+        'surprised',
+      ]
+
       if (
         !parsed.message ||
         !parsed.suggestions ||
-        !Array.isArray(parsed.suggestions)
+        !Array.isArray(parsed.suggestions) ||
+        !parsed.emotion ||
+        !allowedEmotions.includes(parsed.emotion)
       ) {
         throw new Error('Invalid response format from AI')
       }
@@ -2641,12 +2664,21 @@ The searchQuery should be a short 1-2 word term that users could search for to f
         scenario: context.scenario,
         messageLength: parsed.message.length,
         suggestionsCount: parsed.suggestions.length,
+        emotion: parsed.emotion,
+      })
+
+      console.log('🎭 EMOTION FIELD DETAILS:', {
+        rawEmotion: parsed.emotion,
+        emotionType: typeof parsed.emotion,
+        isValidEmotion: allowedEmotions.includes(parsed.emotion),
+        allowedEmotions: allowedEmotions,
       })
 
       return {
         message: parsed.message,
         suggestions: parsed.suggestions,
         searchQuery: parsed.searchQuery,
+        emotion: parsed.emotion,
       }
     } catch (error) {
       console.error('🌸 MamaSan - Error generating combined response:', error)
@@ -2657,17 +2689,20 @@ The searchQuery should be a short 1-2 word term that users could search for to f
           message: 'oh really? tell me more about that!',
           suggestions: ['definitely!', 'that sounds cool', 'tell me more'],
           searchQuery: 'content',
+          emotion: 'happy' as const,
         },
         topic_transition: {
           message:
             'nice! speaking of interesting things, what kind of music are you into lately?',
           suggestions: ['pop music', 'rock/indie', 'electronic'],
           searchQuery: 'music',
+          emotion: 'happy' as const,
         },
         acknowledge_response: {
           message: 'cool! so what are you up to tonight? anything fun planned?',
           suggestions: ['just relaxing', 'watching something', 'hanging out'],
           searchQuery: 'entertainment',
+          emotion: 'relaxed' as const,
         },
         profile_question: {
           message:
@@ -2675,12 +2710,14 @@ The searchQuery should be a short 1-2 word term that users could search for to f
             'what kind of vibe are you going for tonight?',
           suggestions: ['casual and fun', 'something exciting', 'relaxed mood'],
           searchQuery: 'vibes',
+          emotion: 'neutral' as const,
         },
         new_topic: {
           message:
             'hey, random question - what kind of stuff do you like to do for fun?',
           suggestions: ['gaming', 'watching anime', 'creative stuff'],
           searchQuery: 'fun',
+          emotion: 'happy' as const,
         },
       }
 
