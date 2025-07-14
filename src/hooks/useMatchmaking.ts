@@ -47,9 +47,9 @@ export function useMatchmaking(options: MatchmakingHookOptions = {}) {
         sessionIdRef.current = uuidv4()
 
         const orchestrator = getOrchestrator()
-        const result = await orchestrator.processMessage(
+        const result = await orchestrator.processMamaSanModeServer(
           message,
-          sessionIdRef.current
+          orchestrator.getCurrentMamaSanState()
         )
 
         setCurrentResult(result)
@@ -88,9 +88,9 @@ export function useMatchmaking(options: MatchmakingHookOptions = {}) {
         setError(null)
 
         const orchestrator = getOrchestrator()
-        const result = await orchestrator.processMessage(
+        const result = await orchestrator.processMamaSanModeServer(
           message,
-          sessionIdRef.current
+          orchestrator.getCurrentMamaSanState()
         )
 
         setCurrentResult(result)
