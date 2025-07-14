@@ -7,7 +7,7 @@ import { Message } from '@/features/messages/messages'
  * Universal AI client that uses the same infrastructure as normal aituber chat
  * Works with any configured AI service (OpenAI, Anthropic, Google, etc.)
  *
- * This function runs on the server-side, so it gets configuration from server-side environment variables.
+ * This function runs on the server-side and calls AI services directly without internal HTTP requests.
  */
 export async function callAI(messages: Message[]): Promise<string> {
   // Read provider selection from server-side environment variables
@@ -17,9 +17,11 @@ export async function callAI(messages: Message[]): Promise<string> {
   // Get model from server-side environment
   const model = process.env.SELECT_AI_MODEL || 'claude-3-5-sonnet-20241022'
 
-  // Direct API call to our Vercel AI endpoint with server-side configuration
-  const makeAPICall = async (aiService: string): Promise<string> => {
-    console.log(`[AI] Making direct API call with provider: ${aiService}`)
+  // Direct AI service call without internal HTTP requests
+  const makeDirectAICall = async (aiService: string): Promise<string> => {
+    console.log(
+      `[AI] Making direct AI service call with provider: ${aiService}`
+    )
 
     // Get API key from environment variables
     const servicePrefix = aiService.toUpperCase()
@@ -34,53 +36,47 @@ export async function callAI(messages: Message[]): Promise<string> {
       )
     }
 
-    // Prepare request data with server-side configuration
-    const requestData = {
-      messages,
-      apiKey,
-      aiService,
+    // Import AI service functions directly (avoid HTTP calls)
+    const { aiServiceConfig, generateAiText } = await import(
+      '@/pages/api/services/vercelAi'
+    )
+    const { modifyMessages } = await import('@/pages/api/services/utils')
+    const { isVercelLocalAIService } = await import(
+      '@/features/constants/settings'
+    )
+
+    // Create service instance
+    const getServiceInstance =
+      aiServiceConfig[aiService as keyof typeof aiServiceConfig]
+    if (!getServiceInstance) {
+      throw new Error(`Invalid AI service: ${aiService}`)
+    }
+
+    // Generate service parameters
+    const serviceParams = isVercelLocalAIService(aiService)
+      ? { baseURL: process.env.LOCAL_LLM_URL || '' }
+      : { apiKey }
+
+    // Create model instance
+    const modelInstance = getServiceInstance(serviceParams)
+
+    // Modify messages for the specific service
+    const modifiedMessages = modifyMessages(aiService, model, messages)
+
+    console.log(`[AI] Calling ${aiService} with model: ${model}`)
+
+    // Call the AI service directly
+    const response = await generateAiText({
       model,
-      stream: false,
+      modelInstance,
+      messages: modifiedMessages,
       temperature: parseFloat(process.env.TEMPERATURE || '1.0'),
       maxTokens: parseInt(process.env.MAX_TOKENS || '4096'),
-      useSearchGrounding: process.env.USE_SEARCH_GROUNDING === 'true',
-      localLlmUrl: process.env.LOCAL_LLM_URL || '',
-      azureEndpoint: process.env.AZURE_ENDPOINT || '',
-    }
-
-    // Determine the correct API endpoint
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'
-    const endpoint = `${baseUrl}/api/ai/vercel`
-
-    console.log(`[AI] Calling ${endpoint} with service: ${aiService}`)
-
-    // --- FIX: Use Buffer for request body to avoid ContentLengthMismatchError ---
-    const jsonBody = JSON.stringify(requestData)
-    const bodyBuffer = Buffer.from(jsonBody, 'utf8')
-
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Content-Length': bodyBuffer.length.toString(),
-      },
-      body: bodyBuffer,
     })
-    // --- END FIX ---
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error(
-        `[AI] API call failed: ${response.status} ${response.statusText}`,
-        errorText
-      )
-      throw new Error(
-        `API request failed: ${response.status} ${response.statusText} - ${errorText}`
-      )
-    }
-
+    // Extract text from response
     const data = await response.json()
-    console.log('[AI] API response received:', {
+    console.log('[AI] AI service response received:', {
       hasText: !!data.text,
       textLength: data.text?.length,
     })
@@ -94,7 +90,7 @@ export async function callAI(messages: Message[]): Promise<string> {
 
   try {
     console.log(`[AI] Using primary provider: ${primaryProvider}`)
-    return await makeAPICall(primaryProvider)
+    return await makeDirectAICall(primaryProvider)
   } catch (error: any) {
     // --- Fallback logic for 5xx/Overloaded/Credits errors ---
     const isServerError =
@@ -114,7 +110,7 @@ export async function callAI(messages: Message[]): Promise<string> {
         `[AI Fallback] ${primaryProvider} 5xx/Overloaded/Credits error detected, retrying with backup provider: ${backupProvider}...`
       )
       try {
-        return await makeAPICall(backupProvider)
+        return await makeDirectAICall(backupProvider)
       } catch (fallbackError) {
         console.error(
           `[AI Fallback] Backup provider (${backupProvider}) also failed:`,
