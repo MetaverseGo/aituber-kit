@@ -54,13 +54,19 @@ export async function callAI(messages: Message[]): Promise<string> {
 
     console.log(`[AI] Calling ${endpoint} with service: ${aiService}`)
 
+    // --- FIX: Use Buffer for request body to avoid ContentLengthMismatchError ---
+    const jsonBody = JSON.stringify(requestData)
+    const bodyBuffer = Buffer.from(jsonBody, 'utf8')
+
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Content-Length': bodyBuffer.length.toString(),
       },
-      body: JSON.stringify(requestData),
+      body: bodyBuffer,
     })
+    // --- END FIX ---
 
     if (!response.ok) {
       const errorText = await response.text()
