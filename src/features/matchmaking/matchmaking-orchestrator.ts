@@ -131,7 +131,7 @@ export class MatchmakingOrchestrator {
       kokologyPersonality: 'emi',
       writerPersonality: 'emi',
       profilerPersonality: 'emi',
-      questionCount: 4,
+      questionCount: 1,
       ...config,
     }
 
@@ -167,45 +167,6 @@ export class MatchmakingOrchestrator {
   }
 
   /**
-   * Determine user intent and activate appropriate mode
-   */
-  private determineIntent(
-    message: string
-  ): 'mamasan' | 'kokology' | 'profiling' | null {
-    const lowerMessage = message.toLowerCase().trim()
-
-    // Check for kokology triggers
-    if (
-      MODE_TRIGGERS.kokology.some((trigger) =>
-        lowerMessage.includes(trigger.toLowerCase())
-      )
-    ) {
-      return 'kokology'
-    }
-
-    // Check for profiling triggers
-    if (
-      MODE_TRIGGERS.profiling.some((trigger) =>
-        lowerMessage.includes(trigger.toLowerCase())
-      )
-    ) {
-      return 'profiling'
-    }
-
-    // Check for mama-san triggers
-    if (
-      MODE_TRIGGERS.mamasan.some((trigger) =>
-        lowerMessage.includes(trigger.toLowerCase())
-      )
-    ) {
-      return 'mamasan'
-    }
-
-    // Default to mama-san for general conversation
-    return 'mamasan'
-  }
-
-  /**
    * Check if orchestrator is currently active
    */
   isActiveSession(): boolean {
@@ -224,480 +185,6 @@ export class MatchmakingOrchestrator {
    */
   getCurrentMode(): 'mamasan' | 'kokology' | 'profiling' {
     return this.mode
-  }
-
-  /**
-   * Main processing method - handles all conversational flow and state management
-   */
-  async processMessage(
-    message: string,
-    sessionId: string
-  ): Promise<MatchmakingResult> {
-    console.log('[Orchestrator] processMessage called:', {
-      message,
-      sessionId,
-      isActive: this.isActive,
-      currentSessionId: this.currentSessionId,
-      mode: this.mode,
-    })
-
-    // If not active, activate and determine intent
-    if (!this.isActive) {
-      this.isActive = true
-      this.currentSessionId = sessionId
-
-      // Determine intent from message
-      const intent = this.determineIntent(message)
-      if (intent) {
-        this.mode = intent
-      }
-
-      console.log('[Orchestrator] Activated with mode:', this.mode)
-    }
-
-    // For MamaSan mode, we don't need strict session ID matching
-    // because MamaSan conversations can span multiple sessions
-    if (this.mode === 'mamasan') {
-      // Update current session ID for MamaSan mode
-      this.currentSessionId = sessionId
-      console.log(
-        '[Orchestrator] Updated sessionId for MamaSan mode:',
-        sessionId
-      )
-    } else {
-      // For kokology/profiling modes, validate session continuity strictly
-      if (this.currentSessionId !== sessionId) {
-        console.log('[Orchestrator] Session mismatch, resetting')
-        this.resetSession()
-        this.isActive = true
-        this.currentSessionId = sessionId
-
-        // Re-determine intent for new session
-        const intent = this.determineIntent(message)
-        if (intent) {
-          this.mode = intent
-        }
-      }
-    }
-
-    // Process based on current mode
-    switch (this.mode) {
-      case 'mamasan':
-        return await this.processMamaSanMode(message, sessionId)
-      case 'kokology':
-        return await this.processKokologyMode(message, sessionId)
-      case 'profiling':
-        return await this.processProfilingMode(message, sessionId)
-      default:
-        return {
-          message:
-            "I need to determine what you want to do. Please tell me what you're looking for!",
-          isComplete: false,
-          step: 'intent_unclear',
-        }
-    }
-  }
-
-  /**
-   * Process mama-san mode (default conversational flow)
-   */
-  private async processMamaSanMode(
-    message: string,
-    sessionId: string
-  ): Promise<MatchmakingResult> {
-    try {
-      // State is now managed via MongoDB, no localStorage restore needed
-      console.log('[MamaSan] Processing message:', { message, sessionId })
-      console.log('[MamaSan] Current state before processing:', {
-        currentQuestion: this.mamaSanState.currentQuestion,
-        answersLength: this.mamaSanState.answers.length,
-        isComplete: this.mamaSanState.isComplete,
-        answers: this.mamaSanState.answers,
-        greetingState: this.mamaSanState.greetingState,
-      })
-
-      // Check if this should be handled as a greeting instead of a question response
-      if (this.mamaSan.shouldHandleAsGreeting(message, this.mamaSanState)) {
-        const greetingResult = this.mamaSan.handleGreeting(
-          message,
-          this.mamaSanState
-        )
-        this.mamaSanState = greetingResult.updatedState
-
-        return {
-          message: greetingResult.message,
-          isComplete: false,
-          step: 'mamasan_greeting',
-        }
-      }
-
-      // Only treat a new session if the message is a start trigger
-      const isNewSession =
-        this.mamaSanState.currentQuestion === 0 &&
-        this.mamaSanState.answers.length === 0 &&
-        isMamaSanStartTrigger(message)
-
-      // If session is just starting, greet and ask first question
-      if (isNewSession) {
-        console.log(
-          '[MamaSan] Detected new session - currentQuestion=0, answers.length=0, and start trigger message'
-        )
-        this.mamaSanState.currentQuestion = 0
-        this.mamaSanState.answers = []
-        this.mamaSanState.isComplete = false
-
-        // State is saved via the API endpoint that calls this orchestrator
-        const intro = this.mamaSan.getIntro()
-        const firstQ = this.mamaSan.getCurrentQuestion(this.mamaSanState)
-        console.log('[MamaSan] New session started. Greeting:', intro)
-        console.log('[MamaSan] Asking first question:', firstQ)
-
-        return {
-          message: intro + '\n' + firstQ,
-          isComplete: false,
-          step: 'mamasan_0',
-        }
-      }
-
-      console.log('[MamaSan] Continuing existing session')
-
-      // Check if we're in continuous profiling mode
-      const isInContinuousMode = this.mamaSan.isInContinuousMode(
-        this.mamaSanState
-      )
-      const isOnboardingComplete = this.mamaSan.isOnboardingComplete(
-        this.mamaSanState
-      )
-
-      console.log('🎯 MATCHMAKING MODE DETECTION:')
-      console.log(
-        '  Current question index:',
-        this.mamaSanState.currentQuestion
-      )
-      console.log('  Total answers given:', this.mamaSanState.answers.length)
-      console.log('  Is onboarding complete:', isOnboardingComplete)
-      console.log('  Is in continuous mode:', isInContinuousMode)
-      console.log('  Session marked complete:', this.mamaSanState.isComplete)
-      console.log(
-        '  Configured question count:',
-        this.mamaSan.getQuestionCount()
-      )
-      console.log('  User message:', message.substring(0, 50) + '...')
-
-      if (isInContinuousMode) {
-        console.log('[MamaSan] Processing continuous profiling response')
-
-        // Record the previous question and response if available (from state)
-        try {
-          const lastQuestion = this.mamaSanState.topicConversation?.lastQuestion
-          if (lastQuestion && lastQuestion !== 'undefined') {
-            await recordQuestionAsked(this.userId, lastQuestion, message, false)
-          }
-        } catch (error) {
-          console.error(
-            '🎭 Orchestrator - Error recording question response:',
-            error
-          )
-        }
-
-        // Always analyze response for profile updates in continuous mode
-        const analysis = await this.mamaSan.analyzeResponse(
-          'continuous conversation',
-          message
-        )
-
-        // Fetch user profile from MongoDB to use for continuous question generation
-        let userProfile = null
-        try {
-          const { connectMongoDB, MatchProfile } =
-            await getMongoDBDependencies()
-          await connectMongoDB()
-
-          const profile = await MatchProfile.findOne({ uid: this.userId })
-          if (profile) {
-            userProfile = profile.toObject()
-            console.log('🎯 Fetched user profile for continuous mode:', {
-              uid: this.userId,
-              hasProfile: !!userProfile,
-              profileKeys: userProfile ? Object.keys(userProfile) : [],
-            })
-          } else {
-            console.log(
-              '🎯 No user profile found in database for UID:',
-              this.userId
-            )
-          }
-        } catch (error) {
-          console.error(
-            '🎯 Error fetching user profile for continuous mode:',
-            error
-          )
-          // Continue with null profile - continuous mode can still work
-        }
-
-        // Generate next continuous question
-        const continuousQuestion =
-          await this.mamaSan.generateContinuousQuestion(
-            userProfile,
-            this.mamaSanState,
-            message
-          )
-
-        console.log('🎯 FINAL CONTINUOUS QUESTION GENERATED:')
-        console.log('  Question:', continuousQuestion)
-        console.log('  Mode: CONTINUOUS PROFILING')
-        console.log('  Will track this question for next response')
-
-        // Store the question in state for next response tracking
-        if (!this.mamaSanState.topicConversation) {
-          this.mamaSanState.topicConversation = {
-            currentTopic: 'continuous_profiling',
-            turnCount: 0,
-            topicHistory: [],
-            lastQuestion: continuousQuestion,
-          }
-        } else {
-          this.mamaSanState.topicConversation.lastQuestion = continuousQuestion
-        }
-
-        // State will be saved via API/MongoDB by the calling endpoint
-
-        const result = {
-          message: continuousQuestion,
-          isComplete: false,
-          step: 'mamasan_continuous',
-          data: {
-            mamasan: {
-              searchQuery: this.mamaSan.buildSearchQuery(this.mamaSanState),
-              answers: this.mamaSanState.answers,
-            },
-            mode: 'continuous',
-            onboardingComplete: true,
-            topicConversation: this.mamaSanState.topicConversation,
-          },
-        }
-        console.log(
-          '🎭 Orchestrator - Returning continuous conversation result:',
-          result
-        )
-        return result
-      }
-
-      // Analyze user response to current question (onboarding mode)
-      const question = this.mamaSan.getCurrentQuestion(this.mamaSanState)
-      console.log('[MamaSan] Analyzing user response to onboarding question:', {
-        question,
-        userMessage: message,
-        currentQuestionIndex: this.mamaSanState.currentQuestion,
-      })
-
-      console.log('🎭 Orchestrator - Calling MamaSan analyzeResponse...')
-      const analysis = await this.mamaSan.analyzeResponse(question, message)
-      console.log('🎭 Orchestrator - Analysis received from MamaSan')
-
-      if (!analysis.answered) {
-        // If not answered, repeat the question
-        console.log(
-          '[MamaSan] User response did not answer the question. Re-asking:',
-          question
-        )
-        return {
-          message: `hmm, i didn't quite get that! ${question}`,
-          isComplete: false,
-          step: `mamasan_${this.mamaSanState.currentQuestion}`,
-        }
-      }
-
-      console.log('[MamaSan] User answered the question, moving to next...')
-      console.log('[MamaSan] State before updating:', {
-        currentQuestion: this.mamaSanState.currentQuestion,
-        answersLength: this.mamaSanState.answers.length,
-        answers: this.mamaSanState.answers,
-      })
-
-      // Save answer and move to next question
-      this.mamaSanState.answers[this.mamaSanState.currentQuestion] = message
-      this.mamaSanState.currentQuestion++
-
-      console.log('[MamaSan] State after updating:', {
-        currentQuestion: this.mamaSanState.currentQuestion,
-        answersLength: this.mamaSanState.answers.length,
-        answers: this.mamaSanState.answers,
-      })
-
-      // State will be saved via API/MongoDB by the calling endpoint
-
-      // Check if onboarding is complete (use configured question count)
-      if (!this.mamaSan.isOnboardingComplete(this.mamaSanState)) {
-        // Use the new transition method for smooth conversational flow
-        const prevState = {
-          ...this.mamaSanState,
-          currentQuestion: this.mamaSanState.currentQuestion - 1, // Get previous state for transition
-          answers: this.mamaSanState.answers.slice(0, -1), // Remove the last answer to get previous state
-        }
-
-        const transitionResponse = await this.mamaSan.getResponseWithTransition(
-          prevState,
-          message
-        )
-        console.log(
-          '[MamaSan] Generated transition response:',
-          transitionResponse
-        )
-
-        // Generate recommendations after each answered question
-        console.log(
-          '🎯 Orchestrator - Generating recommendations after question answered...'
-        )
-        const currentQ = this.mamaSan.getCurrentQuestion(this.mamaSanState)
-        const recommendations = await this.mamaSan.getRecommendations(
-          this.mamaSanState,
-          currentQ
-        )
-
-        const result = {
-          message: transitionResponse,
-          isComplete: false,
-          step: `mamasan_${this.mamaSanState.currentQuestion}`,
-          data: {
-            recommendations: recommendations,
-          },
-        }
-        console.log(
-          '🎭 Orchestrator - Returning transition result with recommendations:',
-          result
-        )
-        return result
-      } else {
-        console.log(
-          '🎭 Orchestrator - Initial questions completed, entering continuous profiling mode...'
-        )
-
-        // Switch to continuous profiling mode
-        this.mamaSanState.isComplete = false // Keep session active for continuous profiling
-        // State will be saved via API/MongoDB by the calling endpoint
-
-        // Mark onboarding completion in state (while keeping session active for continuous mode)
-        // Note: isComplete remains false to keep the session active for continuous profiling
-
-        // Fetch user profile from MongoDB to use for continuous question generation
-        let userProfile = null
-        try {
-          const { connectMongoDB, MatchProfile } =
-            await getMongoDBDependencies()
-          await connectMongoDB()
-
-          const profile = await MatchProfile.findOne({ uid: this.userId })
-          if (profile) {
-            userProfile = profile.toObject()
-            console.log(
-              '🎯 Fetched user profile for onboarding->continuous transition:',
-              {
-                uid: this.userId,
-                hasProfile: !!userProfile,
-                profileKeys: userProfile ? Object.keys(userProfile) : [],
-              }
-            )
-          } else {
-            console.log(
-              '🎯 No user profile found in database for UID:',
-              this.userId
-            )
-          }
-        } catch (error) {
-          console.error(
-            '🎯 Error fetching user profile for onboarding->continuous transition:',
-            error
-          )
-          // Continue with null profile - continuous mode can still work
-        }
-
-        // Generate next continuous question
-        const continuousQuestion =
-          await this.mamaSan.generateContinuousQuestion(
-            userProfile,
-            this.mamaSanState,
-            undefined // No previous message for initial transition to continuous mode
-          )
-
-        // Store the question in state for next response tracking
-        if (!this.mamaSanState.topicConversation) {
-          this.mamaSanState.topicConversation = {
-            currentTopic: 'continuous_profiling',
-            turnCount: 0,
-            topicHistory: [],
-            lastQuestion: continuousQuestion,
-          }
-        } else {
-          this.mamaSanState.topicConversation.lastQuestion = continuousQuestion
-        }
-
-        // State will be saved via API/MongoDB by the calling endpoint
-
-        // Generate final comprehensive recommendations
-        console.log(
-          '🎯 Orchestrator - Generating final comprehensive recommendations...'
-        )
-        const finalRecommendations = await this.mamaSan.getRecommendations(
-          this.mamaSanState,
-          continuousQuestion
-        )
-
-        const result = {
-          message: continuousQuestion,
-          isComplete: false, // Keep session active
-          step: 'mamasan_continuous',
-          data: {
-            mamasan: {
-              searchQuery: this.mamaSan.buildSearchQuery(this.mamaSanState),
-              answers: this.mamaSanState.answers,
-            },
-            stepProgress: {
-              current: this.mamaSanState.currentQuestion,
-              total: this.mamaSan.getQuestionCount(),
-              label: 'Continuous Profiling',
-              phase: 'questions' as const,
-            },
-            mode: 'continuous',
-            onboardingComplete: true,
-            topicConversation: this.mamaSanState.topicConversation,
-            recommendations: finalRecommendations,
-          },
-        }
-        console.log(
-          '🎭 Orchestrator - Returning continuous profiling result with final recommendations:',
-          result
-        )
-        return result
-      }
-    } catch (error) {
-      console.error(
-        '🎭 Orchestrator - CRITICAL ERROR in processMamaSanMode:',
-        error
-      )
-      console.error('🎭 Orchestrator - Error type:', typeof error)
-      console.error(
-        '🎭 Orchestrator - Error constructor:',
-        error?.constructor?.name
-      )
-      console.error('🎭 Orchestrator - Error message:', (error as any)?.message)
-      console.error('🎭 Orchestrator - Error stack:', (error as any)?.stack)
-      console.error('🎭 Orchestrator - Current state when error occurred:', {
-        message,
-        sessionId,
-        mamaSanState: this.mamaSanState,
-        isActive: this.isActive,
-        currentSessionId: this.currentSessionId,
-        mode: this.mode,
-      })
-
-      // Return error result
-      return {
-        message: "Sorry, I had a technical issue. Let's try that again!",
-        isComplete: false,
-        step: 'error_recovery',
-      }
-    }
   }
 
   /**
@@ -1286,6 +773,160 @@ export class MatchmakingOrchestrator {
     console.log('[Orchestrator] MamaSan state updated from external source')
   }
 
+  // Helper: Create search recommendation
+  private createSearchRecommendation(searchQuery?: string) {
+    return {
+      id: 'search-content',
+      title: `Find ${searchQuery || 'content'}`,
+      description: 'Search for related content',
+      action: 'custom',
+      data: {
+        actionType: 'search',
+        searchQuery: searchQuery || 'content',
+      },
+      priority: 100,
+      isVisible: true,
+      icon: '🔍',
+    }
+  }
+
+  // Helper: Convert suggestions to recommendation format
+  private createResponseRecommendations(suggestions: string[]) {
+    return suggestions.map((suggestion, index) => ({
+      id: `response-${index + 1}`,
+      title: suggestion,
+      description: '',
+      action: 'send_message',
+      data: {
+        message: suggestion,
+        messageType: 'suggestion',
+      },
+      priority: 10 - index,
+      isVisible: true,
+      icon: '💬',
+    }))
+  }
+
+  // Helper: Combine search + response recommendations
+  private createCombinedRecommendations(
+    suggestions: string[],
+    searchQuery?: string
+  ) {
+    const searchRecommendation = this.createSearchRecommendation(searchQuery)
+    const responseRecommendations =
+      this.createResponseRecommendations(suggestions)
+    return [searchRecommendation, ...responseRecommendations]
+  }
+
+  // Helper: Map AI analysis to MongoDB profile updates
+  private mapProfileUpdates(profileUpdates: any): any {
+    const updates: any = {}
+
+    if (!profileUpdates) return updates
+
+    if (profileUpdates.physicalPreferences) {
+      updates['datingProfile.physicalPreferences'] =
+        profileUpdates.physicalPreferences
+    }
+
+    if (profileUpdates.personality) {
+      if (profileUpdates.personality.energyLevel) {
+        updates['datingProfile.servicePreferences.mood'] =
+          profileUpdates.personality.energyLevel
+      }
+      if (profileUpdates.personality.dominanceStyle) {
+        updates['datingProfile.dominanceStyle'] =
+          profileUpdates.personality.dominanceStyle
+      }
+      if (profileUpdates.personality.seekingTraits) {
+        updates['profileData.preferences.matchingPrefs.personalityTraits'] =
+          profileUpdates.personality.seekingTraits
+      }
+    }
+
+    if (profileUpdates.interests) {
+      if (profileUpdates.interests.categories) {
+        updates['datingProfile.servicePreferences.primaryServices'] =
+          profileUpdates.interests.categories
+      }
+      if (profileUpdates.interests.specificItems) {
+        updates['datingProfile.servicePreferences.conversationTopics'] =
+          profileUpdates.interests.specificItems
+      }
+    }
+
+    if (profileUpdates.preferences) {
+      if (profileUpdates.preferences.moodSeeking) {
+        updates['datingProfile.servicePreferences.mood'] =
+          profileUpdates.preferences.moodSeeking
+      }
+      if (profileUpdates.preferences.interactionStyle) {
+        updates['datingProfile.servicePreferences.interactionStyle'] =
+          profileUpdates.preferences.interactionStyle
+      }
+      if (profileUpdates.preferences.serviceTypes) {
+        updates['datingProfile.servicePreferences.primaryServices'] =
+          profileUpdates.preferences.serviceTypes
+      }
+      if (profileUpdates.preferences.conversationTopics) {
+        updates['datingProfile.servicePreferences.conversationTopics'] =
+          profileUpdates.preferences.conversationTopics
+      }
+    }
+
+    if (profileUpdates.demographics) {
+      if (profileUpdates.demographics.agePreference) {
+        updates['datingProfile.demographics.agePreference.preference'] =
+          profileUpdates.demographics.agePreference
+      }
+      if (profileUpdates.demographics.experienceLevel) {
+        updates['datingProfile.demographics.experienceLevel'] =
+          profileUpdates.demographics.experienceLevel
+      }
+    }
+
+    return updates
+  }
+
+  // Helper: Fetch user profile from MongoDB
+  private async fetchUserProfile(): Promise<any | null> {
+    try {
+      const { connectMongoDB, MatchProfile } = await getMongoDBDependencies()
+      await connectMongoDB()
+
+      const profile = await MatchProfile.findOne({ uid: this.userId })
+      if (profile) {
+        const userProfile = profile.toObject()
+        console.log('🎯 SERVER: Fetched user profile:', {
+          uid: this.userId,
+          hasProfile: !!userProfile,
+          profileKeys: userProfile ? Object.keys(userProfile) : [],
+        })
+        return userProfile
+      } else {
+        console.log('🎯 SERVER: No user profile found for UID:', this.userId)
+        return null
+      }
+    } catch (error) {
+      console.error('🎯 SERVER: Error fetching user profile:', error)
+      return null
+    }
+  }
+
+  // Helper: Analyze response and extract profile updates
+  private async analyzeResponseAndExtractUpdates(
+    question: string,
+    message: string
+  ): Promise<any> {
+    try {
+      const analysis = await this.mamaSan.analyzeResponse(question, message)
+      return this.mapProfileUpdates(analysis.profileUpdates)
+    } catch (error) {
+      console.error('🚨 Error analyzing response for profile updates:', error)
+      return {}
+    }
+  }
+
   // Server-friendly, stateless version for API usage
   async processMamaSanModeServer(
     message: string,
@@ -1298,6 +939,7 @@ export class MatchmakingOrchestrator {
     profileUpdates: any
     data?: any
   }> {
+    console.log('🎯 SERVER: Processing MamaSan mode server:')
     // Check if this should be handled as a greeting instead of a question response
     if (this.mamaSan.shouldHandleAsGreeting(message, mamasanState)) {
       const greetingResult = this.mamaSan.handleGreeting(message, mamasanState)
@@ -1318,40 +960,26 @@ export class MatchmakingOrchestrator {
       isMamaSanStartTrigger(message)
 
     if (isNewSession) {
-      // Send intro as first message, then queue the first question as a follow-up
+      // Simplify: Send intro + first question in one message
       const intro = this.mamaSan.getIntro()
+      const firstQ = this.mamaSan.getCurrentQuestion(mamasanState)
 
-      // Return intro first, with a special step to indicate a follow-up question is needed
+      console.log('🎯 New session detected:', {
+        currentQuestion: mamasanState.currentQuestion,
+        answersLength: mamasanState.answers.length,
+        intro: intro.substring(0, 50),
+        firstQ: firstQ.substring(0, 50),
+      })
+
       return {
-        message: intro,
+        message: intro + ' ' + firstQ,
         isComplete: false,
-        step: 'mamasan_intro',
+        step: 'mamasan_0',
         updatedState: {
           currentQuestion: 0,
           answers: [],
           isComplete: false,
-          needsFirstQuestion: true,
         },
-        profileUpdates: {},
-        data: {
-          needsFollowUp: true,
-          followUpDelay: 1500, // 1.5 second delay before first question
-        },
-      }
-    }
-
-    // Check if we need to send the first question after intro
-    if (
-      mamasanState.needsFirstQuestion &&
-      mamasanState.currentQuestion === 0 &&
-      mamasanState.answers.length === 0
-    ) {
-      const firstQ = this.mamaSan.getCurrentQuestion(mamasanState)
-      return {
-        message: firstQ,
-        isComplete: false,
-        step: 'mamasan_0',
-        updatedState: { ...mamasanState, needsFirstQuestion: false },
         profileUpdates: {},
       }
     }
@@ -1359,137 +987,31 @@ export class MatchmakingOrchestrator {
     // Check if onboarding is already complete BEFORE analyzing response
     if (this.mamaSan.isOnboardingComplete(mamasanState)) {
       // STILL ANALYZE THE RESPONSE for profile updates in continuous mode!
-      let profileUpdates: any = {}
-
-      // Get the previous question from topic conversation state or generate a generic analysis prompt
       const previousQuestion =
         mamasanState.topicConversation?.lastQuestion ||
         'What are your interests, preferences, or thoughts?'
 
-      try {
-        const analysis = await this.mamaSan.analyzeResponse(
-          previousQuestion,
-          message
-        )
+      const profileUpdates = await this.analyzeResponseAndExtractUpdates(
+        previousQuestion,
+        message
+      )
 
-        // Extract profile updates (same mapping logic as onboarding mode)
-        if (analysis.profileUpdates) {
-          // Map the AI analysis to MongoDB structure
-          if (analysis.profileUpdates.physicalPreferences) {
-            profileUpdates['datingProfile.physicalPreferences'] =
-              analysis.profileUpdates.physicalPreferences
-          }
-
-          if (analysis.profileUpdates.personality) {
-            if (analysis.profileUpdates.personality.energyLevel) {
-              profileUpdates['datingProfile.servicePreferences.mood'] =
-                analysis.profileUpdates.personality.energyLevel
-            }
-            if (analysis.profileUpdates.personality.dominanceStyle) {
-              profileUpdates['datingProfile.dominanceStyle'] =
-                analysis.profileUpdates.personality.dominanceStyle
-            }
-            if (analysis.profileUpdates.personality.seekingTraits) {
-              profileUpdates[
-                'profileData.preferences.matchingPrefs.personalityTraits'
-              ] = analysis.profileUpdates.personality.seekingTraits
-            }
-          }
-
-          if (analysis.profileUpdates.interests) {
-            if (analysis.profileUpdates.interests.categories) {
-              profileUpdates[
-                'datingProfile.servicePreferences.primaryServices'
-              ] = analysis.profileUpdates.interests.categories
-            }
-            if (analysis.profileUpdates.interests.specificItems) {
-              profileUpdates[
-                'datingProfile.servicePreferences.conversationTopics'
-              ] = analysis.profileUpdates.interests.specificItems
-            }
-          }
-
-          if (analysis.profileUpdates.preferences) {
-            if (analysis.profileUpdates.preferences.moodSeeking) {
-              profileUpdates['datingProfile.servicePreferences.mood'] =
-                analysis.profileUpdates.preferences.moodSeeking
-            }
-            if (analysis.profileUpdates.preferences.interactionStyle) {
-              profileUpdates[
-                'datingProfile.servicePreferences.interactionStyle'
-              ] = analysis.profileUpdates.preferences.interactionStyle
-            }
-            if (analysis.profileUpdates.preferences.serviceTypes) {
-              profileUpdates[
-                'datingProfile.servicePreferences.primaryServices'
-              ] = analysis.profileUpdates.preferences.serviceTypes
-            }
-            if (analysis.profileUpdates.preferences.conversationTopics) {
-              profileUpdates[
-                'datingProfile.servicePreferences.conversationTopics'
-              ] = analysis.profileUpdates.preferences.conversationTopics
-            }
-          }
-
-          if (analysis.profileUpdates.demographics) {
-            if (analysis.profileUpdates.demographics.agePreference) {
-              profileUpdates[
-                'datingProfile.demographics.agePreference.preference'
-              ] = analysis.profileUpdates.demographics.agePreference
-            }
-            if (analysis.profileUpdates.demographics.experienceLevel) {
-              profileUpdates['datingProfile.demographics.experienceLevel'] =
-                analysis.profileUpdates.demographics.experienceLevel
-            }
-          }
-        }
-      } catch (error) {
-        console.error('🚨 Continuous Mode - Error analyzing response:', error)
-        // Continue with empty profile updates if analysis fails
-      }
-
-      // Fetch user profile from MongoDB for continuous question generation
-      let userProfile = null
-      try {
-        const { connectMongoDB, MatchProfile } = await getMongoDBDependencies()
-        await connectMongoDB()
-
-        const profile = await MatchProfile.findOne({ uid: this.userId })
-        if (profile) {
-          userProfile = profile.toObject()
-          console.log(
-            '🎯 SERVER: Fetched user profile for existing continuous session:',
-            {
-              uid: this.userId,
-              hasProfile: !!userProfile,
-              profileKeys: userProfile ? Object.keys(userProfile) : [],
-            }
-          )
-        } else {
-          console.log(
-            '🎯 SERVER: No user profile found in database for UID:',
-            this.userId
-          )
-        }
-      } catch (error) {
-        console.error(
-          '🎯 SERVER: Error fetching user profile for continuous mode:',
-          error
-        )
-        // Continue with null profile - continuous mode can still work
-      }
+      const userProfile = await this.fetchUserProfile()
 
       // Generate continuous question for existing continuous session
-      const continuousQuestion = await this.mamaSan.generateContinuousQuestion(
+      const {
+        message: continuousQuestion,
+        suggestions,
+        searchQuery,
+      } = await this.mamaSan.generateContinuousQuestion(
         userProfile,
         mamasanState,
         message
       )
 
-      // Generate recommendations for continuous mode
-      const recommendations = await this.mamaSan.getRecommendations(
-        mamasanState,
-        continuousQuestion
+      const recommendations = this.createCombinedRecommendations(
+        suggestions,
+        searchQuery
       )
 
       return {
@@ -1541,85 +1063,17 @@ export class MatchmakingOrchestrator {
     }
 
     // Prepare profile updates from AI analysis
-    const profileUpdates: any = {}
-    if (analysis.profileUpdates) {
-      // Map the AI analysis to MongoDB structure
-      if (analysis.profileUpdates.physicalPreferences) {
-        profileUpdates['datingProfile.physicalPreferences'] =
-          analysis.profileUpdates.physicalPreferences
-      }
-
-      if (analysis.profileUpdates.personality) {
-        if (analysis.profileUpdates.personality.energyLevel) {
-          profileUpdates['datingProfile.servicePreferences.mood'] =
-            analysis.profileUpdates.personality.energyLevel
-        }
-        if (analysis.profileUpdates.personality.dominanceStyle) {
-          profileUpdates['datingProfile.dominanceStyle'] =
-            analysis.profileUpdates.personality.dominanceStyle
-        }
-        if (analysis.profileUpdates.personality.seekingTraits) {
-          profileUpdates[
-            'profileData.preferences.matchingPrefs.personalityTraits'
-          ] = analysis.profileUpdates.personality.seekingTraits
-        }
-      }
-
-      if (analysis.profileUpdates.interests) {
-        if (analysis.profileUpdates.interests.categories) {
-          profileUpdates['datingProfile.servicePreferences.primaryServices'] =
-            analysis.profileUpdates.interests.categories
-        }
-        if (analysis.profileUpdates.interests.specificItems) {
-          profileUpdates[
-            'datingProfile.servicePreferences.conversationTopics'
-          ] = analysis.profileUpdates.interests.specificItems
-        }
-      }
-
-      if (analysis.profileUpdates.preferences) {
-        if (analysis.profileUpdates.preferences.moodSeeking) {
-          profileUpdates['datingProfile.servicePreferences.mood'] =
-            analysis.profileUpdates.preferences.moodSeeking
-        }
-        if (analysis.profileUpdates.preferences.interactionStyle) {
-          profileUpdates['datingProfile.servicePreferences.interactionStyle'] =
-            analysis.profileUpdates.preferences.interactionStyle
-        }
-        if (analysis.profileUpdates.preferences.serviceTypes) {
-          profileUpdates['datingProfile.servicePreferences.primaryServices'] =
-            analysis.profileUpdates.preferences.serviceTypes
-        }
-        if (analysis.profileUpdates.preferences.conversationTopics) {
-          profileUpdates[
-            'datingProfile.servicePreferences.conversationTopics'
-          ] = analysis.profileUpdates.preferences.conversationTopics
-        }
-      }
-
-      if (analysis.profileUpdates.demographics) {
-        if (analysis.profileUpdates.demographics.agePreference) {
-          profileUpdates[
-            'datingProfile.demographics.agePreference.preference'
-          ] = analysis.profileUpdates.demographics.agePreference
-        }
-        if (analysis.profileUpdates.demographics.experienceLevel) {
-          profileUpdates['datingProfile.demographics.experienceLevel'] =
-            analysis.profileUpdates.demographics.experienceLevel
-        }
-      }
-    }
-
-    // Generate recommendations after each answered question
-    const currentQ = this.mamaSan.getCurrentQuestion(updatedState)
-    const recommendations = await this.mamaSan.getRecommendations(
-      updatedState,
-      currentQ
-    )
+    const profileUpdates = this.mapProfileUpdates(analysis.profileUpdates)
 
     // Check if onboarding is complete (use configured question count)
     if (!this.mamaSan.isOnboardingComplete(updatedState)) {
-      // Still in onboarding mode
+      // Still in onboarding mode - generate recommendations for this branch only
+      const currentQ = this.mamaSan.getCurrentQuestion(updatedState)
+      const recommendations = await this.mamaSan.getRecommendations(
+        updatedState,
+        currentQ
+      )
+
       const transitionResponse = await this.mamaSan.getResponseWithTransition(
         mamasanState, // Use the previous state to get current question
         message
@@ -1636,53 +1090,22 @@ export class MatchmakingOrchestrator {
       }
     } else {
       // Onboarding complete, enter continuous mode
-      // Fetch user profile from MongoDB for continuous question generation
-      let userProfile = null
-      try {
-        const { connectMongoDB, MatchProfile } = await getMongoDBDependencies()
-        await connectMongoDB()
-
-        const profile = await MatchProfile.findOne({ uid: this.userId })
-        if (profile) {
-          userProfile = profile.toObject()
-          console.log(
-            '🎯 SERVER: Fetched user profile for onboarding->continuous transition:',
-            {
-              uid: this.userId,
-              hasProfile: !!userProfile,
-              profileKeys: userProfile ? Object.keys(userProfile) : [],
-            }
-          )
-        } else {
-          console.log(
-            '🎯 SERVER: No user profile found in database for UID:',
-            this.userId
-          )
-        }
-      } catch (error) {
-        console.error(
-          '🎯 SERVER: Error fetching user profile for onboarding->continuous transition:',
-          error
-        )
-        // Continue with null profile - continuous mode can still work
-      }
+      const userProfile = await this.fetchUserProfile()
 
       // Generate continuous question instead of completing
-      const continuousQuestion = await this.mamaSan.generateContinuousQuestion(
+      const {
+        message: continuousMessage,
+        suggestions,
+        searchQuery,
+      } = await this.mamaSan.generateContinuousQuestion(
         userProfile,
         updatedState,
         message // Pass user's last answer for context
       )
 
-      // Get the last onboarding question to create a smooth transition
-      const lastOnboardingQuestion =
-        this.mamaSan.getCurrentQuestion(mamasanState)
-
-      // Generate a transition message that acknowledges the last answer
-      const transitionMessage = await this.mamaSan.generateTransition(
-        lastOnboardingQuestion,
-        message,
-        continuousQuestion
+      const recommendations = this.createCombinedRecommendations(
+        suggestions,
+        searchQuery
       )
 
       const finalUpdatedState = {
@@ -1691,7 +1114,7 @@ export class MatchmakingOrchestrator {
       }
 
       return {
-        message: transitionMessage, // Use the new transition message
+        message: continuousMessage,
         isComplete: false, // Keep session active for continuous mode
         step: 'mamasan_continuous',
         updatedState: finalUpdatedState,

@@ -79,7 +79,7 @@ export class MamaSanSpecialist {
   private questions: string[]
   private responseProcessor?: AIResponseProcessor
   private topicStarter: TopicStarterSpecialist
-  private useDatabase: boolean // Store the database flag
+  private useDatabase: boolean
 
   constructor(config: MamaSanSpecialistConfig = {}) {
     this.config = {
@@ -183,7 +183,10 @@ ${
   }
 
   getCurrentQuestion(state: MamaSanSessionState): string {
-    return this.questions[state.currentQuestion] || ''
+    // Ensure currentQuestion is a valid number
+    const questionIndex =
+      typeof state.currentQuestion === 'number' ? state.currentQuestion : 0
+    return this.questions[questionIndex] || ''
   }
 
   getQuestionCount(): number {
@@ -383,7 +386,11 @@ ${
     userProfile?: any,
     currentState?: MamaSanSessionState,
     lastUserResponse?: string
-  ): Promise<string> {
+  ): Promise<{
+    message: string
+    suggestions: string[]
+    searchQuery?: string
+  }> {
     console.log('🔄 CONTINUOUS QUESTION GENERATION START:')
     console.log('  User profile available:', !!userProfile)
     console.log('  User ID available:', !!this.config.userId)
@@ -428,18 +435,22 @@ ${
 
       if (shouldContinueTopic) {
         console.log('💬 CONTINUING CURRENT TOPIC:', topicState.currentTopic)
-        const continuationQuestion =
-          await this.topicStarter.continueCurrentTopic(
-            topicState,
-            lastUserResponse,
-            userProfile
-          )
+
+        // Use combined response generation for topic continuation
+        const cacheKey = `continue_topic_${topicState.currentTopic}_${lastUserResponse?.substring(0, 20)}`
+        const combinedResponse = await this.generateCombinedContinuousResponse({
+          scenario: 'continue_topic',
+          userProfile,
+          lastUserResponse,
+          currentTopic: topicState.currentTopic,
+          topicHistory: topicState.topicHistory,
+        })
 
         // Update topic state
         const updatedTopicState = this.topicStarter.updateConversationState(
           topicState,
           undefined, // No new topic
-          continuationQuestion
+          combinedResponse.message
         )
 
         // Update state if provided
@@ -447,8 +458,11 @@ ${
           currentState.topicConversation = updatedTopicState
         }
 
-        console.log('✅ TOPIC CONTINUATION GENERATED:', continuationQuestion)
-        return continuationQuestion
+        console.log(
+          '✅ TOPIC CONTINUATION GENERATED:',
+          combinedResponse.message
+        )
+        return combinedResponse
       } else {
         // Topic cooldown is over, need to transition to new topic/question with acknowledgment
         console.log(
@@ -460,12 +474,28 @@ ${
         )
         console.log('  Current topic ending:', topicState.currentTopic)
 
-        return await this.generateTopicTransition(
-          topicState,
-          lastUserResponse,
+        // Use combined response generation for topic transition
+        const cacheKey = `topic_transition_${topicState.currentTopic}_${lastUserResponse?.substring(0, 20)}`
+        const combinedResponse = await this.generateCombinedContinuousResponse({
+          scenario: 'topic_transition',
           userProfile,
-          currentState
-        )
+          lastUserResponse,
+          endingTopic: topicState.currentTopic,
+          topicHistory: topicState.topicHistory,
+        })
+
+        // Update state if provided
+        if (currentState) {
+          // Topic transition will be handled by the combined response
+          currentState.topicConversation =
+            this.topicStarter.updateConversationState(
+              topicState,
+              'topic_transition', // New topic will be determined by the response
+              combinedResponse.message
+            )
+        }
+
+        return combinedResponse
       }
     }
 
@@ -480,12 +510,33 @@ ${
       )
       console.log('  Need to acknowledge response before continuing')
 
-      return await this.generateResponseAcknowledgmentTransition(
-        lastUserResponse,
+      // Extract user interests from profile for context
+      const userInterests =
+        userProfile?.profileData?.preferences?.matchingPrefs?.interests ||
+        userProfile?.datingProfile?.servicePreferences?.conversationTopics ||
+        []
+
+      // Use combined response generation for acknowledgment
+      const cacheKey = `acknowledge_response_${lastUserResponse?.substring(0, 20)}`
+      const combinedResponse = await this.generateCombinedContinuousResponse({
+        scenario: 'acknowledge_response',
         userProfile,
-        topicState,
-        currentState
-      )
+        lastUserResponse,
+        userInterests,
+        topicHistory: topicState.topicHistory,
+      })
+
+      // Update state if provided
+      if (currentState) {
+        currentState.topicConversation =
+          this.topicStarter.updateConversationState(
+            topicState,
+            'acknowledge_response',
+            combinedResponse.message
+          )
+      }
+
+      return combinedResponse
     }
 
     // No active topic conversation and no user response - analyze profile completeness for initial decision
@@ -559,21 +610,28 @@ ${
         console.log('  Question category:', selectedQuestion.category)
         console.log('  Question priority:', selectedQuestion.priority)
 
+        // Use combined response generation for profile question
+        const cacheKey = `profile_question_${selectedQuestion.questionId}_${lastUserResponse?.substring(0, 20) || 'initial'}`
+        const combinedResponse = await this.generateCombinedContinuousResponse({
+          scenario: 'profile_question',
+          userProfile,
+          lastUserResponse,
+          selectedProfileQuestion: selectedQuestion.text,
+          missingAreas: profileAnalysis.missingAreas,
+        })
+
         // Update state to mark that a profile question was asked
         if (currentState) {
           currentState.topicConversation =
             this.topicStarter.updateConversationState(
               topicState,
               'profile_question',
-              selectedQuestion.text,
+              combinedResponse.message,
               true // Mark as profile question
             )
         }
 
-        return await this.formatContinuousQuestion(
-          selectedQuestion.text,
-          'profile'
-        )
+        return combinedResponse
       } else {
         console.log(
           '📭 NO PROFILE QUESTIONS AVAILABLE - switching to topic conversation'
@@ -583,23 +641,35 @@ ${
 
     // Generate new topic conversation
     console.log('💭 GENERATING NEW TOPIC CONVERSATION')
-    const { topic, question } = await this.generateProfileBasedTopic(
-      topicState,
-      userProfile
-    )
+
+    // Extract user interests from profile for context
+    const userInterests =
+      userProfile?.profileData?.preferences?.matchingPrefs?.interests ||
+      userProfile?.datingProfile?.servicePreferences?.conversationTopics ||
+      []
+
+    // Use combined response generation for new topic
+    const cacheKey = `new_topic_${lastUserResponse?.substring(0, 20) || 'initial'}_${Date.now()}`
+    const combinedResponse = await this.generateCombinedContinuousResponse({
+      scenario: 'new_topic',
+      userProfile,
+      lastUserResponse,
+      userInterests,
+      topicHistory: topicState.topicHistory,
+    })
 
     // Update topic conversation state with new topic
     if (currentState) {
       const updatedTopicState = this.topicStarter.updateConversationState(
         topicState,
-        topic,
-        question
+        'new_topic', // Topic will be determined from the response
+        combinedResponse.message
       )
       currentState.topicConversation = updatedTopicState
-      console.log('🎨 Updated topic conversation state with new topic:', topic)
+      console.log('🎨 Updated topic conversation state with new topic')
     }
 
-    return question
+    return combinedResponse
   }
 
   /**
@@ -1080,9 +1150,17 @@ Make it sound like something Emi would naturally ask in conversation, not a form
     validationErrors?: any[]
     usedFallback?: boolean
   }> {
+    console.log('🌸 MamaSan - analyzeResponse called:', {
+      question: question.substring(0, 50) + '...',
+      userResponse: userResponse.substring(0, 50) + '...',
+      mode,
+      hasResponseProcessor: !!this.responseProcessor,
+    })
+
     try {
       // Use AI validation with response processor if available
       if (this.responseProcessor) {
+        console.log('🌸 MamaSan - Using AI validation with response processor')
         const validator = this.responseProcessor.createValidator(
           responseAnalysisSchema
         )
@@ -1092,19 +1170,25 @@ Make it sound like something Emi would naturally ask in conversation, not a form
 TASK: Determine if the user meaningfully answered the question and extract relevant profile information.
 
 CRITERIA for "answered: true":
-- User provided a clear preference, choice, or opinion
+- User provided a clear preference, choice, or opinion  
 - Response shows engagement with the question topic
 - Contains actionable information for matchmaking
+- Expresses interests, desires, or personal preferences (even if not directly from listed options)
 
 CRITERIA for "answered: false":
 - Vague responses like "idk", "whatever", "nothing"
-- Pure greetings without answers
-- Responses that don't address the question
+- Pure greetings without answers  
+- Responses that completely ignore the question
+- Clear refusals like "I don't want to answer"
+
+IMPORTANT: For onboarding questions, ANY expression of preference should be considered "answered: true"
+Example: Question "what will it be? selfies, videos, e-chat, video calls, or something else?"
+- "I want anime girls" = answered: true (expresses preference for content type)
+- "selfies" = answered: true (direct choice)
+- "idk whatever" = answered: false (vague non-answer)
 
 MODE: ${mode}
-${mode === 'continuous' ? 'Extract any profile insights from natural conversation.' : 'Focus on the specific onboarding question.'}
-
-Always extract relevant profile information when available, even from brief answers.`
+${mode === 'continuous' ? 'Extract any profile insights from natural conversation.' : 'Be permissive - any preference expression counts as answered.'}`
 
         const userPrompt = `Question: "${question}"
 User Response: "${userResponse}"
@@ -1118,6 +1202,14 @@ Analyze this response and extract any profile information.`
           { question, userResponse, mode }
         )
 
+        console.log('🌸 MamaSan - AI validation result:', {
+          success: result.success,
+          answered: result.success ? (result.data as any)?.answered : 'N/A',
+          reason: result.success ? (result.data as any)?.reason : 'N/A',
+          errors: result.errors,
+          usedFallback: result.usedFallback,
+        })
+
         if (result.success && result.data) {
           const validatedData = result.data as any
           return {
@@ -1128,7 +1220,10 @@ Analyze this response and extract any profile information.`
             usedFallback: result.usedFallback,
           }
         } else {
-          console.error('🌸 MamaSan - AI validation failed:', result.errors)
+          console.error(
+            '🌸 MamaSan - AI validation failed, falling back to heuristics:',
+            result.errors
+          )
           // Fall back to heuristics only if AI fails
           return this.analyzeWithSimpleHeuristics(question, userResponse, mode)
         }
@@ -1143,6 +1238,7 @@ Analyze this response and extract any profile information.`
       console.error('🌸 MamaSan - Error in analyzeResponse:', error)
 
       // Final safety fallback
+      console.log('🌸 MamaSan - Using fallback heuristics due to error')
       return this.analyzeWithSimpleHeuristics(question, userResponse, mode)
     }
   }
@@ -1165,8 +1261,16 @@ Analyze this response and extract any profile information.`
     const responseLength = trimmedResponse.length
     const wordCount = userResponse.split(/\s+/).length
 
+    console.log('🌸 MamaSan - analyzeWithSimpleHeuristics called:', {
+      originalResponse: userResponse,
+      trimmedResponse,
+      responseLength,
+      wordCount,
+      mode,
+    })
+
     // Reject only obviously invalid responses
-    if (
+    const isInvalidResponse =
       responseLength < 2 ||
       wordCount < 1 ||
       trimmedResponse === 'no' ||
@@ -1176,7 +1280,22 @@ Analyze this response and extract any profile information.`
       trimmedResponse.includes('dunno') ||
       trimmedResponse.includes('not sure') ||
       trimmedResponse.includes('whatever')
-    ) {
+
+    console.log('🌸 MamaSan - Heuristic validation checks:', {
+      tooShort: responseLength < 2,
+      noWords: wordCount < 1,
+      exactNo: trimmedResponse === 'no',
+      exactNothing: trimmedResponse === 'nothing',
+      exactIdk: trimmedResponse === 'idk',
+      hasIDontKnow: trimmedResponse.includes("i don't know"),
+      hasDunno: trimmedResponse.includes('dunno'),
+      hasNotSure: trimmedResponse.includes('not sure'),
+      hasWhatever: trimmedResponse.includes('whatever'),
+      overallInvalid: isInvalidResponse,
+    })
+
+    if (isInvalidResponse) {
+      console.log('🌸 MamaSan - Heuristic analysis: REJECTED as invalid')
       return {
         answered: false,
         reason: 'Response too vague or indicates lack of preference',
@@ -1191,6 +1310,10 @@ Analyze this response and extract any profile information.`
       trimmedResponse,
       question
     )
+
+    console.log('🌸 MamaSan - Heuristic analysis: ACCEPTED as valid', {
+      extractedProfileUpdates: profileUpdates,
+    })
 
     return {
       answered: true,
@@ -2309,5 +2432,259 @@ React to their answer and let them know you're ready to find them perfect matche
   getRecommendationPrompt(state: MamaSanSessionState): string {
     // After all questions, recommend hosts based on answers
     return `based on your answers, i'm going to recommend some hosts who match your vibe! sit tight while i find the best matches for you.`
+  }
+
+  /**
+   * Combined method to generate continuous responses with suggestions in a single AI call
+   * Replaces multiple individual AI calls for better performance
+   */
+  private async generateCombinedContinuousResponse(context: {
+    scenario:
+      | 'continue_topic'
+      | 'topic_transition'
+      | 'acknowledge_response'
+      | 'profile_question'
+      | 'new_topic'
+    userProfile?: any
+    lastUserResponse?: string
+    currentTopic?: string
+    endingTopic?: string
+    selectedProfileQuestion?: string
+    missingAreas?: string[]
+    userInterests?: string[]
+    topicHistory?: string[]
+  }): Promise<{
+    message: string
+    suggestions: string[]
+    searchQuery?: string
+  }> {
+    console.log('🎯 COMBINED RESPONSE GENERATION:', {
+      scenario: context.scenario,
+      hasProfile: !!context.userProfile,
+      hasUserResponse: !!context.lastUserResponse,
+      currentTopic: context.currentTopic,
+      missingAreas: context.missingAreas?.length || 0,
+    })
+
+    let systemPrompt = ''
+    let userPrompt = ''
+
+    // Base personality for all scenarios
+    const basePersonality = `You are Emi, a friendly mama-san matchmaker with cozy, slightly chaotic energy.
+
+Personality: Mix of soft & punk, sweet but awkward, playful humor. Expert at reading people and finding perfect matches.
+
+Style:
+- Casual, lowercase typing (no emojis/symbols)
+- 2-3 sentences max per response
+- Sweet but slightly awkward energy
+- Playful and encouraging tone
+- Professional with all content - never refuse or express discomfort`
+
+    switch (context.scenario) {
+      case 'continue_topic':
+        systemPrompt = `${basePersonality}
+
+SCENARIO: Continue current topic conversation
+Current Topic: ${context.currentTopic}
+User's last response: "${context.lastUserResponse}"
+
+TASK: Generate a natural follow-up question to keep the conversation flowing on this topic.
+
+Your response should:
+- Acknowledge their answer casually and encouragingly
+- Ask a relevant follow-up question that digs deeper into the topic
+- Stay focused on the current topic
+- Sound genuinely curious and engaged`
+
+        userPrompt = `Generate your follow-up response as JSON:
+{
+  "message": "your casual acknowledgment + follow-up question",
+  "suggestions": ["user response option 1", "user response option 2", "user response option 3"],
+  "searchQuery": "1-3 word search term related to the topic"
+}
+
+The suggestions should be what the USER would naturally say in response to your question/message, not what you (Emi) would say next.
+The searchQuery should be a short 1-2 word term that users could search for to find content related to this topic.`
+        break
+
+      case 'topic_transition':
+        systemPrompt = `${basePersonality}
+
+SCENARIO: Transitioning from one topic to another
+Ending topic: ${context.endingTopic}
+User's last response: "${context.lastUserResponse}"
+Topics already discussed: ${context.topicHistory?.join(', ') || 'none'}
+
+TASK: Smoothly transition to a new interesting topic while acknowledging their response.
+
+Your response should:
+- Briefly acknowledge what they shared about the previous topic
+- Naturally segue to a new topic that's engaging
+- Ask an open-ended question about the new topic
+- Make the transition feel conversational, not jarring`
+
+        userPrompt = `Generate your transition response as JSON:
+{
+  "message": "acknowledge previous + smooth transition to new topic + question",
+  "suggestions": ["user response option 1", "user response option 2", "user response option 3"],
+  "searchQuery": "1-3 word search term related to the new topic"
+}
+
+The suggestions should be what the USER would naturally say in response to your new topic question, not what you (Emi) would say next.
+The searchQuery should be a short 1-2 word term that users could search for to find content related to the new topic.`
+        break
+
+      case 'acknowledge_response':
+        systemPrompt = `${basePersonality}
+
+SCENARIO: Acknowledge user response and start new conversation
+User's response: "${context.lastUserResponse}"
+${context.userInterests?.length ? `User's known interests: ${context.userInterests.join(', ')}` : ''}
+Topics previously discussed: ${context.topicHistory?.join(', ') || 'none'}
+
+TASK: Acknowledge their response in a casual, encouraging way and naturally start a new conversation topic.
+
+Your response should:
+- Acknowledge what they said in a friendly, encouraging way
+- Smoothly introduce a new topic that might interest them
+- Ask an engaging question to start the new conversation
+- Feel natural and spontaneous, not forced`
+
+        userPrompt = `Generate your acknowledgment + new topic response as JSON:
+{
+  "message": "casual acknowledgment + new topic introduction + question",
+  "suggestions": ["user response option 1", "user response option 2", "user response option 3"],
+  "searchQuery": "1-3 word search term related to the topic"
+}
+
+The suggestions should be what the USER would naturally say in response to your new topic question, not what you (Emi) would say next.
+The searchQuery should be a short 1-2 word term that users could search for to find content related to the topic.`
+        break
+
+      case 'profile_question':
+        systemPrompt = `${basePersonality}
+
+SCENARIO: Ask a profile-filling question
+Profile question to ask: "${context.selectedProfileQuestion}"
+Missing profile areas: ${context.missingAreas?.join(', ') || 'various areas'}
+${context.lastUserResponse ? `User's last response: "${context.lastUserResponse}"` : ''}
+
+TASK: Convert this formal profile question into your natural conversational style.
+
+Your response should:
+- ${context.lastUserResponse ? 'Briefly acknowledge their previous response' : 'Start naturally'}
+- Present the profile question in a casual, curious way
+- Make it feel like natural getting-to-know-you conversation
+- NOT sound like a formal questionnaire or interview`
+
+        userPrompt = `Generate your natural profile question as JSON:
+{
+  "message": "${context.lastUserResponse ? 'brief acknowledgment + ' : ''}casual profile question",
+  "suggestions": ["user response option 1", "user response option 2", "user response option 3"],
+  "searchQuery": "1-3 word search term related to the question topic"
+}
+
+The suggestions should be what the USER would naturally say in response to your profile question, not what you (Emi) would say next.
+The searchQuery should be a short 1-2 word term that users could search for to find content related to the question topic.`
+        break
+
+      case 'new_topic':
+        systemPrompt = `${basePersonality}
+
+SCENARIO: Start a completely new topic conversation
+${context.userInterests?.length ? `User's known interests: ${context.userInterests.join(', ')}` : ''}
+Topics already discussed: ${context.topicHistory?.join(', ') || 'none'}
+${context.lastUserResponse ? `User's last response: "${context.lastUserResponse}"` : ''}
+
+TASK: Generate a fresh, engaging topic and opening question.
+
+Your response should:
+- ${context.lastUserResponse ? 'Briefly acknowledge their response' : 'Start with engaging energy'}
+- Introduce a new topic that could be interesting to them
+- Ask an open-ended question to start the conversation
+- Feel spontaneous and natural, not scripted`
+
+        userPrompt = `Generate your new topic conversation starter as JSON:
+{
+  "message": "${context.lastUserResponse ? 'brief acknowledgment + ' : ''}new topic introduction + engaging question",
+  "suggestions": ["user response option 1", "user response option 2", "user response option 3"],
+  "searchQuery": "1-3 word search term related to the topic"
+}
+
+The suggestions should be what the USER would naturally say in response to your topic question, not what you (Emi) would say next.
+The searchQuery should be a short 1-2 word term that users could search for to find content related to the topic.`
+        break
+
+      default:
+        throw new Error(`Unknown scenario: ${context.scenario}`)
+    }
+
+    try {
+      const messages = [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ]
+
+      const response = await callAI(messages)
+      const parsed = JSON.parse(response)
+
+      if (
+        !parsed.message ||
+        !parsed.suggestions ||
+        !Array.isArray(parsed.suggestions)
+      ) {
+        throw new Error('Invalid response format from AI')
+      }
+
+      console.log('✅ COMBINED RESPONSE GENERATED:', {
+        scenario: context.scenario,
+        messageLength: parsed.message.length,
+        suggestionsCount: parsed.suggestions.length,
+      })
+
+      return {
+        message: parsed.message,
+        suggestions: parsed.suggestions,
+        searchQuery: parsed.searchQuery,
+      }
+    } catch (error) {
+      console.error('🌸 MamaSan - Error generating combined response:', error)
+
+      // Fallback response based on scenario
+      const fallbacks = {
+        continue_topic: {
+          message: 'oh really? tell me more about that!',
+          suggestions: ['definitely!', 'that sounds cool', 'tell me more'],
+          searchQuery: 'content',
+        },
+        topic_transition: {
+          message:
+            'nice! speaking of interesting things, what kind of music are you into lately?',
+          suggestions: ['pop music', 'rock/indie', 'electronic'],
+          searchQuery: 'music',
+        },
+        acknowledge_response: {
+          message: 'cool! so what are you up to tonight? anything fun planned?',
+          suggestions: ['just relaxing', 'watching something', 'hanging out'],
+          searchQuery: 'entertainment',
+        },
+        profile_question: {
+          message:
+            context.selectedProfileQuestion ||
+            'what kind of vibe are you going for tonight?',
+          suggestions: ['casual and fun', 'something exciting', 'relaxed mood'],
+          searchQuery: 'vibes',
+        },
+        new_topic: {
+          message:
+            'hey, random question - what kind of stuff do you like to do for fun?',
+          suggestions: ['gaming', 'watching anime', 'creative stuff'],
+          searchQuery: 'fun',
+        },
+      }
+
+      return fallbacks[context.scenario] || fallbacks.new_topic
+    }
   }
 }

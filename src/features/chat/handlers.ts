@@ -11,7 +11,6 @@ import webSocketStore from '@/features/stores/websocketStore'
 import i18next from 'i18next'
 import toastStore from '@/features/stores/toast'
 import { generateMessageId } from '@/utils/messageUtils'
-import { MatchmakingChatHandler } from '@/features/matchmaking/matchmaking-chat-handler'
 import { SYSTEM_PROMPT_EN } from '@/features/constants/systemPromptConstants'
 
 // セッションIDを生成する関数
@@ -29,9 +28,6 @@ const isTTSDisabled = (): boolean => {
 
 // コードブロックのデリミネーター
 const CODE_DELIMITER = '```'
-
-// Global matchmaking handler instance
-let globalMatchmakingHandler: MatchmakingChatHandler | null = null
 
 // Store the authentication token received from the parent
 let widgetAuthToken: string | null = null
@@ -95,23 +91,6 @@ const markPersonalityAnalysisCompleted = (): void => {
   } catch {
     // Ignore localStorage errors
   }
-}
-
-// Initialize matchmaking handler
-export const initializeMatchmakingHandler = () => {
-  console.log(
-    '🔧 initializeMatchmakingHandler called - globalMatchmakingHandler exists:',
-    !!globalMatchmakingHandler
-  )
-  if (!globalMatchmakingHandler) {
-    console.log('🔧 Creating NEW MatchmakingChatHandler instance')
-    // Use a simple user ID for now - could be enhanced with actual user management
-    const userId = 'default-user'
-    globalMatchmakingHandler = new MatchmakingChatHandler(userId)
-  } else {
-    console.log('🔧 Reusing existing MatchmakingChatHandler instance')
-  }
-  return globalMatchmakingHandler
 }
 
 /**
@@ -1033,146 +1012,6 @@ export const handleReceiveTextFromRtFn = () => {
     // レスポンスが完了したらセッションIDをリセット
     if (type === 'response.content_part.done') {
       currentSessionId = null
-    }
-  }
-}
-
-/**
- * Explicitly start personality profiling flow
- * This function can be called from menus/widgets to start the profiling process
- */
-export const startPersonalityProfiling = async (
-  message: string = 'Start personality analysis!',
-  sessionId?: string
-) => {
-  const matchmakingHandler = initializeMatchmakingHandler()
-
-  // Use a consistent sessionId or generate a new one
-  let sid = sessionId
-  if (!sid) {
-    sid = localStorage.getItem('personality_session_id') || generateSessionId()
-    localStorage.setItem('personality_session_id', sid)
-  }
-
-  const timestamp = new Date().toISOString()
-
-  try {
-    homeStore.setState({ chatProcessing: true })
-
-    // Add user message to chat log
-    homeStore.getState().upsertMessage({
-      role: 'user',
-      content: message,
-      timestamp: timestamp,
-    })
-
-    console.log(
-      '🎯 Explicit Profiling - Starting matchmaking with message:',
-      message
-    )
-
-    // Start the matchmaking flow
-    const matchmakingResult = await matchmakingHandler.startMatchmaking(
-      message,
-      sid
-    )
-
-    console.log(
-      '🎯 Explicit Profiling - Matchmaking result:',
-      matchmakingResult
-    )
-
-    if (matchmakingResult) {
-      // Store step progress in localStorage
-      if (matchmakingResult.data?.stepProgress) {
-        console.log(
-          '🎯 Explicit Profiling - Storing step progress:',
-          matchmakingResult.data.stepProgress
-        )
-        localStorage.setItem(
-          'matchmaking_step_progress',
-          JSON.stringify(matchmakingResult.data.stepProgress)
-        )
-      }
-
-      // Store the complete result for split layout display
-      if (matchmakingResult.isComplete && matchmakingResult.data) {
-        console.log(
-          '🎯 Explicit Profiling - Storing complete matchmaking result:',
-          matchmakingResult.data
-        )
-        localStorage.setItem(
-          'last_matchmaking_result',
-          JSON.stringify(matchmakingResult)
-        )
-      }
-
-      console.log(
-        '🎯 Explicit Profiling - Speaking message:',
-        matchmakingResult.message
-      )
-      // Use speakMessageHandler for the response only if TTS is not disabled
-      if (!isTTSDisabled()) {
-        await speakMessageHandler(matchmakingResult.message)
-      }
-
-      // Check if completed
-      if (matchmakingResult.isComplete) {
-        console.log('🎯 Explicit Profiling - Personality analysis completed!')
-        markPersonalityAnalysisCompleted()
-        // Clear step progress when complete
-        localStorage.removeItem('matchmaking_step_progress')
-      }
-
-      homeStore.setState({ chatProcessing: false })
-      return matchmakingResult
-    } else {
-      console.log('🎯 Explicit Profiling - No matchmaking result returned!')
-      homeStore.setState({ chatProcessing: false })
-      return null
-    }
-  } catch (error) {
-    console.error('🎯 Explicit Profiling - Error:', error)
-    homeStore.setState({ chatProcessing: false })
-
-    // Handle specific API key error
-    if (
-      error instanceof Error &&
-      error.message.includes('API key is not configured')
-    ) {
-      const errorMessage = `🌸 To start your personality analysis, I need you to configure your Anthropic API key first! 
-
-Please:
-1. Click the Settings menu (⚙️)
-2. Go to "Model Provider" 
-3. Enter your Anthropic API key
-4. Then try starting the analysis again! ✨`
-
-      if (!isTTSDisabled()) {
-        await speakMessageHandler(errorMessage)
-      }
-      return {
-        message: errorMessage,
-        isComplete: false,
-        step: 'api_key_error',
-      }
-    }
-
-    // For other errors, show a helpful message
-    const errorMessage = `🌸 I encountered a small hiccup starting your personality analysis! 
-
-Please make sure:
-• Your internet connection is stable
-• Your API key is properly configured in Settings
-• Then try again! ✨`
-
-    if (!isTTSDisabled()) {
-      await speakMessageHandler(errorMessage)
-    }
-    return {
-      message: errorMessage,
-      isComplete: false,
-      step: 'startup_error',
     }
   }
 }

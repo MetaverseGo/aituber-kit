@@ -25,6 +25,13 @@ import {
 } from '@/lib/playfriendsClient'
 import Image from 'next/image'
 
+// Check if TTS is disabled via URL parameter
+const isTTSDisabled = (): boolean => {
+  if (typeof window === 'undefined') return false
+  const urlParams = new URLSearchParams(window.location.search)
+  return urlParams.get('disableTTS') === 'true'
+}
+
 /**
  * CHAT_ACTION_CARD_CLICK Handler Documentation
  * ===========================================
@@ -1282,9 +1289,63 @@ const Widget = () => {
       // Prevent duplicate trigger by setting a flag in sessionStorage
       if (!sessionStorage.getItem('mamasanOnboardingStarted')) {
         sessionStorage.setItem('mamasanOnboardingStarted', 'true')
-        // Use the same handler as user input
-        const widgetChatHandler = handleWidgetChatFn()
-        widgetChatHandler('start matchmaking')
+        // Call matchmaking API directly without adding to chat log or sending to parent
+        const triggerOnboarding = async () => {
+          try {
+            const token = getCurrentWidgetAuthToken()
+            if (!token) {
+              console.error(
+                '🎪 Widget - No auth token available for onboarding trigger'
+              )
+              return
+            }
+
+            console.log(
+              '🎪 Widget - Triggering onboarding without chat bubble...'
+            )
+            const response = await fetch('/api/matchmaking', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ message: 'start matchmaking', token }),
+            })
+
+            if (response.ok) {
+              const data = await response.json()
+              console.log(
+                '🎪 Widget - Onboarding triggered successfully:',
+                data.step
+              )
+
+              // Add only the assistant response to chat log (not the synthetic user message)
+              homeStore.getState().upsertMessage({
+                role: 'assistant',
+                content: data.message,
+                timestamp: new Date().toISOString(),
+              })
+
+              // Send the assistant response to parent window (same as regular chat)
+              if (config.postMessages) {
+                window.parent.postMessage(
+                  { type: 'WIDGET_CHAT_DONE', message: data.message },
+                  '*'
+                )
+              }
+
+              // Check if TTS is disabled
+              const disableTTS = isTTSDisabled()
+              if (!disableTTS) {
+                // Import here to avoid circular dependency
+                const { speakMessageHandler } = await import(
+                  '@/features/chat/handlers'
+                )
+                await speakMessageHandler(data.message)
+              }
+            }
+          } catch (error) {
+            console.error('🎪 Widget - Error triggering onboarding:', error)
+          }
+        }
+        triggerOnboarding()
       }
     } else if (homeStore.getState().chatLog.length > 0) {
       // If there's existing chat history, send it to parent
