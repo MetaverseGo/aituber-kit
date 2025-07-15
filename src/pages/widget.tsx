@@ -283,7 +283,7 @@ const generateProfileCards = async (
     console.log('🔥 [Widget] 🔄 Transforming users to profile cards...')
     const profileCards = users
       .slice(0, 10) // Limit to first 10 results
-      .map(user => {
+      .map((user) => {
         console.log('🔥 [Widget] Transforming user:', user.username)
         return playfriendsClient.transformToProfileCard(user, actionId)
       })
@@ -508,8 +508,8 @@ const Widget = () => {
   }, [modelLoaded, showEmiScreen])
 
   // Zustand store subscriptions (moved inside component to prevent re-render loops)
-  const backgroundImageUrl = homeStore(s => s.backgroundImageUrl)
-  const chatLog = homeStore(s => s.chatLog)
+  const backgroundImageUrl = homeStore((s) => s.backgroundImageUrl)
+  const chatLog = homeStore((s) => s.chatLog)
 
   console.log('🔧 Widget auth state:', {
     isAuthenticated,
@@ -533,7 +533,7 @@ const Widget = () => {
     }
 
     // Get last 2 messages for context
-    const recentMessages = currentChatLog.slice(-2).map(msg => ({
+    const recentMessages = currentChatLog.slice(-2).map((msg) => ({
       role: msg.role,
       content: msg.content,
       timestamp: msg.timestamp,
@@ -622,7 +622,7 @@ const Widget = () => {
     const effectId = Math.random().toString(36).substr(2, 9)
     console.log(`🔧 Widget message listener useEffect #${effectId} running...`)
 
-    function handleAllMessages (event: MessageEvent) {
+    function handleAllMessages(event: MessageEvent) {
       if (!event.data) {
         return
       }
@@ -644,7 +644,7 @@ const Widget = () => {
       // Handle WIDGET_CONFIG
       if (event.data.type === 'WIDGET_CONFIG') {
         console.log('[Widget] Processing WIDGET_CONFIG event')
-        setConfig(prev => ({ ...prev, ...event.data.config }))
+        setConfig((prev) => ({ ...prev, ...event.data.config }))
         return
       }
 
@@ -691,7 +691,7 @@ const Widget = () => {
           )
 
           const widgetChatHandler = handleWidgetChatFn()
-          widgetChatHandler(content).catch(error => {
+          widgetChatHandler(content).catch((error) => {
             console.error('🔥 [Widget] ❌ Chat handler error:', error)
             window.parent.postMessage(
               {
@@ -774,7 +774,7 @@ const Widget = () => {
             )
 
             const widgetChatHandler = handleWidgetChatFn()
-            widgetChatHandler(messageToSend).catch(error => {
+            widgetChatHandler(messageToSend).catch((error) => {
               console.error('🔥 [Widget] ❌ Chat handler error:', error)
               window.parent.postMessage(
                 {
@@ -793,7 +793,7 @@ const Widget = () => {
 
           // Generate profile cards based on actionId (async)
           generateProfileCards(actionId)
-            .then(profileCards => {
+            .then((profileCards) => {
               console.log(
                 '🔥 [Widget] Generated profile cards:',
                 profileCards.length
@@ -831,7 +831,7 @@ const Widget = () => {
 
               console.log('🔥 [Widget] Profile card sent successfully')
             })
-            .catch(error => {
+            .catch((error) => {
               console.error(
                 '🔥 [Widget] ❌ Error generating profile cards:',
                 error
@@ -916,7 +916,7 @@ const Widget = () => {
           )
 
           const widgetChatHandler = handleWidgetChatFn()
-          widgetChatHandler(content).catch(error => {
+          widgetChatHandler(content).catch((error) => {
             console.error('🔥 [Widget] ❌ Chat handler error:', error)
             window.parent.postMessage(
               {
@@ -1054,7 +1054,7 @@ const Widget = () => {
     const urlConfig: Partial<WidgetConfig> = {}
 
     // Parse all URL parameters
-    Object.keys(config).forEach(key => {
+    Object.keys(config).forEach((key) => {
       const value = urlParams.get(key)
       if (value !== null) {
         if (typeof config[key as keyof WidgetConfig] === 'boolean') {
@@ -1075,7 +1075,7 @@ const Widget = () => {
     // Force TTS enabled
     urlConfig.disableTTS = false
 
-    setConfig(prev => ({ ...prev, ...urlConfig, disableTTS: false }))
+    setConfig((prev) => ({ ...prev, ...urlConfig, disableTTS: false }))
 
     // Apply settings from URL
     if (urlConfig.characterModel) {
@@ -1233,7 +1233,7 @@ const Widget = () => {
       if (config.postMessages) {
         const currentChatLog = homeStore.getState().chatLog
         if (currentChatLog.length > 0) {
-          const recentMessages = currentChatLog.slice(-2).map(msg => ({
+          const recentMessages = currentChatLog.slice(-2).map((msg) => ({
             role: msg.role,
             content: msg.content,
             timestamp: msg.timestamp,
@@ -1284,12 +1284,12 @@ const Widget = () => {
   const backgroundStyle = config.backgroundColor
     ? { backgroundColor: config.backgroundColor }
     : config.showBackground && backgroundImageUrl
-    ? {
-        backgroundImage: `url(${buildUrl(backgroundImageUrl)})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-      }
-    : {}
+      ? {
+          backgroundImage: `url(${buildUrl(backgroundImageUrl)})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+        }
+      : {}
 
   return (
     <>
@@ -1301,17 +1301,17 @@ const Widget = () => {
       {modelType === 'vid' && (
         <VidBackgroundDisplay videoSrc={videoSrc}>
           <div
-            className='flex flex-col items-center justify-center'
+            className="flex flex-col items-center justify-center"
             style={{ marginTop: '-150px' }} // Move content up by 150px like PNG mode
           >
             <span
-              className='text-pink-500 font-bold text-2xl mb-2'
+              className="text-pink-500 font-bold text-2xl mb-2"
               style={{ textShadow: '0 2px 8px #18181b, 0 0 2px #000' }}
             >
               Hey there! I&apos;m Emi
             </span>
             <span
-              className='text-white text-lg'
+              className="text-white text-lg"
               style={{ textShadow: '0 2px 8px #18181b, 0 0 2px #000' }}
             >
               Ask me for amazing creators and content
@@ -1321,9 +1321,9 @@ const Widget = () => {
       )}
       {/* Existing widget/model area for other modes */}
       {modelType !== 'png' && modelType !== 'vid' && (
-        <div className='relative w-full h-full'>
+        <div className="relative w-full h-full">
           {/* Always render the main widget/model area */}
-          <div className='relative w-full h-full'>
+          <div className="relative w-full h-full">
             {/* Emi overlay: only overlays when not loaded/authenticated */}
             {(showEmiScreen ||
               !authChecked ||
@@ -1340,23 +1340,23 @@ const Widget = () => {
                 }}
               >
                 <Image
-                  src='/emi_gif.gif'
+                  src="/emi_gif.gif"
                   alt="Emi's avatar"
                   width={160}
                   height={160}
-                  className='w-40 h-40 rounded-full border-4 border-pink-400 shadow-lg mb-6 object-cover bg-black'
+                  className="w-40 h-40 rounded-full border-4 border-pink-400 shadow-lg mb-6 object-cover bg-black"
                   style={{ boxShadow: '0 4px 24px #18181b' }}
                   priority
                   unoptimized
                 />
                 <span
-                  className='text-pink-500 font-bold text-2xl mb-2'
+                  className="text-pink-500 font-bold text-2xl mb-2"
                   style={{ textShadow: '0 2px 8px #18181b, 0 0 2px #000' }}
                 >
                   Hey there! I&apos;m Emi
                 </span>
                 <span
-                  className='text-white text-lg'
+                  className="text-white text-lg"
                   style={{ textShadow: '0 2px 8px #18181b, 0 0 2px #000' }}
                 >
                   Ask me for amazing creators and content
@@ -1369,11 +1369,11 @@ const Widget = () => {
             <PersonalityPanel />
 
             {/* Main content */}
-            <div className='absolute inset-0'>
+            <div className="absolute inset-0">
               {/* Character Display */}
               {config.showCharacter && (
                 <div
-                  className='absolute top-0 left-0 bottom-0 right-0 pointer-events-none z-0'
+                  className="absolute top-0 left-0 bottom-0 right-0 pointer-events-none z-0"
                   style={{ paddingBottom: config.showInput ? '80px' : '0' }}
                   key={`character-${isPersonalityCompleted}`}
                 >
@@ -1401,20 +1401,20 @@ const Widget = () => {
                     )
                   }
                 }}
-                className='absolute top-2 right-2 p-2 bg-white/80 hover:bg-white rounded-full shadow-lg z-30'
-                title='Toggle Fullscreen'
+                className="absolute top-2 right-2 p-2 bg-white/80 hover:bg-white rounded-full shadow-lg z-30"
+                title="Toggle Fullscreen"
               >
                 <svg
-                  className='w-4 h-4'
-                  fill='none'
-                  stroke='currentColor'
-                  viewBox='0 0 24 24'
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
                 >
                   <path
-                    strokeLinecap='round'
-                    strokeLinejoin='round'
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
                     strokeWidth={2}
-                    d='M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4'
+                    d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"
                   />
                 </svg>
               </button>
