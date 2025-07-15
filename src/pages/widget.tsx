@@ -405,8 +405,39 @@ const Widget = () => {
   console.log('🔧 Widget component mounting...')
 
   // Global message listener that's always active - for debugging
+  // DISABLED to reduce console spam from Pixi.js messages
+  /*
   if (typeof window !== 'undefined') {
     const globalListener = (event: MessageEvent) => {
+      // Filter out Pixi.js internal messages to reduce spam
+      if (event.data?.method) {
+        const pixiMessages = [
+          'pixi-inactive',
+          'pixi-active',
+          'pixi-resize',
+          'pixi-tick',
+        ]
+        if (pixiMessages.includes(event.data.method)) {
+          console.log(
+            '🌍 GLOBAL: 🚫 Filtered out Pixi.js message:',
+            event.data.method
+          )
+          return // Skip logging Pixi.js messages
+        }
+      }
+
+      // Debug: Log if pixi-inactive still gets through global listener
+      if (event.data?.method === 'pixi-inactive') {
+        console.log(
+          '🌍 GLOBAL: 🔍 DEBUG: pixi-inactive message still getting through global listener:',
+          {
+            data: event.data,
+            origin: event.origin,
+            source: event.source,
+          }
+        )
+      }
+
       console.log('🌍 GLOBAL LISTENER: Message received!', {
         type: event.data?.type,
         origin: event.origin,
@@ -422,6 +453,7 @@ const Widget = () => {
       console.log('🌍 Global message listener added')
     }
   }
+  */
 
   const router = useRouter()
   const chatScrollRef = useRef<HTMLDivElement>(null)
@@ -568,7 +600,12 @@ const Widget = () => {
   ])
 
   // PNG mode integration
-  const [emotionImage, setEmotion, emotion] = useEmotionImage('neutral')
+  const emotionImageState =
+    modelType === 'png' ? useEmotionImage('neutral') : undefined
+  const emotionImage = emotionImageState?.[0]
+  const setEmotion = emotionImageState?.[1]
+  const emotion = emotionImageState?.[2]
+
   // VID mode integration
   const [videoSrc, setVideoSrc, videoLabel] = useVideoSource(
     '/vids/emigg/neutral.mp4',
@@ -590,7 +627,7 @@ const Widget = () => {
         return
       }
 
-      if (modelType === 'png' && data.emotion) {
+      if (modelType === 'png' && data.emotion && setEmotion) {
         console.log('🎭 [Widget] PNG mode - setting emotion:', data.emotion)
         setEmotion(data.emotion)
       } else if (modelType === 'vid' && data.emotion) {
@@ -627,6 +664,19 @@ const Widget = () => {
         return
       }
 
+      // Filter out Pixi.js internal messages early to prevent spam
+      if (event.data.method) {
+        const pixiMessages = [
+          'pixi-inactive',
+          'pixi-active',
+          'pixi-resize',
+          'pixi-tick',
+        ]
+        if (pixiMessages.includes(event.data.method)) {
+          return // Skip processing Pixi.js messages entirely
+        }
+      }
+
       // Handle WIDGET_AUTH
       if (event.data.type === 'WIDGET_AUTH' && event.data.token) {
         console.log('🔥 [Widget] Processing WIDGET_AUTH event')
@@ -637,7 +687,7 @@ const Widget = () => {
       }
 
       // Only handle other message types if postMessages is enabled
-      if (!postMessagesEnabled) {
+      if (!config.postMessages) {
         return
       }
 
@@ -853,10 +903,6 @@ const Widget = () => {
 
       // Handle parent's actual message format: {message: {...}}
       if (event.data.message && !event.data.type) {
-        console.log(
-          '🔥 [Widget] === PROCESSING ACTUAL PARENT MESSAGE FORMAT ==='
-        )
-
         // Try to extract content from the message object
         const messageObj = event.data.message
 
@@ -872,10 +918,20 @@ const Widget = () => {
           ]
 
           if (systemMessages.includes(messageObj.type)) {
-            console.log(
-              '🔥 [Widget] 📡 Ignoring system message:',
-              messageObj.type
-            )
+            return
+          }
+        }
+
+        // Filter out Pixi.js internal messages
+        if (messageObj && typeof messageObj === 'object' && messageObj.method) {
+          const pixiMessages = [
+            'pixi-inactive',
+            'pixi-active',
+            'pixi-resize',
+            'pixi-tick',
+          ]
+
+          if (pixiMessages.includes(messageObj.method)) {
             return
           }
         }
@@ -933,15 +989,29 @@ const Widget = () => {
         return
       }
 
+      // Handle Pixi.js internal messages (direct method property)
+      if (event.data.method) {
+        const pixiMessages = [
+          'pixi-inactive',
+          'pixi-active',
+          'pixi-resize',
+          'pixi-tick',
+        ]
+
+        if (pixiMessages.includes(event.data.method)) {
+          return
+        }
+      }
+
       // Handle unknown message types
-      console.log('[Widget] Unhandled message type:', event.data.type)
+      // Silently ignore unknown message types to reduce console spam
+      // console.log('[Widget] Unhandled message type:', event.data.type)
     }
 
     window.addEventListener('message', handleAllMessages)
     console.log('🔧 Widget message listener added successfully')
 
     // Notify parent that widget is ready
-    console.log('🔧 Widget sending WIDGET_READY to parent...')
     window.parent.postMessage({ type: 'WIDGET_READY' }, '*')
 
     // Auth timeout
@@ -960,7 +1030,7 @@ const Widget = () => {
       window.removeEventListener('message', handleAllMessages)
       clearTimeout(timeout)
     }
-  }, [postMessagesEnabled, isAuthenticated]) // Removed handleMatchmakingResponse to prevent re-mounting loop
+  }, []) // Removed dependencies to prevent re-mounting and multiple listeners
 
   // Debug: Status logger to show current widget state (disabled to prevent remounting)
   // useEffect(() => {
@@ -1294,8 +1364,11 @@ const Widget = () => {
   return (
     <>
       {/* PNG mode: overlay with emotion-based PNG */}
-      {modelType === 'png' && (
-        <PngEmotionDisplay emotionImage={emotionImage} emotionLabel={emotion} />
+      {modelType === 'png' && emotionImage && emotion && (
+        <PngEmotionDisplay
+          emotionImage={emotionImage || ''}
+          emotionLabel={emotion || ''}
+        />
       )}
       {/* VID mode: fullscreen video background with overlay */}
       {modelType === 'vid' && (
@@ -1303,20 +1376,7 @@ const Widget = () => {
           <div
             className="flex flex-col items-center justify-center"
             style={{ marginTop: '-150px' }} // Move content up by 150px like PNG mode
-          >
-            <span
-              className="text-pink-500 font-bold text-2xl mb-2"
-              style={{ textShadow: '0 2px 8px #18181b, 0 0 2px #000' }}
-            >
-              Hey there! I&apos;m Emi
-            </span>
-            <span
-              className="text-white text-lg"
-              style={{ textShadow: '0 2px 8px #18181b, 0 0 2px #000' }}
-            >
-              Ask me for amazing creators and content
-            </span>
-          </div>
+          ></div>
         </VidBackgroundDisplay>
       )}
       {/* Existing widget/model area for other modes */}
@@ -1349,18 +1409,6 @@ const Widget = () => {
                   priority
                   unoptimized
                 />
-                <span
-                  className="text-pink-500 font-bold text-2xl mb-2"
-                  style={{ textShadow: '0 2px 8px #18181b, 0 0 2px #000' }}
-                >
-                  Hey there! I&apos;m Emi
-                </span>
-                <span
-                  className="text-white text-lg"
-                  style={{ textShadow: '0 2px 8px #18181b, 0 0 2px #000' }}
-                >
-                  Ask me for amazing creators and content
-                </span>
               </div>
             )}
             {/* Main widget content (was previously inside the else) */}
