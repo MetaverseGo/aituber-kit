@@ -600,11 +600,10 @@ const Widget = () => {
   ])
 
   // PNG mode integration
-  const emotionImageState =
-    modelType === 'png' ? useEmotionImage('neutral') : undefined
-  const emotionImage = emotionImageState?.[0]
-  const setEmotion = emotionImageState?.[1]
-  const emotion = emotionImageState?.[2]
+  const emotionImageState = useEmotionImage('neutral')
+  const emotionImage = modelType === 'png' ? emotionImageState?.[0] : undefined
+  const setEmotion = modelType === 'png' ? emotionImageState?.[1] : undefined
+  const emotion = modelType === 'png' ? emotionImageState?.[2] : undefined
 
   // VID mode integration
   const [videoSrc, setVideoSrc, videoLabel] = useVideoSource(
@@ -648,18 +647,15 @@ const Widget = () => {
     [setEmotion, setVideoSrc]
   )
 
-  // Memoize postMessages to prevent unnecessary re-renders
+  // Memoize config.postMessages to avoid unnecessary re-renders
   const postMessagesEnabled = useMemo(
     () => config.postMessages,
     [config.postMessages]
   )
 
   // Listen for all widget events (auth, chat, config, etc.)
-  useEffect(() => {
-    const effectId = Math.random().toString(36).substr(2, 9)
-    console.log(`🔧 Widget message listener useEffect #${effectId} running...`)
-
-    function handleAllMessages(event: MessageEvent) {
+  const handleAllMessages = useCallback(
+    (event: MessageEvent) => {
       if (!event.data) {
         return
       }
@@ -687,7 +683,7 @@ const Widget = () => {
       }
 
       // Only handle other message types if postMessages is enabled
-      if (!config.postMessages) {
+      if (!postMessagesEnabled) {
         return
       }
 
@@ -1006,7 +1002,13 @@ const Widget = () => {
       // Handle unknown message types
       // Silently ignore unknown message types to reduce console spam
       // console.log('[Widget] Unhandled message type:', event.data.type)
-    }
+    },
+    [postMessagesEnabled, handleMatchmakingResponse]
+  ) // No dependencies needed since we're using closure values
+
+  useEffect(() => {
+    const effectId = Math.random().toString(36).substr(2, 9)
+    console.log(`🔧 Widget message listener useEffect #${effectId} running...`)
 
     window.addEventListener('message', handleAllMessages)
     console.log('🔧 Widget message listener added successfully')
@@ -1030,7 +1032,7 @@ const Widget = () => {
       window.removeEventListener('message', handleAllMessages)
       clearTimeout(timeout)
     }
-  }, []) // Removed dependencies to prevent re-mounting and multiple listeners
+  }, [handleAllMessages, isAuthenticated]) // Include both dependencies
 
   // Debug: Status logger to show current widget state (disabled to prevent remounting)
   // useEffect(() => {
@@ -1118,6 +1120,11 @@ const Widget = () => {
     }
   }, [checkCompletionStatus])
 
+  // Make the handler available globally for the chat handler
+  useEffect(() => {
+    ;(window as any).handleMatchmakingResponse = handleMatchmakingResponse
+  }, [handleMatchmakingResponse])
+
   // Parse URL parameters and PostMessage config
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search)
@@ -1191,7 +1198,7 @@ const Widget = () => {
     if (urlConfig.model) {
       settingsStore.setState({ selectAIModel: urlConfig.model })
     }
-  }, []) // Fixed: Only run once on mount, not when config changes
+  }, [config]) // Added config as a dependency
 
   // Send chat updates to parent
   useEffect(() => {
@@ -1320,11 +1327,6 @@ const Widget = () => {
       }
     }
   }, [isAuthenticated, authChecked, config.postMessages])
-
-  // Make the handler available globally for the chat handler
-  useEffect(() => {
-    ;(window as any).handleMatchmakingResponse = handleMatchmakingResponse
-  }, [handleMatchmakingResponse])
 
   const getThemeClasses = () => {
     if (config.backgroundColor) return ''
