@@ -401,8 +401,32 @@ const getModelType = () => {
 // Define modelType outside the component
 const modelType = getModelType()
 
+// CRITICAL: Define initial widget config outside component to prevent re-creation on every render
+// This prevents remounting loops - see WIDGET_REMOUNTING_FIX.md for details
+const INITIAL_WIDGET_CONFIG: WidgetConfig = {
+  width: '800px',
+  height: '600px',
+  theme: 'light',
+  showBackground: true,
+  showCharacter: true,
+  showInput: true,
+  showChatLog: true,
+  showSettingsButton: false,
+  autoFocus: true,
+  postMessages: true,
+  allowFullscreen: false,
+  showVrmExpressionTester: false,
+  disableTTS: false,
+  showProfileOverlay: false,
+}
+
 const Widget = () => {
   console.log('🔧 Widget component mounting...')
+
+  // ⚠️  CRITICAL REMOUNTING WARNING ⚠️
+  // This component previously had infinite remounting loops
+  // BEFORE making changes, read WIDGET_REMOUNTING_FIX.md
+  // Test remounting behavior after ANY useEffect or state changes
 
   // Global message listener that's always active - for debugging
   // DISABLED to reduce console spam from Pixi.js messages
@@ -458,22 +482,7 @@ const Widget = () => {
   const router = useRouter()
   const chatScrollRef = useRef<HTMLDivElement>(null)
   const chatScrollRefHidden = useRef<HTMLDivElement>(null)
-  const [config, setConfig] = useState<WidgetConfig>({
-    width: '800px',
-    height: '600px',
-    theme: 'light',
-    showBackground: true,
-    showCharacter: true,
-    showInput: true,
-    showChatLog: true,
-    showSettingsButton: false,
-    autoFocus: true,
-    postMessages: true,
-    allowFullscreen: false,
-    showVrmExpressionTester: false,
-    disableTTS: false,
-    showProfileOverlay: false,
-  })
+  const [config, setConfig] = useState<WidgetConfig>(INITIAL_WIDGET_CONFIG)
 
   console.log('🔧 Widget initial config:', config)
 
@@ -549,9 +558,17 @@ const Widget = () => {
     authError,
   })
 
+  // CRITICAL: Memoize config.postMessages to provide stable reference for useEffect dependencies
+  // This prevents remounting loops caused by changing object references
+  // See WIDGET_REMOUNTING_FIX.md for details
+  const postMessagesEnabled = useMemo(
+    () => config.postMessages,
+    [config.postMessages]
+  )
+
   // Function to send chat history to parent
   const sendChatHistoryToParent = useCallback(() => {
-    if (!config.postMessages) return
+    if (!postMessagesEnabled) return
 
     const currentChatLog = homeStore.getState().chatLog
     console.log(
@@ -584,11 +601,11 @@ const Widget = () => {
       },
       '*'
     )
-  }, [config.postMessages])
+  }, [postMessagesEnabled])
 
   // Send chat history when user becomes authenticated
   useEffect(() => {
-    if (isAuthenticated && authChecked && config.postMessages) {
+    if (isAuthenticated && authChecked && postMessagesEnabled) {
       console.log('🎪 Widget - User authenticated, sending chat history...')
       sendChatHistoryToParent()
     }
@@ -596,7 +613,7 @@ const Widget = () => {
     isAuthenticated,
     authChecked,
     sendChatHistoryToParent,
-    config.postMessages,
+    postMessagesEnabled,
   ])
 
   // PNG mode integration
@@ -647,20 +664,11 @@ const Widget = () => {
     [setEmotion, setVideoSrc]
   )
 
-  // Memoize config.postMessages to avoid unnecessary re-renders
-  const postMessagesEnabled = useMemo(
-    () => config.postMessages,
-    [config.postMessages]
-  )
-
-  // Listen for all widget events (auth, chat, config, etc.)
+  // 1. Refactor handleAllMessages to use useCallback and move it above the useEffect
   const handleAllMessages = useCallback(
     (event: MessageEvent) => {
-      if (!event.data) {
-        return
-      }
-
-      // Filter out Pixi.js internal messages early to prevent spam
+      if (!event.data) return
+      // Pixi.js spam filter
       if (event.data.method) {
         const pixiMessages = [
           'pixi-inactive',
@@ -668,35 +676,20 @@ const Widget = () => {
           'pixi-resize',
           'pixi-tick',
         ]
-        if (pixiMessages.includes(event.data.method)) {
-          return // Skip processing Pixi.js messages entirely
-        }
+        if (pixiMessages.includes(event.data.method)) return
       }
-
-      // Handle WIDGET_AUTH
       if (event.data.type === 'WIDGET_AUTH' && event.data.token) {
-        console.log('🔥 [Widget] Processing WIDGET_AUTH event')
         setIsAuthenticated(true)
         setAuthChecked(true)
         setAuthError(null)
         return
       }
-
-      // Only handle other message types if postMessages is enabled
-      if (!postMessagesEnabled) {
-        return
-      }
-
-      // Handle WIDGET_CONFIG
+      if (!postMessagesEnabled) return
       if (event.data.type === 'WIDGET_CONFIG') {
-        console.log('[Widget] Processing WIDGET_CONFIG event')
         setConfig((prev) => ({ ...prev, ...event.data.config }))
         return
       }
-
-      // Handle SEND_MESSAGE (legacy)
       if (event.data.type === 'SEND_MESSAGE') {
-        console.log('[Widget] Processing SEND_MESSAGE event (legacy)')
         const form = document.querySelector('form')
         const input = form?.querySelector(
           'input[type="text"]'
@@ -707,38 +700,19 @@ const Widget = () => {
         }
         return
       }
-
-      // Handle CHAT_MESSAGE_SEND
       if (event.data.type === 'CHAT_MESSAGE_SEND') {
-        console.log('🔥 [Widget] === PROCESSING CHAT_MESSAGE_SEND ===')
-
-        const { content, media, timestamp, userId } = event.data.data || {}
-
+        const { content } = event.data.data || {}
         if (content && typeof content === 'string') {
-          console.log('🔥 [Widget] ✅ Content validation passed!')
-
-          // Check if we have an auth token before processing
           const currentToken = getCurrentWidgetAuthToken()
-
           if (!currentToken) {
-            console.error(
-              '🔥 [Widget] ❌ No auth token - cannot process message'
-            )
             window.parent.postMessage(
               { type: 'WIDGET_ERROR', reason: 'no_auth_token' },
               '*'
             )
             return
           }
-
-          // Process through the widget chat handler
-          console.log(
-            '🔥 [Widget] ✅ Auth check passed - calling widget chat handler...'
-          )
-
           const widgetChatHandler = handleWidgetChatFn()
           widgetChatHandler(content).catch((error) => {
-            console.error('🔥 [Widget] ❌ Chat handler error:', error)
             window.parent.postMessage(
               {
                 type: 'WIDGET_ERROR',
@@ -748,80 +722,34 @@ const Widget = () => {
               '*'
             )
           })
-        } else {
-          console.error('🔥 [Widget] ❌ Content validation failed!')
         }
         return
       }
-
-      // Handle CLEAR_CHAT
       if (event.data.type === 'CLEAR_CHAT') {
-        console.log('[Widget] Processing CLEAR_CHAT event')
         homeStore.setState({ chatLog: [] })
         return
       }
-
-      // Handle WIDGET_EMOTION_UPDATE
       if (event.data.type === 'WIDGET_EMOTION_UPDATE') {
-        console.log('🎭 [Widget] Processing WIDGET_EMOTION_UPDATE event')
-        console.log('🎭 [Widget] Emotion data:', event.data.data)
-
         const emotion = event.data.data?.emotion
-        if (emotion) {
-          console.log(
-            '🎭 [Widget] Calling handleMatchmakingResponse with emotion:',
-            emotion
-          )
-          console.log('🎭 [Widget] Current modelType:', modelType)
-          handleMatchmakingResponse({ emotion })
-        } else {
-          console.log(
-            '🎭 [Widget] No emotion found in WIDGET_EMOTION_UPDATE event'
-          )
-        }
+        if (emotion) handleMatchmakingResponse({ emotion })
         return
       }
-
-      // Handle CHAT_ACTION_CARD_CLICK
       if (event.data.type === 'CHAT_ACTION_CARD_CLICK') {
-        console.log('🔥 [Widget] === PROCESSING CHAT_ACTION_CARD_CLICK ===')
-
-        const { actionId, actionType, actionData, timestamp, userId } =
-          event.data.data || {}
-
-        // Handle send_message action type
+        const { actionId, actionType, actionData } = event.data.data || {}
         if (actionType === 'send_message') {
-          console.log('🔥 [Widget] ✅ Send message action detected!')
-
-          // Extract message from actionData
           const messageToSend =
             actionData?.message || actionData?.text || actionData?.content
-
           if (messageToSend && typeof messageToSend === 'string') {
-            console.log('🔥 [Widget] ✅ Message validation passed!')
-
-            // Check if we have an auth token before processing
             const currentToken = getCurrentWidgetAuthToken()
-
             if (!currentToken) {
-              console.error(
-                '🔥 [Widget] ❌ No auth token - cannot process message'
-              )
               window.parent.postMessage(
                 { type: 'WIDGET_ERROR', reason: 'no_auth_token' },
                 '*'
               )
               return
             }
-
-            // Process through the widget chat handler (same as regular user messages)
-            console.log(
-              '🔥 [Widget] ✅ Auth check passed - calling widget chat handler...'
-            )
-
             const widgetChatHandler = handleWidgetChatFn()
             widgetChatHandler(messageToSend).catch((error) => {
-              console.error('🔥 [Widget] ❌ Chat handler error:', error)
               window.parent.postMessage(
                 {
                   type: 'WIDGET_ERROR',
@@ -831,34 +759,13 @@ const Widget = () => {
                 '*'
               )
             })
-          } else {
-            console.error('🔥 [Widget] ❌ Message validation failed!')
           }
         } else if (actionId && typeof actionId === 'string') {
-          console.log('🔥 [Widget] ✅ ActionId validation passed!')
-
-          // Generate profile cards based on actionId (async)
           generateProfileCards(actionId)
             .then((profileCards) => {
-              console.log(
-                '🔥 [Widget] Generated profile cards:',
-                profileCards.length
-              )
-
-              if (profileCards.length === 0) {
-                console.error('🔥 [Widget] No profile cards generated')
-                return
-              }
-
-              // Select one random profile card to send
+              if (profileCards.length === 0) return
               const selectedProfile =
                 profileCards[Math.floor(Math.random() * profileCards.length)]
-              console.log(
-                '🔥 [Widget] Selected profile card:',
-                selectedProfile.name
-              )
-
-              // Send single CHAT_MESSAGE_RECEIVE message
               window.parent.postMessage(
                 {
                   type: 'CHAT_MESSAGE_RECEIVE',
@@ -874,14 +781,8 @@ const Widget = () => {
                 },
                 '*'
               )
-
-              console.log('🔥 [Widget] Profile card sent successfully')
             })
             .catch((error) => {
-              console.error(
-                '🔥 [Widget] ❌ Error generating profile cards:',
-                error
-              )
               window.parent.postMessage(
                 {
                   type: 'WIDGET_ERROR',
@@ -891,121 +792,21 @@ const Widget = () => {
                 '*'
               )
             })
-        } else {
-          console.error('🔥 [Widget] ❌ ActionId validation failed!')
         }
         return
       }
-
-      // Handle parent's actual message format: {message: {...}}
-      if (event.data.message && !event.data.type) {
-        // Try to extract content from the message object
-        const messageObj = event.data.message
-
-        // Filter out system messages
-        if (messageObj && typeof messageObj === 'object' && messageObj.type) {
-          const systemMessages = [
-            'initialize-post-message-connection',
-            'post-message-connection-established',
-            'connection-ack',
-            'heartbeat',
-            'ping',
-            'pong',
-          ]
-
-          if (systemMessages.includes(messageObj.type)) {
-            return
-          }
-        }
-
-        // Filter out Pixi.js internal messages
-        if (messageObj && typeof messageObj === 'object' && messageObj.method) {
-          const pixiMessages = [
-            'pixi-inactive',
-            'pixi-active',
-            'pixi-resize',
-            'pixi-tick',
-          ]
-
-          if (pixiMessages.includes(messageObj.method)) {
-            return
-          }
-        }
-
-        let content = null
-
-        // Try different possible content fields
-        if (typeof messageObj === 'string') {
-          content = messageObj
-        } else if (messageObj && typeof messageObj === 'object') {
-          content =
-            messageObj.content ||
-            messageObj.text ||
-            messageObj.message ||
-            messageObj.data
-        }
-
-        if (content && typeof content === 'string') {
-          console.log('🔥 [Widget] ✅ Content validation passed!')
-
-          // Check if we have an auth token before processing
-          const currentToken = getCurrentWidgetAuthToken()
-
-          if (!currentToken) {
-            console.error(
-              '🔥 [Widget] ❌ No auth token - cannot process message'
-            )
-            window.parent.postMessage(
-              { type: 'WIDGET_ERROR', reason: 'no_auth_token' },
-              '*'
-            )
-            return
-          }
-
-          // Process through the widget chat handler
-          console.log(
-            '🔥 [Widget] ✅ Auth check passed - calling widget chat handler...'
-          )
-
-          const widgetChatHandler = handleWidgetChatFn()
-          widgetChatHandler(content).catch((error) => {
-            console.error('🔥 [Widget] ❌ Chat handler error:', error)
-            window.parent.postMessage(
-              {
-                type: 'WIDGET_ERROR',
-                reason: 'chat_handler_error',
-                error: String(error),
-              },
-              '*'
-            )
-          })
-        } else {
-          console.error('🔥 [Widget] ❌ Content validation failed!')
-        }
-        return
-      }
-
-      // Handle Pixi.js internal messages (direct method property)
-      if (event.data.method) {
-        const pixiMessages = [
-          'pixi-inactive',
-          'pixi-active',
-          'pixi-resize',
-          'pixi-tick',
-        ]
-
-        if (pixiMessages.includes(event.data.method)) {
-          return
-        }
-      }
-
-      // Handle unknown message types
-      // Silently ignore unknown message types to reduce console spam
-      // console.log('[Widget] Unhandled message type:', event.data.type)
     },
-    [postMessagesEnabled, handleMatchmakingResponse]
-  ) // No dependencies needed since we're using closure values
+    [
+      postMessagesEnabled,
+      handleMatchmakingResponse,
+      setConfig,
+      setIsAuthenticated,
+      setAuthChecked,
+      setAuthError,
+    ]
+  )
 
+  // 2. Add handleAllMessages to the useEffect dependency array
   useEffect(() => {
     const effectId = Math.random().toString(36).substr(2, 9)
     console.log(`🔧 Widget message listener useEffect #${effectId} running...`)
@@ -1032,7 +833,8 @@ const Widget = () => {
       window.removeEventListener('message', handleAllMessages)
       clearTimeout(timeout)
     }
-  }, [handleAllMessages, isAuthenticated]) // Include both dependencies
+    // CRITICAL: handleAllMessages is now a stable useCallback. See WIDGET_REMOUNTING_FIX.md
+  }, [handleAllMessages, isAuthenticated])
 
   // Debug: Status logger to show current widget state (disabled to prevent remounting)
   // useEffect(() => {
@@ -1126,6 +928,7 @@ const Widget = () => {
   }, [handleMatchmakingResponse])
 
   // Parse URL parameters and PostMessage config
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- CRITICAL: Do NOT add config to dependencies, see WIDGET_REMOUNTING_FIX.md
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search)
     const urlConfig: Partial<WidgetConfig> = {}
@@ -1198,11 +1001,12 @@ const Widget = () => {
     if (urlConfig.model) {
       settingsStore.setState({ selectAIModel: urlConfig.model })
     }
-  }, [config]) // Added config as a dependency
+  }, []) // CRITICAL: Only run once on mount, not when config changes
+  // Adding [config] here causes infinite remounting loop - see WIDGET_REMOUNTING_FIX.md
 
   // Send chat updates to parent
   useEffect(() => {
-    if (!config.postMessages) return
+    if (!postMessagesEnabled) return
 
     window.parent.postMessage(
       {
@@ -1211,7 +1015,7 @@ const Widget = () => {
       },
       '*'
     )
-  }, [chatLog, config.postMessages])
+  }, [chatLog, postMessagesEnabled])
 
   // Auto-scroll chat to bottom when new messages are added
   useEffect(() => {
@@ -1278,7 +1082,7 @@ const Widget = () => {
               })
 
               // Send the assistant response to parent window (same as regular chat)
-              if (config.postMessages) {
+              if (postMessagesEnabled) {
                 window.parent.postMessage(
                   { type: 'WIDGET_CHAT_DONE', message: data.message },
                   '*'
@@ -1307,7 +1111,7 @@ const Widget = () => {
         '🎪 Widget - Found existing chat history, sending to parent...'
       )
       // Call sendChatHistoryToParent directly without dependency
-      if (config.postMessages) {
+      if (postMessagesEnabled) {
         const currentChatLog = homeStore.getState().chatLog
         if (currentChatLog.length > 0) {
           const recentMessages = currentChatLog.slice(-2).map((msg) => ({
@@ -1326,7 +1130,7 @@ const Widget = () => {
         }
       }
     }
-  }, [isAuthenticated, authChecked, config.postMessages])
+  }, [isAuthenticated, authChecked, postMessagesEnabled])
 
   const getThemeClasses = () => {
     if (config.backgroundColor) return ''
@@ -1444,7 +1248,7 @@ const Widget = () => {
             {config.allowFullscreen && (
               <button
                 onClick={() => {
-                  if (config.postMessages) {
+                  if (postMessagesEnabled) {
                     window.parent.postMessage(
                       { type: 'TOGGLE_FULLSCREEN' },
                       '*'
