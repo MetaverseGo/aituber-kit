@@ -628,6 +628,18 @@ const Widget = () => {
     'neutral'
   )
 
+  // Handle video end event - return to neutral after emotion videos
+  const handleVideoEnd = useCallback(() => {
+    console.log('🎬 [Widget] Video ended, returning to neutral:', {
+      videoLabel,
+      videoSrc,
+    })
+    if (videoLabel !== 'neutral') {
+      console.log('🎬 [Widget] Setting video back to neutral')
+      setVideoSrc('/vids/emigg/neutral.mp4', 'neutral')
+    }
+  }, [videoLabel, videoSrc, setVideoSrc])
+
   // Add this handler function inside the Widget component:
   const handleMatchmakingResponse = useCallback(
     (data: any) => {
@@ -1178,7 +1190,7 @@ const Widget = () => {
       )}
       {/* VID mode: fullscreen video background with overlay */}
       {modelType === 'vid' && (
-        <VidBackgroundDisplay videoSrc={videoSrc}>
+        <VidBackgroundDisplay videoSrc={videoSrc} onVideoEnd={handleVideoEnd}>
           <div
             className="flex flex-col items-center justify-center"
             style={{ marginTop: '-150px' }} // Move content up by 150px like PNG mode
