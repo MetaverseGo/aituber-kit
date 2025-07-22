@@ -1199,30 +1199,30 @@ export class MatchmakingOrchestrator {
     const question = this.mamaSan.getCurrentQuestion(mamasanState)
     const analysis = await this.mamaSan.analyzeResponse(question, message)
 
-    if (!analysis.answered) {
-      // User didn't really answer the question, ask again with guidance
-      const transitionResponse = await this.mamaSan.getResponseWithTransition(
-        mamasanState,
-        message
-      )
+    // if (!analysis.answered) {
+    //   // User didn't really answer the question, ask again with guidance
+    //   const transitionResponse = await this.mamaSan.getResponseWithTransition(
+    //     mamasanState,
+    //     message
+    //   )
 
-      console.log('🎭 ORCHESTRATOR - Not answered path emotion:', {
-        emotion: 'neutral',
-        emotionType: 'string',
-        reason: 'User did not answer properly',
-      })
+    //   console.log('🎭 ORCHESTRATOR - Not answered path emotion:', {
+    //     emotion: 'neutral',
+    //     emotionType: 'string',
+    //     reason: 'User did not answer properly',
+    //   })
 
-      return {
-        message: transitionResponse,
-        isComplete: false,
-        step: `mamasan_${mamasanState.currentQuestion}`,
-        updatedState: { ...mamasanState },
-        profileUpdates: {},
-        data: {
-          emotion: 'neutral',
-        },
-      }
-    }
+    //   return {
+    //     message: transitionResponse,
+    //     isComplete: false,
+    //     step: `mamasan_${mamasanState.currentQuestion}`,
+    //     updatedState: { ...mamasanState },
+    //     profileUpdates: {},
+    //     data: {
+    //       emotion: 'neutral',
+    //     },
+    //   }
+    // }
 
     // Save answer and move to next question
     const newAnswers = [...mamasanState.answers]
