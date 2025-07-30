@@ -1,12 +1,12 @@
 import { useState, useCallback } from 'react'
 
 const emotionToImage: Record<string, string> = {
-  angry: '/images/emigg/angry.png',
-  happy: '/images/emigg/happy.png',
-  neutral: '/images/emigg/neutral.png',
-  relaxed: '/images/emigg/relaxed.png',
-  sad: '/images/emigg/sad.png',
-  surprised: '/images/emigg/surprised.png',
+  angry: '/images/emigg-v2/angry.png',
+  happy: '/images/emigg-v2/happy.png',
+  neutral: '/images/emigg-v2/neutral.png',
+  relaxed: '/images/emigg-v2/relaxed.png',
+  sad: '/images/emigg-v2/sad.png',
+  surprised: '/images/emigg-v2/surprised.png',
 }
 
 export function useEmotionImage(initialEmotion: string = 'neutral') {
