@@ -271,16 +271,19 @@ Format: ["response1", "response2", "response3"]`
   private getFallbackTopic(): { topic: string; question: string } {
     const fallbacks = [
       {
-        topic: 'recent fun',
-        question: 'so what have you been up to for fun lately?',
+        topic: 'anime preferences',
+        question:
+          'what kind of anime gets you hooked? any favorites that made you stay up way too late?',
       },
       {
-        topic: 'hidden talents',
-        question: 'do you have any secret talents or weird skills?',
+        topic: 'gaming habits',
+        question:
+          'been playing anything addictive lately? what games have been stealing your time?',
       },
       {
-        topic: 'favorite things',
-        question: 'what is something you could talk about for hours?',
+        topic: 'online connections',
+        question:
+          'what do you find most attractive about meeting people online versus in person?',
       },
     ]
     return fallbacks[Math.floor(Math.random() * fallbacks.length)]
